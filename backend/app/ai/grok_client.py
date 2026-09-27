@@ -1,6 +1,7 @@
-"""Server-side Grok (xAI) client. The API key never leaves the backend.
+"""Server-side AI client. The API key never leaves the backend.
 
-xAI exposes an OpenAI-compatible Chat Completions API at {GROK_BASE_URL}/chat/completions.
+Works with any OpenAI-compatible Chat Completions API at {GROK_BASE_URL}/chat/completions:
+xAI Grok (default, per PRD) or Groq (auto-selected for "gsk_" keys).
 """
 
 from __future__ import annotations
@@ -37,15 +38,19 @@ class GrokClient:
             raise AIUnavailable("GROK_API_KEY is not configured")
         url = self.settings.grok_base_url.rstrip("/") + "/chat/completions"
         payload = {"model": self.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, "stream": False}
+        if "gpt-oss" in self.model:
+            # Reasoning model: reasoning tokens count toward max_tokens, so keep it brief, give headroom,
+            # and don't return the chain of thought (we only show/validate the final answer).
+            payload.update(reasoning_effort="low", include_reasoning=False, max_tokens=max_tokens + 1024)
         try:
             with httpx.Client(timeout=self.settings.grok_timeout_seconds, transport=self._transport) as client:
                 resp = client.post(url, json=payload, headers={"Authorization": f"Bearer {key}"})
         except httpx.HTTPError as exc:
-            log.warning("Grok request failed: %s", type(exc).__name__)
+            log.warning("AI request failed (%s): %s", self.settings.ai_provider, type(exc).__name__)
             raise AIUnavailable("AI provider request failed") from exc
         if resp.status_code != 200:
             # Never log the request body (contains health context) or the key.
-            log.warning("Grok returned HTTP %s", resp.status_code)
+            log.warning("AI provider %s returned HTTP %s", self.settings.ai_provider, resp.status_code)
             raise AIUnavailable(f"AI provider returned HTTP {resp.status_code}")
         try:
             content = resp.json()["choices"][0]["message"]["content"]

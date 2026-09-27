@@ -5,8 +5,11 @@ Secrets (JWT_SECRET, GROK_API_KEY, DATABASE_URL) live ONLY on the server.
 
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
 
 
 class Settings(BaseSettings):
@@ -21,7 +24,9 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 30
     audit_ip_salt: str = "dev-insecure-audit-salt-change-me-please"
 
-    grok_api_key: str | None = None
+    # AI provider (OpenAI-compatible Chat Completions). Defaults target xAI Grok per the PRD.
+    # A Groq key ("gsk_…", also accepted as GROQ_API_KEY) switches the defaults to Groq automatically.
+    grok_api_key: str | None = Field(default=None, validation_alias=AliasChoices("GROK_API_KEY", "GROQ_API_KEY", "grok_api_key"))
     grok_model: str = "grok-4.7"
     grok_base_url: str = "https://api.x.ai/v1"
     grok_timeout_seconds: float = 30.0
@@ -43,6 +48,20 @@ class Settings(BaseSettings):
         if v.startswith("postgresql://"):
             v = "postgresql+psycopg://" + v[len("postgresql://") :]
         return v
+
+    @model_validator(mode="after")
+    def _groq_defaults(self):
+        if self.grok_api_key and self.grok_api_key.startswith("gsk_"):
+            if "grok_base_url" not in self.model_fields_set:
+                self.grok_base_url = GROQ_BASE_URL
+            if "grok_model" not in self.model_fields_set:
+                self.grok_model = GROQ_DEFAULT_MODEL
+        return self
+
+    @property
+    def ai_provider(self) -> str:
+        url = self.grok_base_url.lower()
+        return "groq" if "groq.com" in url else "xai" if "x.ai" in url else "custom"
 
     @property
     def is_production(self) -> bool:

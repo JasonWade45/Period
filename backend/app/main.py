@@ -85,6 +85,7 @@ def health():
         "status": "ok" if db_ok else "degraded",
         "database": db_ok,
         "ai_configured": bool(settings.grok_api_key),
+        "ai_provider": settings.ai_provider if settings.grok_api_key else None,
         "ruleset_version": load_rules_config()["ruleset_version"],
         "content_version": load_content()["content_version"],
     }
