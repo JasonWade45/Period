@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CycleCare — معاينة</title>
+<title>CycleCare · تسنيمو 🌸</title>
 <style>
   :root{--bg:#fbf7f8;--card:#fff;--ink:#2b2130;--muted:#7a6d80;--brand:#b8457a;--brand2:#f3dbe7;
         --ok:#2f8f5b;--mon:#b98a12;--rev:#c46a1b;--urg:#c0392b;--emg:#8e0f1f;--line:#eee3e8}
@@ -41,29 +41,76 @@
   .disclaimer{font-size:12px;color:var(--muted);text-align:center;padding:10px 16px 24px}
   #err{color:var(--urg);font-size:13px}
   a{color:var(--brand)}
+  .tab{min-width:150px}
+  details summary{list-style:revert}
 </style>
 </head>
 <body>
 <header>
-  <h1>CycleCare 🌸</h1>
-  <p>افهمي دورتك. تتبّعي أعراضك. واعرفي متى يستحق النمط الانتباه.</p>
+  <div class="row" style="justify-content:space-between">
+    <div>
+      <h1>CycleCare · تسنيمو 🌸</h1>
+      <p>معمول مخصوص لتسنيمو، بكل حب 💗 — افهمي دورتك، تابعي أعراضك، واعرفي إمتى النمط يستاهل انتباه.</p>
+    </div>
+    <button id="logoutBtn" class="ghost hidden" style="background:transparent;color:#fff;border-color:#fff">خروج</button>
+  </div>
 </header>
 
-<main id="login" class="">
-  <section class="card wide">
-    <h2>تسجيل الدخول (حساب تجريبي)</h2>
-    <div class="row" style="flex-wrap:wrap">
-      <input id="email" value="demo@cyclecare.app" style="max-width:260px" dir="ltr">
-      <input id="password" type="password" value="demo-password-123" style="max-width:220px" dir="ltr">
-      <button id="loginBtn">دخول</button>
-      <a href="/docs" target="_blank">توثيق الـAPI ↗</a>
+<main id="login">
+  <section class="card wide" style="text-align:center">
+    <p style="font-size:44px;margin:0">🌸</p>
+    <h2 style="font-size:22px">أهلًا يا تسنيمو</h2>
+    <p class="muted" style="margin-top:0">المكان ده بتاعك إنتِ بس — بياناتك محمية بكلمة سر إنتِ اللي بتختاريها.</p>
+    <div class="row" style="justify-content:center;margin:10px 0">
+      <button id="tabNew" class="tab">أول مرة؟ اعملي حسابك</button>
+      <button id="tabLogin" class="tab ghost">عندي حساب</button>
     </div>
-    <p id="err"></p>
-    <p class="muted">هذه صفحة معاينة للـbackend فقط — تطبيق الموبايل هو المرحلة القادمة.</p>
+    <div style="max-width:360px;margin:0 auto;display:grid;gap:8px">
+      <input id="email" type="email" placeholder="الإيميل" dir="ltr" autocomplete="username">
+      <input id="password" type="password" placeholder="كلمة السر (10 حروف على الأقل)" dir="ltr" autocomplete="current-password">
+      <button id="authBtn">يلا نبدأ 💗</button>
+      <p id="err"></p>
+    </div>
+    <p class="muted">عايزة تتفرجي الأول؟ <a href="#" id="demoLink">جرّبي بحساب تجريبي فيه بيانات مثال</a> · <a href="/docs" target="_blank">توثيق الـAPI</a></p>
   </section>
 </main>
 
 <main id="app" class="hidden">
+  <section class="card wide hidden" id="onboard">
+    <h2>يلا نبدأ يا تسنيمو ✨</h2>
+    <p style="margin-top:0">عشان أقدر أحسب دورتك وأتوقع الجاية، ضيفي تواريخ آخر دورات تفتكريها (كل ما تزيد، التوقع يبقى أدق). لو مش فاكرة غير آخر مرة، مفيش مشكلة.</p>
+    <div id="pastRows" style="display:grid;gap:6px"></div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap">
+      <button class="ghost" id="addRow">+ دورة كمان</button>
+      <button id="savePast">حفظ التواريخ</button>
+    </div>
+    <p class="muted" id="pastMsg"></p>
+  </section>
+
+  <section class="card">
+    <h2>الدورة 🩸</h2>
+    <div id="periodState" class="muted">—</div>
+    <div id="flowBox" class="hidden" style="margin-top:10px">
+      <p class="muted" style="margin:0 0 4px">النزيف النهارده عامل إزاي؟</p>
+      <div class="row" style="flex-wrap:wrap" id="flowBtns"></div>
+      <div style="margin-top:6px">
+        <label class="chk"><input type="checkbox" id="fFreq"> بغيّر كل ساعة أو ساعتين</label>
+        <label class="chk"><input type="checkbox" id="fDouble"> بستخدم حاجتين مع بعض</label>
+        <label class="chk"><input type="checkbox" id="fLeak"> وصل للهدوم أو السرير</label>
+        <label class="chk"><input type="checkbox" id="fClot"> جلطات أكبر من 2.5 سم</label>
+      </div>
+      <p class="muted" id="flowMsg"></p>
+    </div>
+    <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">ضيفي دورة قديمة</summary>
+      <div class="row" style="margin-top:6px;flex-wrap:wrap">
+        <span class="muted">من</span><input type="date" id="oldStart" style="max-width:160px">
+        <span class="muted">لـ</span><input type="date" id="oldEnd" style="max-width:160px">
+        <button class="ghost" id="oldSave">إضافة</button>
+      </div>
+      <p class="muted" id="oldMsg"></p>
+    </details>
+  </section>
+
   <section class="card">
     <h2>اليوم</h2>
     <p class="muted" id="greet"></p>
@@ -114,7 +161,7 @@
       <button class="ghost ex">ليه الدورة عندي غير منتظمة؟</button>
       <button class="ghost ex">إيه اللي المفروض أسأله للدكتورة؟</button>
     </div>
-    <div class="row"><input id="chatIn" placeholder="اسألي عن دورتك المسجلة…"><button id="sendBtn">إرسال</button></div>
+    <div class="row"><input id="chatIn" placeholder="اسألي يا تسنيمو عن دورتك…"><button id="sendBtn">إرسال</button></div>
     <p class="muted">بدون مفتاح Grok ستظهر رسالة بديلة آمنة. رسائل الطوارئ لا تُرسل للذكاء الاصطناعي أبدًا.</p>
   </section>
 </main>
@@ -129,6 +176,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const SYMPTOMS = {bloating:"انتفاخ",headache:"صداع",fatigue:"إرهاق",nausea:"غثيان",mood_changes:"تقلب المزاج",
   breast_tenderness:"ألم الثدي",bleeding_between_periods:"نزيف بين الدورات",bleeding_after_sex:"نزيف بعد العلاقة",
   painkillers_not_helping:"المسكنات لا تساعد",dizziness:"دوخة",fainting:"إغماء"};
+const VAR = {insufficient_data:"محتاجين دورات أكتر",low:"قليل",moderate:"متوسط",high:"عالي"};
 const CONF = {high:"عالية",medium:"متوسطة",low:"منخفضة"};
 const FLOW = {spotting:"تبقيع",light:"خفيف",medium:"متوسط",heavy:"غزير",very_heavy:"غزير جدًا"};
 const PAIN = {none:"لا يوجد",mild:"خفيف",moderate:"متوسط",severe:"شديد"};
@@ -140,16 +188,59 @@ async function api(path, opts = {}) {
   return body;
 }
 
-$("loginBtn").onclick = async () => {
-  $("err").textContent = ""; $("loginBtn").disabled = true;
+let mode = "new", today = null, openCycle = null;
+function setMode(m) {
+  mode = m;
+  $("tabNew").classList.toggle("ghost", m !== "new"); $("tabLogin").classList.toggle("ghost", m !== "login");
+  $("authBtn").textContent = m === "new" ? "اعملي حسابي 💗" : "دخول";
+  $("password").autocomplete = m === "new" ? "new-password" : "current-password";
+}
+$("tabNew").onclick = () => setMode("new");
+$("tabLogin").onclick = () => setMode("login");
+setMode(localStorage.getItem("cc_has_account") ? "login" : "new");
+if (localStorage.getItem("cc_email")) $("email").value = localStorage.getItem("cc_email");
+
+async function enter(t) {
+  token = t.access_token; sessionStorage.setItem("cc_token", token);
+  $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("logoutBtn").classList.remove("hidden");
+  await refresh();
+}
+$("authBtn").onclick = async () => {
+  $("err").textContent = ""; $("authBtn").disabled = true;
+  const email = $("email").value.trim(), password = $("password").value;
   try {
-    const t = await api("/auth/login", {method: "POST", body: JSON.stringify({email: $("email").value, password: $("password").value})});
-    token = t.access_token;
-    $("login").classList.add("hidden"); $("app").classList.remove("hidden");
-    await refresh();
-  } catch (e) { $("err").textContent = "تعذّر الدخول: " + e.message; }
-  $("loginBtn").disabled = false;
+    let t;
+    if (mode === "new") {
+      if (password.length < 10) { $("err").textContent = "كلمة السر لازم تكون 10 حروف على الأقل 🙏"; $("authBtn").disabled = false; return; }
+      t = await api("/auth/register", {method: "POST", body: JSON.stringify({email, password, display_name: "تسنيمو", language: "ar", timezone: "Africa/Cairo"})});
+    } else {
+      t = await api("/auth/login", {method: "POST", body: JSON.stringify({email, password})});
+    }
+    localStorage.setItem("cc_has_account", "1"); localStorage.setItem("cc_email", email);
+    await enter(t);
+  } catch (e) {
+    const m = e.message;
+    $("err").textContent = /already|exists|registered/i.test(m) ? "الإيميل ده عليه حساب بالفعل — اختاري «عندي حساب»."
+      : /invalid|incorrect|credentials/i.test(m) ? "الإيميل أو كلمة السر مش مظبوطين."
+      : "حصلت مشكلة: " + m;
+  }
+  $("authBtn").disabled = false;
 };
+$("demoLink").onclick = async e => {
+  e.preventDefault();
+  try { await enter(await api("/auth/login", {method: "POST", body: JSON.stringify({email: "demo@cyclecare.app", password: "demo-password-123"})})); }
+  catch (err) { $("err").textContent = "الحساب التجريبي مش متاح: " + err.message; }
+};
+$("logoutBtn").onclick = async () => {
+  try { await api("/auth/logout", {method: "POST", body: "{}"}); } catch {}
+  token = null; sessionStorage.removeItem("cc_token"); location.reload();
+};
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "صباح الخير" : h < 18 ? "نهارك سعيد" : "مساء الخير";
+}
+const fmt = d => d ? new Date(d + "T00:00:00").toLocaleDateString("ar-EG", {day: "numeric", month: "long"}) : "—";
 
 function alertHtml(a) {
   if (!a) return '<p class="muted">لا توجد ملاحظات مقلقة حاليًا.</p>';
@@ -159,21 +250,41 @@ function alertHtml(a) {
 }
 
 async function refresh() {
-  const [d, hist, active] = await Promise.all([api("/dashboard"), api("/analytics/cycles"), api("/medical/findings/active")]);
-  $("greet").textContent = (d.display_name ? "أهلًا " + d.display_name + " · " : "") + d.today;
+  const [d, hist, active, cycles] = await Promise.all([api("/dashboard"), api("/analytics/cycles"), api("/medical/findings/active"), api("/cycles")]);
+  today = d.today;
+  $("greet").textContent = `${greeting()} يا ${d.display_name || "جميلة"} 💗 · ${fmt(d.today)}`;
+  $("onboard").classList.toggle("hidden", d.has_data);
+  if (!d.has_data && !$("pastRows").children.length) { addPastRow(); addPastRow(); }
+  $("oldStart").max = $("oldEnd").max = today;
+  openCycle = cycles.find(c => !c.end_date) || null;
+  const last = cycles[0];
+  if (openCycle) {
+    const day = Math.round((new Date(today) - new Date(openCycle.start_date)) / 864e5) + 1;
+    $("periodState").innerHTML = `<p style="margin:0">الدورة بدأت ${fmt(openCycle.start_date)} — ده <b>اليوم ${day}</b> من النزيف.</p>
+      <div class="row" style="margin-top:8px"><button id="endBtn">خلصت النهارده ✔</button></div>`;
+    $("endBtn").onclick = () => mutate(`/cycles/${openCycle.id}/complete`, {end_date: today}, "periodMsg");
+    $("flowBox").classList.remove("hidden");
+  } else {
+    $("periodState").innerHTML = `<p style="margin:0">${last ? `آخر دورة: ${fmt(last.start_date)} ← ${fmt(last.end_date)}` : "لسه مفيش دورات متسجلة."}</p>
+      <div class="row" style="margin-top:8px"><button id="startBtn">الدورة بدأت النهارده 🩸</button></div>`;
+    $("startBtn").onclick = () => mutate("/cycles", {start_date: today}, "periodMsg");
+    $("flowBox").classList.add("hidden");
+  }
+  $("periodState").insertAdjacentHTML("beforeend", '<p class="muted" id="periodMsg"></p>');
   $("cycleDay").textContent = d.cycle_day ?? "—";
+  if (!d.has_data) $("predReason").textContent = "";
   const p = d.prediction;
-  $("predWindow").textContent = p.available ? `${p.window_start} ← ${p.window_end}` : "غير متاح بعد";
+  $("predWindow").textContent = p.available ? `بين ${fmt(p.window_start)} و ${fmt(p.window_end)}` : "محتاجة بيانات أكتر 🌱";
   $("predConf").textContent = CONF[p.confidence] || "—";
   $("predReason").textContent = p.reason || "";
-  $("sevPill").className = "pill " + d.overall_severity; $("sevPill").textContent = d.overall_severity;
-  $("sevLabel").textContent = d.severity_label;
+  $("sevPill").className = "pill " + d.overall_severity; $("sevPill").textContent = d.severity_label; $("sevPill").title = d.overall_severity;
+  $("sevLabel").textContent = "";
   $("alertBox").innerHTML = alertHtml(d.alert);
 
   const L = d.last_cycle_lengths, max = Math.max(45, ...L);
   $("bars").innerHTML = L.map(n => `<div class="bar ${n < 21 || n > 35 ? "out" : ""}" style="height:${n / max * 100}%"><span>${n}</span></div>`).join("") || '<p class="muted">لا توجد دورات مكتملة بعد.</p>';
   const s = hist.stats;
-  $("stats").textContent = s.cycle_count ? `المتوسط ${s.mean} · الوسيط ${s.median} · من ${s.min} إلى ${s.max} يومًا · التباين: ${s.variability}` : "";
+  $("stats").textContent = s.cycle_count ? `المتوسط ${s.mean} · الوسيط ${s.median} · من ${s.min} إلى ${s.max} يومًا · الاختلاف بين الدورات: ${VAR[s.variability] || s.variability}` : "";
 
   $("history").innerHTML = hist.cycles.slice().reverse().map(c => `<tr><td>${c.index}</td><td>${c.start}</td><td>${c.end ?? "—"}</td>
     <td>${c.cycle_length ?? (c.is_current ? "جارية" : "—")}</td><td>${c.period_days ?? "—"}</td><td>${FLOW[c.peak_flow] ?? "—"}</td><td>${PAIN[c.max_pain] ?? "—"}</td></tr>`).join("");
@@ -183,13 +294,54 @@ async function refresh() {
     <p class="muted" style="margin:4px 0 0">القاعدة v${f.rule_version} · المحتوى v${f.content_version} · الحالة: ${f.status}</p></div>`).join("") : "لا توجد ملاحظات نشطة.";
 }
 
+async function mutate(path, body, msgId, method = "POST") {
+  try {
+    const r = await api(path, {method, body: JSON.stringify(body)});
+    await refresh();
+    const el = $(msgId);
+    if (el) el.innerHTML = "اتسجل ✔" + (r.medical && r.medical.requires_immediate_attention ? alertHtml(r.medical.alert) : "");
+    return r;
+  } catch (e) {
+    const el = $(msgId); const m = e.message;
+    if (el) el.textContent = /already|overlap/i.test(m) ? "في دورة متسجلة في التاريخ ده بالفعل." : "مشكلة: " + m;
+  }
+}
+function addPastRow() {
+  const div = document.createElement("div"); div.className = "row"; div.style.flexWrap = "wrap";
+  div.innerHTML = `<span class="muted">بدأت</span><input type="date" class="ps" style="max-width:160px" max="${today || ""}">
+    <span class="muted">وخلصت</span><input type="date" class="pe" style="max-width:160px" max="${today || ""}">`;
+  $("pastRows").appendChild(div);
+}
+$("addRow").onclick = addPastRow;
+$("savePast").onclick = async () => {
+  const rows = [...$("pastRows").children].map(r => ({start_date: r.querySelector(".ps").value, end_date: r.querySelector(".pe").value || null}))
+    .filter(r => r.start_date).sort((a, b) => a.start_date.localeCompare(b.start_date));
+  if (!rows.length) { $("pastMsg").textContent = "اختاري تاريخ بداية واحد على الأقل."; return; }
+  $("savePast").disabled = true; let ok = 0, errs = [];
+  for (const r of rows) {
+    try { await api("/cycles", {method: "POST", body: JSON.stringify(r)}); ok++; } catch (e) { errs.push(r.start_date + ": " + e.message); }
+  }
+  $("savePast").disabled = false;
+  $("pastMsg").textContent = `اتسجل ${ok} ✔` + (errs.length ? " — ومشاكل: " + errs.join(" · ") : "");
+  $("pastRows").innerHTML = "";
+  await refresh();
+};
+$("oldSave").onclick = () => {
+  if (!$("oldStart").value) { $("oldMsg").textContent = "اختاري تاريخ البداية."; return; }
+  mutate("/cycles", {start_date: $("oldStart").value, end_date: $("oldEnd").value || null}, "oldMsg");
+};
+const FLOW_BTNS = {spotting: "تبقيع", light: "خفيف", medium: "متوسط", heavy: "غزير", very_heavy: "غزير جدًا"};
+$("flowBtns").innerHTML = Object.entries(FLOW_BTNS).map(([k, v]) => `<button class="ghost fl" data-f="${k}">${v}</button>`).join("");
+document.querySelectorAll(".fl").forEach(b => b.onclick = () => mutate("/bleeding", {
+  log_date: today, flow_level: b.dataset.f, frequent_changes: $("fFreq").checked, double_protection: $("fDouble").checked,
+  leakage: $("fLeak").checked, clot_size: $("fClot").checked ? "large" : null}, "flowMsg"));
+
 $("symptoms").innerHTML = Object.entries(SYMPTOMS).map(([k, v]) => `<label class="chk"><input type="checkbox" value="${k}">${v}</label>`).join("");
 $("pain").oninput = () => $("painVal").textContent = $("pain").value;
 $("logBtn").onclick = async () => {
   $("logBtn").disabled = true;
   try {
     const symptoms = [...document.querySelectorAll("#symptoms input:checked")].map(i => i.value);
-    const today = new Date().toISOString().slice(0, 10);
     const r = await api("/symptoms", {method: "POST", body: JSON.stringify({log_date: today, pain_level: +$("pain").value, symptoms, affects_daily_activity: $("affects").checked})});
     $("logResult").innerHTML = "تم الحفظ. التقييم: " + `<span class="pill ${r.medical.overall_severity}">${r.medical.overall_severity}</span>` +
       (r.medical.requires_immediate_attention ? alertHtml(r.medical.alert) : "");
@@ -206,13 +358,15 @@ async function send(text) {
     const r = await api("/ai/chat", {method: "POST", body: JSON.stringify({message: text, conversation_id: conversationId})});
     conversationId = r.conversation_id;
     if (r.safety_alert) addMsg("⚠ " + r.safety_alert.title + "\n" + r.safety_alert.body, "safety");
-    addMsg(r.reply + (r.ai_generated ? "" : `\n\n(رد غير مولّد بالذكاء الاصطناعي: ${r.fallback_reason})`), "bot");
+    if (!(r.safety_alert && r.reply.includes(r.safety_alert.title))) addMsg(r.reply + (r.ai_generated ? "" : `\n\n(رد غير مولّد بالذكاء الاصطناعي: ${r.fallback_reason})`), "bot");
   } catch (e) { addMsg("خطأ: " + e.message, "bot"); }
   $("sendBtn").disabled = false;
 }
 $("sendBtn").onclick = () => send($("chatIn").value);
 $("chatIn").onkeydown = e => { if (e.key === "Enter") send($("chatIn").value); };
 document.querySelectorAll(".ex").forEach(b => b.onclick = () => send(b.textContent));
+const saved = sessionStorage.getItem("cc_token");
+if (saved) { token = saved; enter({access_token: saved}).catch(() => { sessionStorage.removeItem("cc_token"); location.reload(); }); }
 </script>
 </body>
 </html>
