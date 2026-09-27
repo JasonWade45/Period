@@ -1,0 +1,143 @@
+{
+  "ruleset_version": "1.0.0",
+  "reviewed_at": "2026-09-27",
+  "review_status": "draft_pending_clinical_review",
+  "notes": "MVP safety/triage rules. NOT a diagnostic system. Must be reviewed by a qualified clinician before public release.",
+  "rules": {
+    "MR-001": {
+      "version": "1.0",
+      "name": "Irregular cycle interval",
+      "enabled": true,
+      "thresholds": {
+        "min_days": 21,
+        "max_days": 35,
+        "adolescent_age_below": 18,
+        "adolescent_max_days": 45,
+        "window_cycles": 6,
+        "min_out_of_range": 2
+      },
+      "source": "NHS — Irregular periods",
+      "source_url": "https://www.nhs.uk/symptoms/irregular-periods/"
+    },
+    "MR-002": {
+      "version": "1.0",
+      "name": "Prolonged period",
+      "enabled": true,
+      "thresholds": {
+        "max_period_days": 7,
+        "lookback_periods": 6
+      },
+      "source": "NHS — Irregular periods; Heavy periods",
+      "source_url": "https://www.nhs.uk/conditions/heavy-periods/"
+    },
+    "MR-003": {
+      "version": "1.0",
+      "name": "Heavy menstrual bleeding",
+      "enabled": true,
+      "thresholds": {
+        "lookback_days": 90,
+        "acute_window_days": 2,
+        "very_heavy_days_indicator": 2
+      },
+      "source": "NHS — Heavy periods (indicators). Acute escalation (dizziness/fainting): clinical review required.",
+      "source_url": "https://www.nhs.uk/conditions/heavy-periods/"
+    },
+    "MR-004": {
+      "version": "1.0",
+      "name": "Bleeding between periods",
+      "enabled": true,
+      "thresholds": {
+        "lookback_days": 90,
+        "pre_period_grace_days": 2,
+        "min_derived_days_for_review": 2
+      },
+      "source": "NHS — Vaginal bleeding between periods or after sex",
+      "source_url": "https://www.nhs.uk/symptoms/vaginal-bleeding-between-periods-or-after-sex/"
+    },
+    "MR-005": {
+      "version": "1.0",
+      "name": "Bleeding after sex",
+      "enabled": true,
+      "thresholds": {
+        "lookback_days": 90
+      },
+      "source": "NHS — Vaginal bleeding between periods or after sex",
+      "source_url": "https://www.nhs.uk/symptoms/vaginal-bleeding-between-periods-or-after-sex/"
+    },
+    "MR-006": {
+      "version": "1.0",
+      "name": "Severe pain",
+      "enabled": true,
+      "thresholds": {
+        "severe_pain_min": 7,
+        "lookback_days": 90,
+        "acute_window_days": 2
+      },
+      "source": "NHS — Period pain; Ectopic pregnancy",
+      "source_url": "https://www.nhs.uk/symptoms/period-pain/"
+    },
+    "MR-007": {
+      "version": "1.0",
+      "name": "Missed periods",
+      "enabled": true,
+      "thresholds": {
+        "missed_for_review": 3,
+        "late_grace_days": 7,
+        "default_reference_days": 28,
+        "min_cycles_for_baseline": 3,
+        "reference_min_days": 21,
+        "reference_max_days": 45
+      },
+      "source": "NHS — Missed or late periods",
+      "source_url": "https://www.nhs.uk/symptoms/missed-or-late-periods/"
+    },
+    "MR-008": {
+      "version": "1.0",
+      "name": "Bleeding during pregnancy",
+      "enabled": true,
+      "thresholds": {
+        "positive_test_valid_days": 300,
+        "urgent_window_days": 7,
+        "emergency_window_days": 2,
+        "lookback_days_without_test_date": 60,
+        "periods_after_test_to_assume_not_current": 2
+      },
+      "source": "NHS — Vaginal bleeding in pregnancy",
+      "source_url": "https://www.nhs.uk/pregnancy/common-symptoms/vaginal-bleeding/"
+    },
+    "MR-009": {
+      "version": "1.0",
+      "name": "Change from personal baseline",
+      "enabled": true,
+      "thresholds": {
+        "baseline_cycles": 6,
+        "min_baseline_cycles": 4,
+        "deviation_days": 8
+      },
+      "source": "NHS — Irregular periods (change in normal pattern)",
+      "source_url": "https://www.nhs.uk/symptoms/irregular-periods/"
+    },
+    "MR-010": {
+      "version": "1.0",
+      "name": "Consolidated alert for multiple findings",
+      "enabled": true,
+      "thresholds": {
+        "min_findings": 2,
+        "min_severity": "MEDICAL_REVIEW"
+      },
+      "source": "CycleCare product safety policy",
+      "source_url": null
+    },
+    "MR-011": {
+      "version": "1.0",
+      "name": "Pain during sex, urination or bowel movements",
+      "enabled": true,
+      "thresholds": {
+        "lookback_days": 90,
+        "min_days_for_review": 2
+      },
+      "source": "NHS — Period pain; Heavy periods",
+      "source_url": "https://www.nhs.uk/symptoms/period-pain/"
+    }
+  }
+}

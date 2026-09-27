@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8
+# Embedded PostgreSQL binaries for local dev/tests when Docker is unavailable
+pgserver>=0.1.4

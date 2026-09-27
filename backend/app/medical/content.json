@@ -1,0 +1,491 @@
+{
+  "content_version": "1.0",
+  "reviewed_at": "2026-09-27",
+  "review_status": "draft_pending_clinical_review",
+  "disclaimer": {
+    "en": "This finding is based on the information you recorded. It does not establish a diagnosis.",
+    "ar": "هذه الملاحظة مبنية على المعلومات التي سجّلتِها، ولا تعني وجود تشخيص طبي."
+  },
+  "severity_labels": {
+    "en": {
+      "NORMAL": "No concerns detected",
+      "MONITOR": "Keep an eye on this",
+      "MEDICAL_REVIEW": "Medical attention recommended",
+      "URGENT": "Urgent medical advice needed",
+      "EMERGENCY": "Emergency — seek care now"
+    },
+    "ar": {
+      "NORMAL": "لا توجد ملاحظات مقلقة",
+      "MONITOR": "تابعي هذا الأمر",
+      "MEDICAL_REVIEW": "يُنصح بمراجعة طبية",
+      "URGENT": "يلزم استشارة طبية عاجلة",
+      "EMERGENCY": "طوارئ — اطلبي الرعاية الطبية الآن"
+    }
+  },
+  "labels": {
+    "en": {
+      "frequent_changes": "changing products every 1–2 hours",
+      "double_protection": "using two period products together",
+      "leakage": "bleeding through clothes or bedding",
+      "flooding": "sudden flooding",
+      "large_clots": "clots larger than about 2.5 cm",
+      "affects_daily_life": "bleeding affecting daily activities",
+      "very_heavy_flow_multiple_days": "very heavy flow on several days",
+      "heavy_flow": "heavy bleeding",
+      "fainting": "fainting",
+      "loss_of_consciousness": "loss of consciousness",
+      "dizziness": "dizziness",
+      "shortness_of_breath": "shortness of breath",
+      "shoulder_tip_pain": "shoulder pain",
+      "nausea": "feeling sick",
+      "severe_pain": "severe pain",
+      "sudden_severe_pain": "sudden severe pain",
+      "painkillers_not_helping": "pain not relieved by painkillers",
+      "fever": "fever",
+      "pregnancy_possible": "a possible pregnancy",
+      "pregnancy_confirmed": "a recorded pregnancy",
+      "pain_during_sex": "pain during sex",
+      "pain_urinating": "pain when urinating",
+      "pain_bowel_movements": "pain during bowel movements",
+      "positive_test": "positive pregnancy test",
+      "user_reported": "pregnancy reported in your profile"
+    },
+    "ar": {
+      "frequent_changes": "تغيير الفوطة أو المنتج كل ساعة إلى ساعتين",
+      "double_protection": "استخدام منتجين معًا في الوقت نفسه",
+      "leakage": "تسرّب الدم إلى الملابس أو الفراش",
+      "flooding": "نزول دم مفاجئ وغزير",
+      "large_clots": "جلطات دموية أكبر من 2.5 سم تقريبًا",
+      "affects_daily_life": "نزيف يؤثر على الأنشطة اليومية",
+      "very_heavy_flow_multiple_days": "نزيف غزير جدًا لعدة أيام",
+      "heavy_flow": "نزيف غزير",
+      "fainting": "الإغماء",
+      "loss_of_consciousness": "فقدان الوعي",
+      "dizziness": "الدوخة",
+      "shortness_of_breath": "ضيق التنفس",
+      "shoulder_tip_pain": "ألم في الكتف",
+      "nausea": "الغثيان",
+      "severe_pain": "ألم شديد",
+      "sudden_severe_pain": "ألم شديد ومفاجئ",
+      "painkillers_not_helping": "ألم لا تخففه المسكنات",
+      "fever": "الحرارة",
+      "pregnancy_possible": "احتمال وجود حمل",
+      "pregnancy_confirmed": "حمل مسجّل",
+      "pain_during_sex": "ألم أثناء العلاقة الزوجية",
+      "pain_urinating": "ألم أثناء التبول",
+      "pain_bowel_movements": "ألم أثناء التبرز",
+      "positive_test": "اختبار حمل إيجابي",
+      "user_reported": "حمل مسجّل في ملفك الصحي"
+    }
+  },
+  "notes": {
+    "hormonal_contraception": {
+      "en": "You recorded hormonal contraception, which can change bleeding patterns. It is still worth mentioning to a healthcare professional.",
+      "ar": "سجّلتِ استخدام وسيلة منع حمل هرمونية، وقد تغيّر نمط النزيف. مع ذلك يُفضّل ذكر ذلك لمقدّم الرعاية الصحية."
+    },
+    "breastfeeding": {
+      "en": "You recorded that you are breastfeeding, which commonly delays or stops periods.",
+      "ar": "سجّلتِ أنكِ ترضعين رضاعة طبيعية، وهذا قد يؤخر الدورة أو يوقفها في كثير من الأحيان."
+    },
+    "pregnancy_test_suggested": {
+      "en": "You indicated pregnancy is possible. A late period alone cannot confirm or rule out pregnancy — a pregnancy test can help clarify.",
+      "ar": "أشرتِ إلى أن الحمل ممكن. تأخر الدورة وحده لا يؤكد الحمل ولا ينفيه، ويمكن لاختبار الحمل أن يساعد في التوضيح."
+    },
+    "adolescent": {
+      "en": "Cycles are often less regular in the first years after periods start, so a wider range was used.",
+      "ar": "كثيرًا ما تكون الدورات أقل انتظامًا في السنوات الأولى بعد بدء الدورة، لذلك استُخدم نطاق أوسع."
+    },
+    "perimenopause_age": {
+      "en": "Cycle changes are common in the years approaching menopause, but changes are still worth discussing with a professional.",
+      "ar": "تغيّرات الدورة شائعة في السنوات التي تسبق انقطاع الطمث، لكن من المفيد مناقشتها مع مختص."
+    },
+    "bleeding_disorder": {
+      "en": "You recorded a known bleeding disorder — mention this pattern to the professional managing it.",
+      "ar": "سجّلتِ وجود اضطراب نزفي معروف، لذا يُفضّل إبلاغ الطبيب المتابع بهذا النمط."
+    },
+    "derived_from_logs": {
+      "en": "Some dates were worked out from your daily bleeding logs because an end date wasn't recorded.",
+      "ar": "تم حساب بعض التواريخ من سجلات النزيف اليومية لأن تاريخ الانتهاء لم يُسجَّل."
+    },
+    "log_missing_periods": {
+      "en": "If you had periods that you didn't log, adding them will keep your insights accurate.",
+      "ar": "إذا حدثت دورات ولم تسجّليها، فإضافتها ستجعل النتائج أدق."
+    },
+    "positive_test_superseded": {
+      "en": "A positive pregnancy test is recorded, but periods were logged after it. Please update your pregnancy information if it has changed.",
+      "ar": "يوجد اختبار حمل إيجابي مسجّل، لكن تم تسجيل دورات بعده. يرجى تحديث معلومات الحمل إذا تغيّرت."
+    }
+  },
+  "messages": {
+    "MR-001.review": {
+      "en": {
+        "title": "Your cycles have been irregular",
+        "summary": "{out_count} of your last {analyzed} cycles were shorter than {min_days} days or longer than {max_days} days. Cycle lengths (days): {lengths_text}.",
+        "why": "Cycles repeatedly outside the usual range can have several causes, such as stress, weight change, contraception or hormonal conditions.",
+        "action": "Consider discussing this pattern with a gynecologist or GP."
+      },
+      "ar": {
+        "title": "دوراتك كانت غير منتظمة",
+        "summary": "{out_count} من آخر {analyzed} دورات كانت أقصر من {min_days} يومًا أو أطول من {max_days} يومًا. أطوال الدورات بالأيام: {lengths_text}.",
+        "why": "تكرار خروج طول الدورة عن النطاق المعتاد قد يكون له أسباب متعددة، مثل التوتر أو تغيّر الوزن أو وسائل منع الحمل أو اضطرابات هرمونية.",
+        "action": "يُنصح بمناقشة هذا النمط مع طبيبة نساء أو طبيب عام."
+      }
+    },
+    "MR-001.monitor": {
+      "en": {
+        "title": "One recent cycle was outside the usual range",
+        "summary": "Your most recent cycle was {latest} days (usual range {min_days}–{max_days} days).",
+        "why": "A single unusual cycle is common and often has no lasting significance.",
+        "action": "Keep logging. If it happens again, it may be worth discussing with a healthcare professional."
+      },
+      "ar": {
+        "title": "دورة حديثة واحدة كانت خارج النطاق المعتاد",
+        "summary": "طول آخر دورة كان {latest} يومًا (النطاق المعتاد من {min_days} إلى {max_days} يومًا).",
+        "why": "حدوث دورة واحدة غير معتادة أمر شائع، وغالبًا لا يكون له أثر دائم.",
+        "action": "استمري في التسجيل. إذا تكرر ذلك، فقد يكون من المفيد مناقشته مع مقدّم رعاية صحية."
+      }
+    },
+    "MR-002.review": {
+      "en": {
+        "title": "A period lasted longer than {max_days} days",
+        "summary": "{prolonged_count} of your recorded periods lasted more than {max_days} days (longest: {longest} days).",
+        "why": "Bleeding lasting more than 7 days can be considered prolonged.",
+        "action": "It is worth discussing with a healthcare professional, especially if it happens repeatedly."
+      },
+      "ar": {
+        "title": "استمرت دورة أكثر من {max_days} أيام",
+        "summary": "عدد الدورات المسجلة التي استمرت أكثر من {max_days} أيام: {prolonged_count} (أطولها: {longest} يومًا).",
+        "why": "النزيف الذي يستمر أكثر من 7 أيام قد يُعتبر نزيفًا مطوّلًا.",
+        "action": "يُفضّل مناقشة ذلك مع مقدّم رعاية صحية، خاصة إذا تكرر."
+      }
+    },
+    "MR-003.review": {
+      "en": {
+        "title": "Your bleeding may be heavier than usual",
+        "summary": "In your recent logs you recorded: {indicators_text}.",
+        "why": "These are recognised signs of heavy periods. Heavy bleeding can have several causes and can often be treated.",
+        "action": "Consider discussing this with a healthcare professional."
+      },
+      "ar": {
+        "title": "قد يكون النزيف أغزر من المعتاد",
+        "summary": "في سجلاتك الأخيرة سجّلتِ: {indicators_text}.",
+        "why": "هذه علامات معروفة للدورة الغزيرة. للنزيف الغزير أسباب متعددة، وغالبًا ما يمكن علاجه.",
+        "action": "يُنصح بمناقشة ذلك مع مقدّم رعاية صحية."
+      }
+    },
+    "MR-003.urgent": {
+      "en": {
+        "title": "Heavy bleeding with warning symptoms",
+        "summary": "In the last {acute_days} days you recorded heavy bleeding together with: {red_flags_text}.",
+        "why": "Heavy bleeding with these symptoms can mean you are losing a significant amount of blood.",
+        "action": "Please get urgent medical advice today. If you feel faint, become very unwell or the bleeding is very heavy, contact emergency services."
+      },
+      "ar": {
+        "title": "نزيف غزير مع أعراض تحذيرية",
+        "summary": "خلال آخر {acute_days} أيام سجّلتِ نزيفًا غزيرًا مع: {red_flags_text}.",
+        "why": "النزيف الغزير المصحوب بهذه الأعراض قد يعني فقدان كمية كبيرة من الدم.",
+        "action": "يرجى طلب استشارة طبية عاجلة اليوم. إذا شعرتِ بالإغماء أو ساءت حالتك أو كان النزيف غزيرًا جدًا، فاتصلي بالطوارئ."
+      }
+    },
+    "MR-003.emergency": {
+      "en": {
+        "title": "Heavy bleeding with fainting",
+        "summary": "In the last {acute_days} days you recorded heavy bleeding together with: {red_flags_text}.",
+        "why": "Fainting with heavy bleeding can be a sign of serious blood loss.",
+        "action": "Seek emergency medical care now — call your local emergency number or go to the nearest emergency department."
+      },
+      "ar": {
+        "title": "نزيف غزير مع إغماء",
+        "summary": "خلال آخر {acute_days} أيام سجّلتِ نزيفًا غزيرًا مع: {red_flags_text}.",
+        "why": "الإغماء مع النزيف الغزير قد يكون علامة على فقدان دم كبير.",
+        "action": "اطلبي الرعاية الطبية الطارئة الآن — اتصلي برقم الطوارئ المحلي أو توجّهي إلى أقرب قسم طوارئ."
+      }
+    },
+    "MR-004.review": {
+      "en": {
+        "title": "Bleeding between periods was recorded",
+        "summary": "You recorded bleeding or spotting outside your periods on {days_count} day(s) in the last {lookback} days ({dates_text}).",
+        "why": "Bleeding between periods can have several causes, and a professional can help find out why.",
+        "action": "It is worth discussing this with a healthcare professional."
+      },
+      "ar": {
+        "title": "تم تسجيل نزيف بين الدورات",
+        "summary": "سجّلتِ نزيفًا أو تبقيعًا خارج أيام الدورة خلال آخر {lookback} يومًا، وعدد الأيام: {days_count} ({dates_text}).",
+        "why": "النزيف بين الدورات قد يكون له أسباب متعددة، ويمكن للمختص المساعدة في معرفة السبب.",
+        "action": "يُنصح بمناقشة ذلك مع مقدّم رعاية صحية."
+      }
+    },
+    "MR-004.monitor": {
+      "en": {
+        "title": "Bleeding logged outside a period",
+        "summary": "You logged bleeding on {dates_text}, outside your recorded periods.",
+        "why": "Occasional light spotting can happen, but repeated bleeding between periods is worth checking.",
+        "action": "If this was actually the start of a period, record it as a period. If bleeding between periods continues, consider seeing a healthcare professional."
+      },
+      "ar": {
+        "title": "تم تسجيل نزيف خارج أيام الدورة",
+        "summary": "سجّلتِ نزيفًا في {dates_text} خارج أيام الدورة المسجلة.",
+        "why": "قد يحدث تبقيع خفيف أحيانًا، لكن تكرار النزيف بين الدورات يستحق الفحص.",
+        "action": "إذا كان هذا في الحقيقة بداية دورة، سجّليه كدورة. وإذا استمر النزيف بين الدورات، يُنصح بمراجعة مقدّم رعاية صحية."
+      }
+    },
+    "MR-005.review": {
+      "en": {
+        "title": "Bleeding after sex was recorded",
+        "summary": "You recorded bleeding after sex on {days_count} day(s) in the last {lookback} days.",
+        "why": "Bleeding after sex can have several causes.",
+        "action": "It should be discussed with a healthcare professional."
+      },
+      "ar": {
+        "title": "تم تسجيل نزيف بعد العلاقة الزوجية",
+        "summary": "سجّلتِ نزيفًا بعد العلاقة الزوجية خلال آخر {lookback} يومًا، وعدد المرات: {days_count}.",
+        "why": "النزيف بعد العلاقة الزوجية قد يكون له أسباب متعددة.",
+        "action": "يُنصح بمناقشة ذلك مع مقدّم رعاية صحية."
+      }
+    },
+    "MR-006.review": {
+      "en": {
+        "title": "Severe pain affecting daily life",
+        "summary": "You recorded severe pain ({severe_min}/10 or more) that affected your daily activities on {days_count} day(s) in the last {lookback} days.",
+        "why": "Period pain that stops you doing daily activities is not something you have to put up with, and there can be underlying causes.",
+        "action": "It is worth discussing with a healthcare professional — effective options are often available."
+      },
+      "ar": {
+        "title": "ألم شديد يؤثر على حياتك اليومية",
+        "summary": "سجّلتِ ألمًا شديدًا ({severe_min}/10 أو أكثر) أثّر على أنشطتك اليومية خلال آخر {lookback} يومًا، وعدد الأيام: {days_count}.",
+        "why": "ألم الدورة الذي يمنعك من ممارسة أنشطتك اليومية ليس أمرًا يجب تحمّله، وقد تكون له أسباب كامنة.",
+        "action": "يُنصح بمناقشته مع مقدّم رعاية صحية، فغالبًا توجد خيارات فعّالة."
+      }
+    },
+    "MR-006.urgent": {
+      "en": {
+        "title": "Severe pain that needs prompt attention",
+        "summary": "In the last {acute_days} days you recorded severe pain together with: {red_flags_text}.",
+        "why": "Severe pain with these features should be assessed promptly.",
+        "action": "Please get urgent medical advice today (an urgent doctor's appointment or your local urgent medical helpline)."
+      },
+      "ar": {
+        "title": "ألم شديد يحتاج إلى تقييم سريع",
+        "summary": "خلال آخر {acute_days} أيام سجّلتِ ألمًا شديدًا مع: {red_flags_text}.",
+        "why": "الألم الشديد المصحوب بهذه العلامات يجب تقييمه بسرعة.",
+        "action": "يرجى طلب استشارة طبية عاجلة اليوم (موعد عاجل مع طبيب أو خط المساعدة الطبية العاجلة في منطقتك)."
+      }
+    },
+    "MR-006.emergency": {
+      "en": {
+        "title": "Severe pain with emergency warning signs",
+        "summary": "In the last {acute_days} days you recorded severe pain together with: {red_flags_text}.",
+        "why": "This combination can be a sign of a condition that needs immediate treatment.",
+        "action": "Seek emergency medical care now — call your local emergency number or go to the nearest emergency department."
+      },
+      "ar": {
+        "title": "ألم شديد مع علامات طوارئ",
+        "summary": "خلال آخر {acute_days} أيام سجّلتِ ألمًا شديدًا مع: {red_flags_text}.",
+        "why": "هذا المزيج من الأعراض قد يكون علامة على حالة تحتاج إلى علاج فوري.",
+        "action": "اطلبي الرعاية الطبية الطارئة الآن — اتصلي برقم الطوارئ المحلي أو توجّهي إلى أقرب قسم طوارئ."
+      }
+    },
+    "MR-007.review": {
+      "en": {
+        "title": "No period recorded for about {missed} expected cycles",
+        "summary": "Your last recorded period started {days_since} days ago. Based on a reference cycle of about {reference} days, this is roughly {missed} missed periods in a row.",
+        "why": "Missed periods can have many causes, including stress, weight change, exercise, contraception, breastfeeding and pregnancy.",
+        "action": "Missing 3 periods in a row is worth discussing with a healthcare professional."
+      },
+      "ar": {
+        "title": "لم تُسجَّل دورة منذ ما يقارب {missed} دورات متوقعة",
+        "summary": "بدأت آخر دورة مسجلة منذ {days_since} يومًا. بناءً على دورة مرجعية طولها حوالي {reference} يومًا، هذا يعادل تقريبًا {missed} دورات متتالية لم تحدث.",
+        "why": "لغياب الدورة أسباب كثيرة، منها التوتر وتغيّر الوزن والرياضة المفرطة ووسائل منع الحمل والرضاعة والحمل.",
+        "action": "غياب الدورة 3 مرات متتالية يستحق المناقشة مع مقدّم رعاية صحية."
+      }
+    },
+    "MR-007.monitor": {
+      "en": {
+        "title": "Your period is later than usual",
+        "summary": "Your last recorded period started {days_since} days ago; your reference cycle is about {reference} days.",
+        "why": "A late period can have many causes and is often temporary.",
+        "action": "Keep logging. If periods stop for 3 cycles in a row, consider seeing a healthcare professional."
+      },
+      "ar": {
+        "title": "الدورة متأخرة عن المعتاد",
+        "summary": "بدأت آخر دورة مسجلة منذ {days_since} يومًا، وطول دورتك المرجعي حوالي {reference} يومًا.",
+        "why": "لتأخر الدورة أسباب كثيرة، وغالبًا ما يكون مؤقتًا.",
+        "action": "استمري في التسجيل. إذا غابت الدورة 3 مرات متتالية، يُنصح بمراجعة مقدّم رعاية صحية."
+      }
+    },
+    "MR-008.urgent": {
+      "en": {
+        "title": "Bleeding during pregnancy was recorded",
+        "summary": "You recorded bleeding or spotting on {last_bleeding_date} while a pregnancy is recorded ({pregnancy_basis}).",
+        "why": "Bleeding in pregnancy is not always serious, but it can sometimes need urgent treatment.",
+        "action": "Get urgent advice today — contact your maternity or early pregnancy unit, your doctor, or your local urgent medical helpline."
+      },
+      "ar": {
+        "title": "تم تسجيل نزيف أثناء الحمل",
+        "summary": "سجّلتِ نزيفًا أو تبقيعًا في {last_bleeding_date} مع وجود حمل مسجّل ({pregnancy_basis}).",
+        "why": "النزيف أثناء الحمل ليس خطيرًا دائمًا، لكنه قد يحتاج أحيانًا إلى علاج عاجل.",
+        "action": "اطلبي استشارة عاجلة اليوم — تواصلي مع طبيبة المتابعة أو وحدة الحمل المبكر أو خط المساعدة الطبية العاجلة في منطقتك."
+      }
+    },
+    "MR-008.emergency": {
+      "en": {
+        "title": "Bleeding in pregnancy with emergency warning signs",
+        "summary": "You recorded bleeding during pregnancy together with: {red_flags_text}.",
+        "why": "These can be signs that you need immediate treatment.",
+        "action": "Call your local emergency number or go to the nearest emergency department now."
+      },
+      "ar": {
+        "title": "نزيف أثناء الحمل مع علامات طوارئ",
+        "summary": "سجّلتِ نزيفًا أثناء الحمل مع: {red_flags_text}.",
+        "why": "هذه قد تكون علامات على الحاجة إلى علاج فوري.",
+        "action": "اتصلي برقم الطوارئ المحلي أو توجّهي إلى أقرب قسم طوارئ الآن."
+      }
+    },
+    "MR-008.review": {
+      "en": {
+        "title": "Earlier bleeding during pregnancy was recorded",
+        "summary": "You recorded bleeding on {last_bleeding_date} while a pregnancy is recorded ({pregnancy_basis}).",
+        "why": "Any bleeding in pregnancy should be known to the professionals caring for you.",
+        "action": "If you haven't already, tell your midwife or doctor. Get urgent help if bleeding returns or you develop pain, dizziness or shoulder pain."
+      },
+      "ar": {
+        "title": "تم تسجيل نزيف سابق أثناء الحمل",
+        "summary": "سجّلتِ نزيفًا في {last_bleeding_date} مع وجود حمل مسجّل ({pregnancy_basis}).",
+        "why": "يجب أن يكون الفريق الطبي المتابع للحمل على علم بأي نزيف.",
+        "action": "إذا لم تفعلي بعد، أبلغي طبيبة المتابعة. اطلبي مساعدة عاجلة إذا عاد النزيف أو ظهر ألم أو دوخة أو ألم في الكتف."
+      }
+    },
+    "MR-009.monitor": {
+      "en": {
+        "title": "Your latest cycle differed from your usual pattern",
+        "summary": "Your latest cycle was {latest} days, compared with your usual median of {baseline} days.",
+        "why": "One cycle that differs from your usual pattern is common.",
+        "action": "Keep logging to see whether the change continues."
+      },
+      "ar": {
+        "title": "آخر دورة اختلفت عن نمطك المعتاد",
+        "summary": "طول آخر دورة كان {latest} يومًا، مقارنة بالمتوسط الوسيط المعتاد لديك وهو {baseline} يومًا.",
+        "why": "اختلاف دورة واحدة عن النمط المعتاد أمر شائع.",
+        "action": "استمري في التسجيل لمعرفة ما إذا كان التغيير سيستمر."
+      }
+    },
+    "MR-009.review": {
+      "en": {
+        "title": "Your cycle pattern has changed",
+        "summary": "Your last {persist} cycles ({recent_text} days) differed from your usual median of {baseline} days.",
+        "why": "A lasting change from your usual pattern can have several causes.",
+        "action": "It is worth discussing with a healthcare professional, especially if it continues."
+      },
+      "ar": {
+        "title": "نمط دورتك تغيّر",
+        "summary": "آخر {persist} دورات ({recent_text} يومًا) اختلفت عن المتوسط الوسيط المعتاد لديك وهو {baseline} يومًا.",
+        "why": "التغيّر المستمر عن النمط المعتاد قد يكون له أسباب متعددة.",
+        "action": "يُنصح بمناقشته مع مقدّم رعاية صحية، خاصة إذا استمر."
+      }
+    },
+    "MR-010.consolidated": {
+      "en": {
+        "title": "Several patterns are worth discussing with a professional",
+        "summary": "{count} of your recorded patterns are worth reviewing together: {titles_text}.",
+        "why": "Looking at these patterns together gives a professional a clearer picture.",
+        "action": "{top_action}"
+      },
+      "ar": {
+        "title": "عدة أنماط تستحق المناقشة مع مختص",
+        "summary": "عدد الأنماط المسجلة التي تستحق المراجعة معًا: {count} — {titles_text}.",
+        "why": "النظر إلى هذه الأنماط معًا يعطي المختص صورة أوضح.",
+        "action": "{top_action}"
+      }
+    },
+    "MR-011.review": {
+      "en": {
+        "title": "Pain during sex, urination or bowel movements",
+        "summary": "You recorded {symptoms_text} on {days_count} day(s) in the last {lookback} days.",
+        "why": "These symptoms can have several causes and are worth checking.",
+        "action": "Consider discussing them with a healthcare professional."
+      },
+      "ar": {
+        "title": "ألم أثناء العلاقة أو التبول أو التبرز",
+        "summary": "سجّلتِ {symptoms_text} خلال آخر {lookback} يومًا، وعدد الأيام: {days_count}.",
+        "why": "هذه الأعراض قد يكون لها أسباب متعددة وتستحق الفحص.",
+        "action": "يُنصح بمناقشتها مع مقدّم رعاية صحية."
+      }
+    },
+    "MR-011.monitor": {
+      "en": {
+        "title": "Pain during sex, urination or bowel movements",
+        "summary": "You recorded {symptoms_text} on {dates_text}.",
+        "why": "An isolated episode is often temporary.",
+        "action": "Keep logging. If it happens again, consider discussing it with a healthcare professional."
+      },
+      "ar": {
+        "title": "ألم أثناء العلاقة أو التبول أو التبرز",
+        "summary": "سجّلتِ {symptoms_text} في {dates_text}.",
+        "why": "النوبة الواحدة غالبًا ما تكون مؤقتة.",
+        "action": "استمري في التسجيل. إذا تكرر ذلك، يُنصح بمناقشته مع مقدّم رعاية صحية."
+      }
+    }
+  },
+  "questions_for_doctor": {
+    "MR-001": {
+      "en": "What could explain the variation in my cycle length, and should I have any tests?",
+      "ar": "ما الذي قد يفسّر اختلاف طول دورتي؟ وهل أحتاج إلى أي فحوصات؟"
+    },
+    "MR-002": {
+      "en": "My periods sometimes last more than 7 days — what could cause this?",
+      "ar": "دورتي تستمر أحيانًا أكثر من 7 أيام، ما الذي قد يسبب ذلك؟"
+    },
+    "MR-003": {
+      "en": "Is my bleeding heavier than expected, and should my iron levels be checked?",
+      "ar": "هل نزيفي أغزر من المعتاد؟ وهل يجب فحص مستوى الحديد لديّ؟"
+    },
+    "MR-004": {
+      "en": "What could be causing bleeding between my periods?",
+      "ar": "ما الذي قد يسبب النزيف بين الدورات؟"
+    },
+    "MR-005": {
+      "en": "What could be causing bleeding after sex, and do I need an examination?",
+      "ar": "ما الذي قد يسبب النزيف بعد العلاقة؟ وهل أحتاج إلى فحص؟"
+    },
+    "MR-006": {
+      "en": "What options are there for managing my period pain, and could there be an underlying cause?",
+      "ar": "ما الخيارات المتاحة للتعامل مع ألم الدورة؟ وهل يمكن أن يكون هناك سبب كامن؟"
+    },
+    "MR-007": {
+      "en": "What could explain my missed periods, and what tests would help?",
+      "ar": "ما الذي قد يفسّر غياب الدورة؟ وما الفحوصات التي قد تساعد؟"
+    },
+    "MR-008": {
+      "en": "I had bleeding during pregnancy — what should I watch for?",
+      "ar": "حدث لي نزيف أثناء الحمل، ما الأعراض التي يجب أن أنتبه لها؟"
+    },
+    "MR-009": {
+      "en": "My cycle pattern has changed recently — what could be causing this?",
+      "ar": "نمط دورتي تغيّر مؤخرًا، ما الذي قد يسبب ذلك؟"
+    },
+    "MR-011": {
+      "en": "What could cause pain during sex, urination or bowel movements?",
+      "ar": "ما الذي قد يسبب الألم أثناء العلاقة أو التبول أو التبرز؟"
+    },
+    "contraception": {
+      "en": "Should my contraception be reviewed in light of these patterns?",
+      "ar": "هل يجب مراجعة وسيلة منع الحمل التي أستخدمها في ضوء هذه الأنماط؟"
+    },
+    "general": {
+      "en": "Is there anything in my cycle history you would like me to keep tracking?",
+      "ar": "هل هناك شيء في سجل دورتي تنصحني بمتابعته؟"
+    }
+  },
+  "emergency": {
+    "generic": {
+      "en": {
+        "title": "Urgent medical attention",
+        "body": "Some of the symptoms you've entered may require urgent medical assessment. Please seek medical care now, especially if you have severe pain, fainting or dizziness, or very heavy bleeding. Call your local emergency number or go to the nearest emergency department."
+      },
+      "ar": {
+        "title": "تحتاجين إلى رعاية طبية عاجلة",
+        "body": "بعض الأعراض التي ذكرتِها قد تحتاج إلى تقييم طبي عاجل. يرجى طلب الرعاية الطبية الآن، خاصة إذا كان لديكِ ألم شديد أو إغماء أو دوخة أو نزيف غزير جدًا. اتصلي برقم الطوارئ المحلي أو توجّهي إلى أقرب قسم طوارئ."
+      }
+    }
+  }
+}

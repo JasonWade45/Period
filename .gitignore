@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env / secrets — never commit real keys
+.env
+*.env.local
+
+# Local Postgres data (pgserver dev DB)
+.pgdata/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Mobile (future)
+node_modules/
+.expo/
