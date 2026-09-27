@@ -1,8 +1,9 @@
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse
 from sqlalchemy import text
 
 from app.api.v1 import ai, auth, cycles, export, insights, logs, users
@@ -63,9 +64,13 @@ for r in (
 app.include_router(api)
 
 
+INDEX_HTML = Path(__file__).parent / "static" / "index.html"
+
+
 @app.get("/", include_in_schema=False)
 def root():
-    return RedirectResponse("/docs")
+    """Self-contained preview page (no external CDN). API docs remain at /docs."""
+    return FileResponse(INDEX_HTML, media_type="text/html")
 
 
 @app.get("/health", tags=["meta"])

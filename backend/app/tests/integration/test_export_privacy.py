@@ -97,3 +97,10 @@ def test_health_endpoint(client):
     body = client.get("/health").json()
     assert body["database"] is True
     assert body["ruleset_version"] == "1.0.0"
+
+
+def test_preview_page_served(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "CycleCare" in r.text and 'dir="rtl"' in r.text

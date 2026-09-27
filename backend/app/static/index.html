@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CycleCare — معاينة</title>
+<style>
+  :root{--bg:#fbf7f8;--card:#fff;--ink:#2b2130;--muted:#7a6d80;--brand:#b8457a;--brand2:#f3dbe7;
+        --ok:#2f8f5b;--mon:#b98a12;--rev:#c46a1b;--urg:#c0392b;--emg:#8e0f1f;--line:#eee3e8}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,"Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+  header{background:linear-gradient(135deg,#b8457a,#7d3c98);color:#fff;padding:18px 20px}
+  header h1{margin:0;font-size:22px} header p{margin:4px 0 0;opacity:.9;font-size:14px}
+  main{max-width:980px;margin:0 auto;padding:16px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .card h2{margin:0 0 10px;font-size:16px;color:var(--brand)}
+  .wide{grid-column:1/-1}
+  .big{font-size:40px;font-weight:700;margin:0} .muted{color:var(--muted);font-size:13px}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;color:#fff}
+  .NORMAL{background:var(--ok)} .MONITOR{background:var(--mon)} .MEDICAL_REVIEW{background:var(--rev)} .URGENT{background:var(--urg)} .EMERGENCY{background:var(--emg)}
+  .alert{border-inline-start:6px solid var(--rev);background:#fff8f2;border-radius:12px;padding:12px;margin-top:8px}
+  .alert.URGENT,.alert.EMERGENCY{border-color:var(--urg);background:#fdeeee}
+  .alert h3{margin:0 0 6px;font-size:15px}
+  .bars{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:8px}
+  .bar{flex:1;background:var(--brand2);border-radius:8px 8px 0 0;position:relative;min-width:24px}
+  .bar.out{background:#f1c6a6}
+  .bar span{position:absolute;top:-20px;left:0;right:0;text-align:center;font-size:12px;font-weight:600}
+  .band{font-size:11px;color:var(--muted);margin-top:4px}
+  button{background:var(--brand);color:#fff;border:0;border-radius:10px;padding:9px 14px;font:inherit;cursor:pointer}
+  button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
+  button:disabled{opacity:.5;cursor:wait}
+  input,textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:10px;width:100%}
+  label.chk{display:inline-flex;gap:4px;align-items:center;margin:3px 6px 3px 0;font-size:13px;background:#faf3f6;padding:3px 8px;border-radius:8px;cursor:pointer}
+  table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:6px;border-bottom:1px solid var(--line);text-align:start}
+  .chat{height:220px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px;background:#fdfbfc;margin-bottom:8px}
+  .msg{margin:6px 0;padding:8px 10px;border-radius:12px;white-space:pre-wrap;max-width:90%}
+  .msg.user{background:var(--brand2);margin-inline-start:auto} .msg.bot{background:#f1eef3}
+  .msg.safety{background:#fdeeee;border:1px solid var(--urg)}
+  .row{display:flex;gap:8px;align-items:center}
+  .hidden{display:none}
+  .disclaimer{font-size:12px;color:var(--muted);text-align:center;padding:10px 16px 24px}
+  #err{color:var(--urg);font-size:13px}
+  a{color:var(--brand)}
+</style>
+</head>
+<body>
+<header>
+  <h1>CycleCare 🌸</h1>
+  <p>افهمي دورتك. تتبّعي أعراضك. واعرفي متى يستحق النمط الانتباه.</p>
+</header>
+
+<main id="login" class="">
+  <section class="card wide">
+    <h2>تسجيل الدخول (حساب تجريبي)</h2>
+    <div class="row" style="flex-wrap:wrap">
+      <input id="email" value="demo@cyclecare.app" style="max-width:260px" dir="ltr">
+      <input id="password" type="password" value="demo-password-123" style="max-width:220px" dir="ltr">
+      <button id="loginBtn">دخول</button>
+      <a href="/docs" target="_blank">توثيق الـAPI ↗</a>
+    </div>
+    <p id="err"></p>
+    <p class="muted">هذه صفحة معاينة للـbackend فقط — تطبيق الموبايل هو المرحلة القادمة.</p>
+  </section>
+</main>
+
+<main id="app" class="hidden">
+  <section class="card">
+    <h2>اليوم</h2>
+    <p class="muted" id="greet"></p>
+    <p class="big" id="cycleDay">—</p>
+    <p class="muted">يوم من الدورة الحالية</p>
+    <hr style="border:0;border-top:1px solid var(--line)">
+    <p style="margin:0"><b>الدورة القادمة (تقدير):</b> <span id="predWindow">—</span></p>
+    <p class="muted" style="margin:0">الثقة: <span id="predConf">—</span> · <span id="predReason"></span></p>
+  </section>
+
+  <section class="card">
+    <h2>النمط الحالي</h2>
+    <p><span id="sevPill" class="pill">—</span> <span id="sevLabel" class="muted"></span></p>
+    <div id="alertBox"></div>
+  </section>
+
+  <section class="card">
+    <h2>آخر الدورات (بالأيام)</h2>
+    <div class="bars" id="bars"></div>
+    <p class="band">النطاق المعتاد 21–35 يومًا · الأعمدة البرتقالية خارج النطاق</p>
+    <p class="muted" id="stats"></p>
+  </section>
+
+  <section class="card">
+    <h2>تسجيل أعراض اليوم</h2>
+    <div class="row"><span class="muted">الألم</span><input id="pain" type="range" min="0" max="10" value="3"><b id="painVal">3</b></div>
+    <div id="symptoms" style="margin:8px 0"></div>
+    <label class="chk"><input type="checkbox" id="affects"> أثّر على نشاطي اليومي</label>
+    <div style="margin-top:8px"><button id="logBtn">حفظ</button></div>
+    <p class="muted" id="logResult"></p>
+  </section>
+
+  <section class="card wide">
+    <h2>الملاحظات الطبية (محرّك القواعد)</h2>
+    <div id="findings" class="muted">—</div>
+  </section>
+
+  <section class="card wide">
+    <h2>سجل الدورات</h2>
+    <table><thead><tr><th>#</th><th>البداية</th><th>النهاية</th><th>الطول</th><th>مدة النزيف</th><th>أقصى نزيف</th><th>أقصى ألم</th></tr></thead><tbody id="history"></tbody></table>
+  </section>
+
+  <section class="card wide">
+    <h2>CycleCare AI</h2>
+    <div class="chat" id="chat"></div>
+    <div class="row" style="flex-wrap:wrap;margin-bottom:6px">
+      <button class="ghost ex">لخصيلي آخر 6 دورات</button>
+      <button class="ghost ex">ليه الدورة عندي غير منتظمة؟</button>
+      <button class="ghost ex">إيه اللي المفروض أسأله للدكتورة؟</button>
+    </div>
+    <div class="row"><input id="chatIn" placeholder="اسألي عن دورتك المسجلة…"><button id="sendBtn">إرسال</button></div>
+    <p class="muted">بدون مفتاح Grok ستظهر رسالة بديلة آمنة. رسائل الطوارئ لا تُرسل للذكاء الاصطناعي أبدًا.</p>
+  </section>
+</main>
+
+<p class="disclaimer">CycleCare أداة للتتبع والتثقيف ولا تقدّم تشخيصًا طبيًا. في حالة الطوارئ اتصلي برقم الطوارئ المحلي.</p>
+
+<script>
+const API = "/api/v1";
+let token = null, conversationId = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const SYMPTOMS = {bloating:"انتفاخ",headache:"صداع",fatigue:"إرهاق",nausea:"غثيان",mood_changes:"تقلب المزاج",
+  breast_tenderness:"ألم الثدي",bleeding_between_periods:"نزيف بين الدورات",bleeding_after_sex:"نزيف بعد العلاقة",
+  painkillers_not_helping:"المسكنات لا تساعد",dizziness:"دوخة",fainting:"إغماء"};
+const CONF = {high:"عالية",medium:"متوسطة",low:"منخفضة"};
+const FLOW = {spotting:"تبقيع",light:"خفيف",medium:"متوسط",heavy:"غزير",very_heavy:"غزير جدًا"};
+const PAIN = {none:"لا يوجد",mild:"خفيف",moderate:"متوسط",severe:"شديد"};
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {...opts, headers: {"Content-Type": "application/json", ...(token ? {Authorization: "Bearer " + token} : {}), ...(opts.headers || {})}});
+  const body = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(typeof body === "object" ? JSON.stringify(body.detail ?? body) : body);
+  return body;
+}
+
+$("loginBtn").onclick = async () => {
+  $("err").textContent = ""; $("loginBtn").disabled = true;
+  try {
+    const t = await api("/auth/login", {method: "POST", body: JSON.stringify({email: $("email").value, password: $("password").value})});
+    token = t.access_token;
+    $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+    await refresh();
+  } catch (e) { $("err").textContent = "تعذّر الدخول: " + e.message; }
+  $("loginBtn").disabled = false;
+};
+
+function alertHtml(a) {
+  if (!a) return '<p class="muted">لا توجد ملاحظات مقلقة حاليًا.</p>';
+  return `<div class="alert ${a.severity}"><h3>${esc(a.title)}</h3><p style="margin:0 0 6px">${esc(a.summary)}</p>
+    ${a.why ? `<p class="muted" style="margin:0 0 6px">${esc(a.why)}</p>` : ""}
+    <p style="margin:0 0 6px"><b>${esc(a.recommended_action)}</b></p><p class="muted" style="margin:0">${esc(a.disclaimer || "")}</p></div>`;
+}
+
+async function refresh() {
+  const [d, hist, active] = await Promise.all([api("/dashboard"), api("/analytics/cycles"), api("/medical/findings/active")]);
+  $("greet").textContent = (d.display_name ? "أهلًا " + d.display_name + " · " : "") + d.today;
+  $("cycleDay").textContent = d.cycle_day ?? "—";
+  const p = d.prediction;
+  $("predWindow").textContent = p.available ? `${p.window_start} ← ${p.window_end}` : "غير متاح بعد";
+  $("predConf").textContent = CONF[p.confidence] || "—";
+  $("predReason").textContent = p.reason || "";
+  $("sevPill").className = "pill " + d.overall_severity; $("sevPill").textContent = d.overall_severity;
+  $("sevLabel").textContent = d.severity_label;
+  $("alertBox").innerHTML = alertHtml(d.alert);
+
+  const L = d.last_cycle_lengths, max = Math.max(45, ...L);
+  $("bars").innerHTML = L.map(n => `<div class="bar ${n < 21 || n > 35 ? "out" : ""}" style="height:${n / max * 100}%"><span>${n}</span></div>`).join("") || '<p class="muted">لا توجد دورات مكتملة بعد.</p>';
+  const s = hist.stats;
+  $("stats").textContent = s.cycle_count ? `المتوسط ${s.mean} · الوسيط ${s.median} · من ${s.min} إلى ${s.max} يومًا · التباين: ${s.variability}` : "";
+
+  $("history").innerHTML = hist.cycles.slice().reverse().map(c => `<tr><td>${c.index}</td><td>${c.start}</td><td>${c.end ?? "—"}</td>
+    <td>${c.cycle_length ?? (c.is_current ? "جارية" : "—")}</td><td>${c.period_days ?? "—"}</td><td>${FLOW[c.peak_flow] ?? "—"}</td><td>${PAIN[c.max_pain] ?? "—"}</td></tr>`).join("");
+
+  $("findings").innerHTML = active.length ? active.map(f => `<div class="alert ${f.severity}"><h3><span class="pill ${f.severity}">${f.severity}</span> ${esc(f.rule_code)} — ${esc(f.title)}</h3>
+    <p style="margin:0">${esc(f.description)}</p><p style="margin:4px 0 0"><b>${esc(f.recommended_action)}</b></p>
+    <p class="muted" style="margin:4px 0 0">القاعدة v${f.rule_version} · المحتوى v${f.content_version} · الحالة: ${f.status}</p></div>`).join("") : "لا توجد ملاحظات نشطة.";
+}
+
+$("symptoms").innerHTML = Object.entries(SYMPTOMS).map(([k, v]) => `<label class="chk"><input type="checkbox" value="${k}">${v}</label>`).join("");
+$("pain").oninput = () => $("painVal").textContent = $("pain").value;
+$("logBtn").onclick = async () => {
+  $("logBtn").disabled = true;
+  try {
+    const symptoms = [...document.querySelectorAll("#symptoms input:checked")].map(i => i.value);
+    const today = new Date().toISOString().slice(0, 10);
+    const r = await api("/symptoms", {method: "POST", body: JSON.stringify({log_date: today, pain_level: +$("pain").value, symptoms, affects_daily_activity: $("affects").checked})});
+    $("logResult").innerHTML = "تم الحفظ. التقييم: " + `<span class="pill ${r.medical.overall_severity}">${r.medical.overall_severity}</span>` +
+      (r.medical.requires_immediate_attention ? alertHtml(r.medical.alert) : "");
+    await refresh();
+  } catch (e) { $("logResult").textContent = "خطأ: " + e.message; }
+  $("logBtn").disabled = false;
+};
+
+function addMsg(text, cls) { const m = document.createElement("div"); m.className = "msg " + cls; m.textContent = text; $("chat").appendChild(m); $("chat").scrollTop = 1e9; }
+async function send(text) {
+  if (!text.trim()) return;
+  addMsg(text, "user"); $("chatIn").value = ""; $("sendBtn").disabled = true;
+  try {
+    const r = await api("/ai/chat", {method: "POST", body: JSON.stringify({message: text, conversation_id: conversationId})});
+    conversationId = r.conversation_id;
+    if (r.safety_alert) addMsg("⚠ " + r.safety_alert.title + "\n" + r.safety_alert.body, "safety");
+    addMsg(r.reply + (r.ai_generated ? "" : `\n\n(رد غير مولّد بالذكاء الاصطناعي: ${r.fallback_reason})`), "bot");
+  } catch (e) { addMsg("خطأ: " + e.message, "bot"); }
+  $("sendBtn").disabled = false;
+}
+$("sendBtn").onclick = () => send($("chatIn").value);
+$("chatIn").onkeydown = e => { if (e.key === "Enter") send($("chatIn").value); };
+document.querySelectorAll(".ex").forEach(b => b.onclick = () => send(b.textContent));
+</script>
+</body>
+</html>
