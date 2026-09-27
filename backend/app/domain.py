@@ -159,6 +159,7 @@ class PainLocation(StrEnum):
     HEAD = "head"
     BREAST = "breast"
     SHOULDER = "shoulder"
+    THIGHS_LEGS = "thighs_legs"  # period pain often radiates to the thighs/legs
     OTHER = "other"
 
 
@@ -178,6 +179,17 @@ class Symptom(StrEnum):
     ANXIETY = "anxiety"
     SLEEP_PROBLEMS = "sleep_problems"
     SHORTNESS_OF_BREATH = "shortness_of_breath"
+    # Common period / PMS symptoms
+    VOMITING = "vomiting"
+    MUSCLE_JOINT_ACHES = "muscle_joint_aches"
+    HOT_FLASHES = "hot_flashes"
+    SWELLING = "swelling"  # water retention: hands, feet, feeling puffy
+    FOOD_CRAVINGS = "food_cravings"
+    LOSS_OF_APPETITE = "loss_of_appetite"
+    LOW_MOOD = "low_mood"
+    CRYING_SPELLS = "crying_spells"
+    DIFFICULTY_CONCENTRATING = "difficulty_concentrating"
+    LOW_LIBIDO = "low_libido"
     # Gynecological
     SPOTTING = "spotting"
     BLEEDING_BETWEEN_PERIODS = "bleeding_between_periods"

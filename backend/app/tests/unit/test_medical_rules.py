@@ -314,7 +314,7 @@ def test_mr008_light_bleeding_in_pregnancy_urgent():
     assert codes(ev)["MR-008"] == Severity.URGENT
 
 
-@pytest.mark.parametrize("flag", ["fainting", "dizziness", "shoulder_tip_pain", "loss_of_consciousness"])
+@pytest.mark.parametrize("flag", ["fainting", "dizziness", "shoulder_tip_pain", "loss_of_consciousness", "nausea", "vomiting"])
 def test_mr008_bleeding_with_red_flags_emergency(flag):
     ev = evaluate(**_pregnant(bleeding=[bleed(0, FlowLevel.LIGHT)], symptoms=[sym(0, symptoms={flag})]))
     assert codes(ev)["MR-008"] == Severity.EMERGENCY

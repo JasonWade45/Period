@@ -17,7 +17,7 @@ from app.services.prediction_engine import Prediction
 TOPIC_KEYWORDS: dict[str, str] = {
     "cycle": r"cycle|period|late|early|length|irregular|regular|predict|next|missed|دور[ةه]|الدور[ةه]|اتأخر|تأخر|متأخر|منتظم|طول|ميعاد|موعد|الجاية|القادمة|غابت|انقطع",
     "bleeding": r"bleed|flow|heavy|clot|pad|tampon|spotting|blood|نزيف|نزف|دم|غزير|فوط|جلط|تبقيع|تنقيط",
-    "symptoms": r"pain|cramp|symptom|headache|migraine|mood|bloat|tired|fatigue|acne|ألم|وجع|مغص|أعراض|اعراض|صداع|مزاج|انتفاخ|تعب|إرهاق|حبوب",
+    "symptoms": r"pain|cramp|symptom|headache|migraine|mood|bloat|tired|fatigue|acne|ألم|وجع|مغص|أعراض|اعراض|صداع|مزاج|انتفاخ|تعب|إرهاق|حبوب|back|leg|thigh|vomit|crav|appetite|ضهر|ظهر|فخاد|رجلي|ترجيع|قيء|شهية|عياط|تركيز|سخونية|هبات",
     "all": r"doctor|gynae|gyneco|summar|overview|report|question|دكتور|دكتورة|طبيب|طبيبة|لخص|ملخص|تقرير|أسأل|اسأل|سؤال",
 }
 

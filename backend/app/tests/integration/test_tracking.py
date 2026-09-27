@@ -123,3 +123,29 @@ def test_settings(client, auth):
     assert client.get("/api/v1/users/me/settings", headers=h).json()["period_reminders"] is True
     r = client.patch("/api/v1/users/me/settings", json={"weekly_summary": False, "reminder_time": "21:30:00"}, headers=h)
     assert r.json()["weekly_summary"] is False
+
+
+def test_period_symptoms_back_pain_and_pms_accepted(client, auth):
+    h, _ = auth()
+    body = {
+        "log_date": today().isoformat(),
+        "pain_level": 5,
+        "pain_location": ["lower_back", "lower_abdomen", "thighs_legs"],
+        "symptoms": [
+            "vomiting",
+            "muscle_joint_aches",
+            "hot_flashes",
+            "swelling",
+            "food_cravings",
+            "loss_of_appetite",
+            "low_mood",
+            "crying_spells",
+            "difficulty_concentrating",
+            "low_libido",
+        ],
+    }
+    r = client.post("/api/v1/symptoms", json=body, headers=h)
+    assert r.status_code == 201, r.text
+    assert r.json()["medical"]["overall_severity"] == "NORMAL"  # ordinary period symptoms are not alerts
+    saved = client.get("/api/v1/symptoms", headers=h).json()[0]
+    assert "lower_back" in saved["pain_location"] and "vomiting" in saved["symptoms"]

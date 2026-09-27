@@ -78,3 +78,13 @@ def test_users_cannot_see_each_others_data(client, auth):
     assert client.get(f"/api/v1/cycles/{cid}", headers=h2).status_code == 404
     assert client.delete(f"/api/v1/cycles/{cid}", headers=h2).status_code == 404
     assert client.get("/api/v1/cycles", headers=h2).json() == []
+
+
+def test_x_access_token_header_accepted_and_preferred(client, auth):
+    h, _ = auth()
+    token = h["Authorization"].removeprefix("Bearer ")
+    assert client.get("/api/v1/auth/me", headers={"X-Access-Token": token}).status_code == 200
+    # a proxy-rewritten Authorization header must not break the custom header
+    assert client.get("/api/v1/auth/me", headers={"X-Access-Token": token, "Authorization": "Basic Zm9vOmJhcg=="}).status_code == 200
+    assert client.get("/api/v1/auth/me", headers={"X-Access-Token": "garbage"}).status_code == 401
+    assert client.get("/api/v1/auth/me").status_code == 401

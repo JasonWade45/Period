@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -21,15 +21,25 @@ DB = Annotated[Session, Depends(get_db)]
 def get_current_user(
     db: DB,
     creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    x_access_token: Annotated[str | None, Header(include_in_schema=False, max_length=4096)] = None,
 ) -> User:
+    """Accepts `Authorization: Bearer <jwt>` (standard) or `X-Access-Token: <jwt>`.
+
+    The custom header exists because some reverse proxies (e.g. authenticated preview proxies)
+    consume or rewrite the Authorization header. If present it takes precedence.
+    """
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Not authenticated",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if creds is None or creds.scheme.lower() != "bearer":
+    if x_access_token:
+        token = x_access_token.removeprefix("Bearer ").strip()
+    elif creds is not None and creds.scheme.lower() == "bearer":
+        token = creds.credentials
+    else:
         raise unauthorized
-    user_id = decode_access_token(creds.credentials)
+    user_id = decode_access_token(token)
     if user_id is None:
         raise unauthorized
     user = db.get(User, user_id)

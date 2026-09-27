@@ -34,3 +34,11 @@ These are deliberate choices made while implementing PRD v1.0. Each is worth a p
 - Region-specific emergency numbers (currently generic "local emergency number").
 - Offline sync queue (a client concern).
 - Moving the rate limiter to Redis before running more than one API instance.
+
+## Auth header for proxied previews
+- Protected endpoints accept `X-Access-Token: <jwt>` in addition to `Authorization: Bearer <jwt>`; the custom header wins if both are sent.
+  Reason: the authenticated preview proxy rewrites `Authorization`, which made every call after login return 401. The web preview page uses the custom header.
+
+## Symptoms (v1.1)
+- Added common period/PMS symptoms: vomiting, muscle/joint aches, hot flashes, swelling, food cravings, loss of appetite, low mood, crying spells, difficulty concentrating, low libido; pain location `thighs_legs`. Back pain = pain location `lower_back`.
+- Rules change: `vomiting` joins `nausea` as a pregnancy-bleeding emergency feature in MR-008 (NHS: "feeling sick"). Ordinary period symptoms never raise alerts on their own.

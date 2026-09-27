@@ -567,7 +567,14 @@ class MedicalRulesEngine:
         codes = ctx.symptom_codes_between(emerg_since, inp.today)
         if any("shoulder" in s.pain_location for s in recent_symptoms):
             codes = codes | {Symptom.SHOULDER_TIP_PAIN.value}
-        for code in (Symptom.SHOULDER_TIP_PAIN, Symptom.FAINTING, Symptom.DIZZINESS, Symptom.LOSS_OF_CONSCIOUSNESS, Symptom.NAUSEA):
+        for code in (
+            Symptom.SHOULDER_TIP_PAIN,
+            Symptom.FAINTING,
+            Symptom.DIZZINESS,
+            Symptom.LOSS_OF_CONSCIOUSNESS,
+            Symptom.NAUSEA,
+            Symptom.VOMITING,
+        ):
             if code.value in codes:
                 flags.append(code.value)
 

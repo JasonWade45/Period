@@ -30,7 +30,7 @@ app.add_middleware(
     allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
     allow_credentials=False,  # bearer tokens, not cookies
     allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "X-Access-Token", "Content-Type"],
 )
 
 

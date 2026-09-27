@@ -30,6 +30,10 @@
   button.ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
   button:disabled{opacity:.5;cursor:wait}
   input,textarea{font:inherit;padding:8px;border:1px solid var(--line);border-radius:10px;width:100%}
+  .grp{margin:10px 0 2px;font-size:13px;font-weight:700;color:var(--ink)}
+  .grp.red{color:var(--urg)}
+  label.chk:has(input:checked){background:var(--brand2);outline:1px solid var(--brand)}
+  label.chk.red:has(input:checked){background:#fdeeee;outline-color:var(--urg)}
   label.chk{display:inline-flex;gap:4px;align-items:center;margin:3px 6px 3px 0;font-size:13px;background:#faf3f6;padding:3px 8px;border-radius:8px;cursor:pointer}
   table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:6px;border-bottom:1px solid var(--line);text-align:start}
   .chat{height:220px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px;background:#fdfbfc;margin-bottom:8px}
@@ -134,9 +138,10 @@
     <p class="muted" id="stats"></p>
   </section>
 
-  <section class="card">
-    <h2>تسجيل أعراض اليوم</h2>
-    <div class="row"><span class="muted">الألم</span><input id="pain" type="range" min="0" max="10" value="3"><b id="painVal">3</b></div>
+  <section class="card wide">
+    <h2>حاسّة بإيه النهارده؟ 💭</h2>
+    <div class="row"><span class="muted">شدة الألم</span><input id="pain" type="range" min="0" max="10" value="3"><b id="painVal">3</b></div>
+    <p class="muted" id="painWord" style="margin:0 0 6px">ألم خفيف</p>
     <div id="symptoms" style="margin:8px 0"></div>
     <label class="chk"><input type="checkbox" id="affects"> أثّر على نشاطي اليومي</label>
     <div style="margin-top:8px"><button id="logBtn">حفظ</button></div>
@@ -170,20 +175,47 @@
 
 <script>
 const API = "/api/v1";
-let token = null, conversationId = null;
+let token = null, refreshToken = null, conversationId = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const SYMPTOMS = {bloating:"انتفاخ",headache:"صداع",fatigue:"إرهاق",nausea:"غثيان",mood_changes:"تقلب المزاج",
-  breast_tenderness:"ألم الثدي",bleeding_between_periods:"نزيف بين الدورات",bleeding_after_sex:"نزيف بعد العلاقة",
-  painkillers_not_helping:"المسكنات لا تساعد",dizziness:"دوخة",fainting:"إغماء"};
+// Pain locations → symptom_logs.pain_location ; everything else → symptom_logs.symptoms
+const PAIN_LOCATIONS = {lower_abdomen:"مغص / أسفل البطن", lower_back:"ألم في الضهر", pelvis:"الحوض", thighs_legs:"الفخاد والرجلين",
+  one_sided:"جنب واحد بس", head:"الراس", breast:"الصدر", other:"مكان تاني"};
+const SYMPTOM_GROUPS = [
+  {title:"🤕 الجسم", items:{bloating:"انتفاخ", headache:"صداع", migraine:"صداع نصفي", fatigue:"تعب وإرهاق", muscle_joint_aches:"وجع في العضلات والمفاصل",
+    breast_tenderness:"ألم أو تقل في الصدر", swelling:"احتباس مياه / تورّم", hot_flashes:"هبّات سخونية أو عرق", dizziness:"دوخة", acne:"حبوب في الوش",
+    sleep_problems:"مشاكل في النوم", shortness_of_breath:"ضيق في النفس"}},
+  {title:"🍽️ المعدة والأكل", items:{nausea:"غثيان", vomiting:"ترجيع", diarrhea:"إسهال", constipation:"إمساك",
+    food_cravings:"نفسي في أكل معيّن / جوع زيادة", loss_of_appetite:"مليش نفس للأكل"}},
+  {title:"💜 المزاج والمشاعر", items:{mood_changes:"تقلّب المزاج", irritability:"عصبية", anxiety:"قلق أو توتر", low_mood:"زعلانة / مزاجي واطي",
+    crying_spells:"عايزة أعيّط", difficulty_concentrating:"صعوبة في التركيز", low_libido:"رغبة أقل"}},
+  {title:"🌸 أعراض نسائية", items:{spotting:"تبقيع", bleeding_between_periods:"نزيف بين الدورات", bleeding_after_sex:"نزيف بعد العلاقة",
+    unusual_discharge:"إفرازات مش طبيعية", pain_during_sex:"ألم أثناء العلاقة", pain_urinating:"ألم في التبول", pain_bowel_movements:"ألم وقت دخول الحمام"}},
+  {title:"⚠️ علامات محتاجة انتباه", red:true, items:{painkillers_not_helping:"المسكنات مش بتفرّق", sudden_severe_pain:"ألم شديد ومفاجئ",
+    fever:"سخونية", shoulder_tip_pain:"ألم في طرف الكتف", fainting:"إغماء", loss_of_consciousness:"فقدت الوعي"}},
+];
+const SYMPTOMS = Object.assign({}, ...SYMPTOM_GROUPS.map(g => g.items));
 const VAR = {insufficient_data:"محتاجين دورات أكتر",low:"قليل",moderate:"متوسط",high:"عالي"};
 const CONF = {high:"عالية",medium:"متوسطة",low:"منخفضة"};
 const FLOW = {spotting:"تبقيع",light:"خفيف",medium:"متوسط",heavy:"غزير",very_heavy:"غزير جدًا"};
 const PAIN = {none:"لا يوجد",mild:"خفيف",moderate:"متوسط",severe:"شديد"};
 
-async function api(path, opts = {}) {
-  const r = await fetch(API + path, {...opts, headers: {"Content-Type": "application/json", ...(token ? {Authorization: "Bearer " + token} : {}), ...(opts.headers || {})}});
+async function api(path, opts = {}, retried = false) {
+  const r = await fetch(API + path, {...opts, headers: {"Content-Type": "application/json", ...(token ? {"X-Access-Token": token} : {}), ...(opts.headers || {})}});
   const body = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
+  if (r.status === 401 && token && !retried && !path.startsWith("/auth/")) {
+    const rt = refreshToken || sessionStorage.getItem("cc_refresh");
+    if (rt) {
+      try {
+        const t = await api("/auth/refresh", {method: "POST", body: JSON.stringify({refresh_token: rt})}, true);
+        token = t.access_token; refreshToken = t.refresh_token;
+        sessionStorage.setItem("cc_token", token); sessionStorage.setItem("cc_refresh", refreshToken);
+        return api(path, opts, true);
+      } catch {}
+    }
+    sessionStorage.removeItem("cc_token"); sessionStorage.removeItem("cc_refresh");
+    throw new Error("انتهت الجلسة — ادخلي تاني من فضلك");
+  }
   if (!r.ok) throw new Error(typeof body === "object" ? JSON.stringify(body.detail ?? body) : body);
   return body;
 }
@@ -202,6 +234,7 @@ if (localStorage.getItem("cc_email")) $("email").value = localStorage.getItem("c
 
 async function enter(t) {
   token = t.access_token; sessionStorage.setItem("cc_token", token);
+  if (t.refresh_token) { refreshToken = t.refresh_token; sessionStorage.setItem("cc_refresh", refreshToken); }
   $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("logoutBtn").classList.remove("hidden");
   await refresh();
 }
@@ -232,8 +265,9 @@ $("demoLink").onclick = async e => {
   catch (err) { $("err").textContent = "الحساب التجريبي مش متاح: " + err.message; }
 };
 $("logoutBtn").onclick = async () => {
-  try { await api("/auth/logout", {method: "POST", body: "{}"}); } catch {}
-  token = null; sessionStorage.removeItem("cc_token"); location.reload();
+  const rt = refreshToken || sessionStorage.getItem("cc_refresh");
+  if (rt) { try { await api("/auth/logout", {method: "POST", body: JSON.stringify({refresh_token: rt})}); } catch {} }
+  token = refreshToken = null; sessionStorage.removeItem("cc_token"); sessionStorage.removeItem("cc_refresh"); location.reload();
 };
 
 function greeting() {
@@ -336,14 +370,23 @@ document.querySelectorAll(".fl").forEach(b => b.onclick = () => mutate("/bleedin
   log_date: today, flow_level: b.dataset.f, frequent_changes: $("fFreq").checked, double_protection: $("fDouble").checked,
   leakage: $("fLeak").checked, clot_size: $("fClot").checked ? "large" : null}, "flowMsg"));
 
-$("symptoms").innerHTML = Object.entries(SYMPTOMS).map(([k, v]) => `<label class="chk"><input type="checkbox" value="${k}">${v}</label>`).join("");
-$("pain").oninput = () => $("painVal").textContent = $("pain").value;
+const chip = (k, v, kind, red) => `<label class="chk${red ? " red" : ""}"><input type="checkbox" data-kind="${kind}" value="${k}">${v}</label>`;
+$("symptoms").innerHTML =
+  `<p class="grp">📍 مكان الألم</p>` + Object.entries(PAIN_LOCATIONS).map(([k, v]) => chip(k, v, "loc")).join("") +
+  SYMPTOM_GROUPS.map(g => `<p class="grp${g.red ? " red" : ""}">${g.title}</p>` + Object.entries(g.items).map(([k, v]) => chip(k, v, "sym", g.red)).join("")).join("");
+const PAIN_WORDS = [[0, "مفيش ألم 🌿"], [3, "ألم خفيف"], [6, "ألم متوسط"], [8, "ألم شديد"], [10, "ألم شديد جدًا"]];
+$("pain").oninput = () => {
+  const v = +$("pain").value; $("painVal").textContent = v;
+  $("painWord").textContent = PAIN_WORDS.find(([max]) => v <= max)[1];
+};
 $("logBtn").onclick = async () => {
   $("logBtn").disabled = true;
   try {
-    const symptoms = [...document.querySelectorAll("#symptoms input:checked")].map(i => i.value);
-    const r = await api("/symptoms", {method: "POST", body: JSON.stringify({log_date: today, pain_level: +$("pain").value, symptoms, affects_daily_activity: $("affects").checked})});
-    $("logResult").innerHTML = "تم الحفظ. التقييم: " + `<span class="pill ${r.medical.overall_severity}">${r.medical.overall_severity}</span>` +
+    const picked = kind => [...document.querySelectorAll(`#symptoms input[data-kind="${kind}"]:checked`)].map(i => i.value);
+    const r = await api("/symptoms", {method: "POST", body: JSON.stringify({log_date: today, pain_level: +$("pain").value,
+      pain_location: picked("loc"), symptoms: picked("sym"), affects_daily_activity: $("affects").checked})});
+    document.querySelectorAll("#symptoms input:checked").forEach(i => i.checked = false);
+    $("logResult").innerHTML = "اتسجل ✔ ألف سلامة عليكي يا تسنيمو 💗" +
       (r.medical.requires_immediate_attention ? alertHtml(r.medical.alert) : "");
     await refresh();
   } catch (e) { $("logResult").textContent = "خطأ: " + e.message; }
