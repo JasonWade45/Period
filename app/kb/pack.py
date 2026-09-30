@@ -45,6 +45,10 @@ SEED_LICENSE_NOTE = (
 )
 EVAL_SEED_STATUS = "needs_physician_review"
 REGISTRY_APPROVED_FOR_INGEST = False
+# بذرة صاحبة المشروع لا تحمل `source_id` لكل مقطع: الإسناد محفوظ لكل مقطع في
+# `source_refs_to_verify`. نستخدم معرّفًا محايدًا للفهرسة الداخلية فقط — ولا
+# ننسب أي مقطع إلى جهة بناءً على اسم مذكور في قائمة «للتحقق».
+SEED_SOURCE_ID = "kb-seed"
 
 SEED_FILE = "knowledge/knowledge_seed.jsonl"
 EVAL_FILE = "eval/eval_questions_seed.jsonl"
@@ -89,6 +93,8 @@ class SeedLoad:
     records: list[IngestRecord] = field(default_factory=list)
     # ادّعاءات مراجعة/حالة وردت في الملف وأُلغيت: (المعرّف، الحقل، القيمة المدَّعاة)
     ignored_claims: list[tuple[str, str, str]] = field(default_factory=list)
+    # مقاطع بلا source_id في الملف ⇒ أخذت المعرّف الداخلي المحايد SEED_SOURCE_ID
+    placeholder_source_ids: list[str] = field(default_factory=list)
     invalid: list[tuple[str, str]] = field(default_factory=list)
 
     @property
@@ -133,9 +139,12 @@ def load_knowledge_seed(path: Path | str | None = None,
                 out.ignored_claims.append(
                     (str(raw.get("id", f"سطر {lineno}")), claimed, repr(value))
                 )
+        payload = {k: v for k, v in raw.items() if k in IngestRecord.model_fields}
+        if not str(payload.get("source_id", "") or "").strip():
+            payload["source_id"] = SEED_SOURCE_ID
+            out.placeholder_source_ids.append(str(raw.get("id", f"سطر {lineno}")))
         try:
-            record = IngestRecord(**{k: v for k, v in raw.items()
-                                     if k in IngestRecord.model_fields})
+            record = IngestRecord(**payload)
         except Exception as exc:  # noqa: BLE001
             out.invalid.append((str(raw.get("id", f"سطر {lineno}")),
                                 str(exc).splitlines()[0]))
@@ -264,6 +273,26 @@ def _build_default_embedder():
     return build_embedder()
 
 
+def to_kb_source(item: dict[str, Any]):
+    """يحوّل سطر سجل صاحبة المشروع إلى نموذج المخزون بلا فقدان حقول الرخصة.
+
+    سجلها يستخدم `license_status` و`languages` و`type` و`ingestion_method`؛
+    تُحفظ كلها (الرخصة كما هي، والنوع وطريقة الاستيراد في notes).
+    """
+    from .schemas import KbSource
+
+    extra = [str(item.get("type", "") or ""), str(item.get("ingestion_method", "") or "")]
+    notes = str(item.get("notes", "") or "") or "; ".join(x for x in extra if x)
+    return KbSource(
+        id=str(item["id"]), name=str(item.get("name", "")),
+        language=str(item.get("language") or item.get("languages") or "ar"),
+        url=str(item.get("url", "") or ""),
+        licence=str(item.get("licence") or item.get("license_status") or ""),
+        approved_for_ingest=REGISTRY_APPROVED_FOR_INGEST,   # لا تُقلب أبدًا هنا
+        notes=notes,
+    )
+
+
 # ----------------------------------------------------------------------- القاموس
 def load_glossary(path: Path | str | None = None,
                   *, root: Path | str | None = None) -> list[dict[str, str]]:
@@ -294,6 +323,9 @@ def _cmd_check(args: argparse.Namespace) -> int:
     glossary = load_glossary(root=args.root)
     print(f"\nمقاطع البذرة: {len(seed.records)} (كلها {SEED_STATUS}، "
           f"authored_by={SEED_AUTHORED_BY})")
+    if seed.placeholder_source_ids:
+        print(f"  مقاطع بلا source_id في الملف ⇒ معرّف داخلي محايد "
+              f"«{SEED_SOURCE_ID}»: {len(seed.placeholder_source_ids)}")
     print(f"  ادّعاءات مراجعة أُلغيت: {len(seed.ignored_claims)}")
     print(f"  سجلات غير صالحة: {len(seed.invalid)}")
     print(f"أسئلة التقييم: {len(questions)} (كلها {EVAL_SEED_STATUS})")
@@ -308,15 +340,12 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     """يستورد البذرة كمسودات (الافتراضي) أو عبر بوابة الرخصة الصارمة عند الطلب."""
     from .ingest import ingest_records
     from .postgres import build_store
-    from .schemas import KbSource
 
     seed = load_knowledge_seed(root=args.root)
     registry = load_sources_registry(root=args.root)
 
     store = build_store(backend=args.backend, sqlite_path=args.db)
-    sources = {s["id"]: KbSource(**{k: v for k, v in s.items()
-                                    if k in KbSource.model_fields})
-               for s in registry.sources if s.get("id")}
+    sources = {s["id"]: to_kb_source(s) for s in registry.sources if s.get("id")}
     for source in sources.values():
         # السجل يُكتب للتوثيق، وكل approved_for_ingest فيه false كما وصل
         store.upsert_source(source)

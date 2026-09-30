@@ -35,7 +35,16 @@ def resolve_glossary_path() -> Path:
 
 
 GLOSSARY_PATH = resolve_glossary_path()
-REQUIRED_COLUMNS = ("term_en", "preferred_ar", "not_preferred_ar", "notes", "needs_review")
+
+# صيغتان مدعومتان:
+# 1) صيغة حزمة صاحبة المشروع: english, arabic_preferred_user_facing,
+#    arabic_formal_alt, note — وهي المصدر المعلن، ولا تُعدَّل أبدًا في الكود.
+#    لا تحمل قائمة «ممنوع»: الصيغة الرسمية بديل مسموح (سجل مختلف) لا خطأ.
+# 2) صيغة المستودع القديمة: term_en, preferred_ar, not_preferred_ar, notes,
+#    needs_review — تبقى مدعومة للاختبارات ولأي قاموس لاحق بمعجم ممنوع.
+PACK_COLUMNS = ("english", "arabic_preferred_user_facing", "arabic_formal_alt", "note")
+LEGACY_COLUMNS = ("term_en", "preferred_ar", "not_preferred_ar", "notes", "needs_review")
+REQUIRED_COLUMNS = LEGACY_COLUMNS  # للتوافق مع ما يستورده غيرنا
 
 # نصوص يخضع لها التدقيق: ما يراه المستخدم فعليًا.
 SCAN_GLOBS = ("locales/*.json", "knowledge/*.jsonl", "store/*.md")
@@ -71,10 +80,14 @@ def load_glossary(path: Path | None = None) -> tuple[list[GlossaryTerm], list[Is
     seen_preferred: dict[str, str] = {}
     with path.open(encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh)
-        missing = [c for c in REQUIRED_COLUMNS if c not in (reader.fieldnames or [])]
+        columns = set(reader.fieldnames or [])
+        if set(PACK_COLUMNS) <= columns:
+            return _load_pack_glossary(path, reader)
+        missing = [c for c in LEGACY_COLUMNS if c not in columns]
         if missing:
             return [], [Issue("error", str(path),
-                              f"أعمدة ناقصة: {', '.join(missing)}")]
+                              f"أعمدة ناقصة: {', '.join(missing)} "
+                              f"(أو أعمدة الحزمة: {', '.join(PACK_COLUMNS)})")]
         for lineno, row in enumerate(reader, start=2):
             if not (row.get("term_en") or "").strip():
                 issues.append(Issue("error", f"{path}:{lineno}", "مصطلح إنجليزي فارغ"))
@@ -102,6 +115,42 @@ def load_glossary(path: Path | None = None) -> tuple[list[GlossaryTerm], list[Is
                 notes=(row.get("notes") or "").strip(),
                 needs_review=flag == "true",
             ))
+    return terms, issues
+
+
+def _load_pack_glossary(path: Path, reader: "csv.DictReader") -> tuple[list[GlossaryTerm], list[Issue]]:
+    """يقرأ قاموس صاحبة المشروع كما هو.
+
+    الصيغة الرسمية البديلة (`arabic_formal_alt`) **مسموحة** ولا تُعدّ خطأ: هي
+    سجل لغوي آخر (فصحى/مصطلح مرجعي)، وليست صيغة مرفوضة. لذا `not_preferred`
+    تبقى فارغة، والتدقيق يتوقف على: تكرار الصيغة المفضّلة، وغياب مقابل عربي،
+    وكل صف يُعلَّم `needs_review=true` لأن الملف لا يحمل حالة مراجعة بشرية —
+    ولا نخترع حالة «مُراجَع» لم يكتبها إنسان.
+    """
+    terms: list[GlossaryTerm] = []
+    issues: list[Issue] = []
+    seen_preferred: dict[str, str] = {}
+    for lineno, row in enumerate(reader, start=2):
+        english = (row.get("english") or "").strip()
+        preferred = (row.get("arabic_preferred_user_facing") or "").strip()
+        if not english:
+            issues.append(Issue("error", f"{path}:{lineno}", "مصطلح إنجليزي فارغ"))
+            continue
+        if not preferred:
+            issues.append(Issue("error", f"{path}:{lineno}",
+                                f"لا مقابل عربي للمصطلح {english}"))
+        elif preferred in seen_preferred:
+            issues.append(Issue(
+                "error", f"{path}:{lineno}",
+                f"«{preferred}» مستخدم لمصطلحين: {seen_preferred[preferred]} و{english}"))
+        if preferred:
+            seen_preferred[preferred] = english
+        terms.append(GlossaryTerm(
+            term_en=english, preferred_ar=preferred,
+            not_preferred=[],
+            notes=(row.get("note") or "").strip(),
+            needs_review=True,
+        ))
     return terms, issues
 
 

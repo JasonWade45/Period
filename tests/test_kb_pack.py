@@ -19,6 +19,7 @@ import pytest
 
 from app.kb.pack import (
     EVAL_SEED_STATUS,
+    SEED_SOURCE_ID,
     SEED_AUTHORED_BY,
     SEED_LICENSE_NOTE,
     SEED_STATUS,
@@ -288,3 +289,54 @@ def test_glossary_loader_reads_the_pack_dictionary(kb_pack):
 
 def test_kb_root_defaults_to_the_repository_kb_directory():
     assert kb_root().name == "kb"
+
+
+# ------------------------------------------- مخطط حزمة صاحبة المشروع (وصل فعلًا)
+
+def test_seed_without_source_id_gets_a_neutral_internal_id(tmp_path):
+    """بذرتها لا تحمل source_id: نضع معرّفًا محايدًا، ولا ننسب مقطعًا لجهة."""
+    root = tmp_path / "kb" / "knowledge"
+    root.mkdir(parents=True)
+    (root / "knowledge_seed.jsonl").write_text(
+        json.dumps({"id": "c1", "title": "عنوان", "topic": "موضوع", "language": "ar",
+                    "content": "نص.", "source_refs_to_verify": ["NHS Periods"]},
+                   ensure_ascii=False) + "\n", encoding="utf-8")
+
+    loaded = load_knowledge_seed(root=tmp_path / "kb")
+    assert loaded.placeholder_source_ids == ["c1"]
+    assert loaded.records[0].source_id == SEED_SOURCE_ID
+
+
+def test_registry_row_keeps_licence_and_maps_to_kb_source():
+    from app.kb.pack import to_kb_source
+
+    row = {"id": "nhs", "name": "NHS website (UK)", "type": "gov_public_health",
+           "url": "https://www.nhs.uk", "languages": "en",
+           "license_status": "check before ingest",
+           "ingestion_method": "official_content_api_if_permitted",
+           "approved_for_ingest": True}          # ادّعاء اعتماد: لا يمرّ
+
+    source = to_kb_source(row)
+    assert source.id == "nhs" and source.language == "en"
+    assert source.licence == "check before ingest"          # الرخصة محفوظة كما هي
+    assert source.approved_for_ingest is False              # ولا تُقلب أبدًا
+    assert "gov_public_health" in source.notes
+    assert "official_content_api_if_permitted" in source.notes
+
+
+def test_pack_glossary_columns_are_read_as_the_source_of_truth(tmp_path):
+    """قاموسها بأعمدة مختلفة: يُقرأ، والصيغة الرسمية البديلة ليست خطأ."""
+    from tools.check_glossary import load_glossary
+
+    path = tmp_path / "glossary_ar.csv"
+    path.write_text(
+        "english,arabic_preferred_user_facing,arabic_formal_alt,note\n"
+        "amenorrhea,غياب الدورة,انقطاع الطمث,Do not confuse with menopause\n",
+        encoding="utf-8")
+
+    terms, issues = load_glossary(path)
+    assert issues == []
+    assert terms[0].term_en == "amenorrhea"
+    assert terms[0].preferred_ar == "غياب الدورة"
+    assert terms[0].not_preferred == []          # البديل الرسمي مسموح لا ممنوع
+    assert terms[0].needs_review is True         # لا حالة مراجعة في الملف ⇒ لا نخترعها
