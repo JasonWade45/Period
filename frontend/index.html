@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CycleCare — مساعدتك لصحة الدورة</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">C</span>
+        <div>
+          <h1>CycleCare</h1>
+          <p>مساعد تثقيفي لصحة الدورة الشهرية</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="mode-toggle" role="tablist">
+          <button id="mode-chat" class="mode-btn active" onclick="setMode('chat')">محادثة</button>
+          <button id="mode-summary" class="mode-btn" onclick="setMode('summary')">ملخص</button>
+        </div>
+        <button class="icon-btn" id="settings-btn" onclick="toggleSettings()" title="بياناتي">⚙</button>
+      </div>
+    </header>
+
+    <div class="disclaimer">
+      مساعد تثقيفي فقط — لا يشخّص ولا يصف علاجًا. في حالات الطوارئ توجّهي للطوارئ مباشرة.
+    </div>
+
+    <main class="chat" id="chat">
+      <div class="welcome" id="welcome">
+        <div class="welcome-card">
+          <h2>أهلاً بكِ 👋</h2>
+          <p>اسألي أي شيء عن الدورة الشهرية أو الأعراض المسجّلة، أو اطلبي ملخصًا لدوراتي.</p>
+          <div class="suggestions">
+            <button class="chip" onclick="ask('إيه الفرق بين الدورة المنتظمة والغير منتظمة؟')">الدورة المنتظمة والغير منتظمة</button>
+            <button class="chip" onclick="ask('إيه أعراض ما قبل الدورة؟')">أعراض ما قبل الدورة</button>
+            <button class="chip" onclick="ask('ليه الدورة بتتأخر؟')">أسباب تأخر الدورة</button>
+            <button class="chip" onclick="ask('اعملي ملخص لدوراتي')">ملخص لدوراتي</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div class="typing" id="typing" hidden>
+      <span></span><span></span><span></span>
+    </div>
+
+    <footer class="composer">
+      <form id="chat-form" onsubmit="return handleSubmit(event)">
+        <textarea id="input" rows="1" placeholder="اكتبي سؤالك هنا…"
+                  onkeydown="handleKey(event)"></textarea>
+        <button type="submit" id="send-btn" aria-label="إرسال">➤</button>
+      </form>
+      <div class="composer-hint" id="hint">Enter للإرسال · Shift+Enter لسطر جديد</div>
+    </footer>
+
+    <!-- لوحة البيانات -->
+    <aside class="settings" id="settings" hidden onclick="if(event.target===this)toggleSettings()">
+      <div class="settings-body">
+        <div class="settings-head">
+          <h2>بياناتي (سياق الدورة)</h2>
+          <button class="icon-btn" onclick="toggleSettings()">✕</button>
+        </div>
+        <label>العمر <input type="number" id="f-age" min="10" max="60" placeholder="اختياري"></label>
+        <label>عدد الدورات المسجّلة
+          <input type="number" id="f-cycles" min="0" max="100" value="0"></label>
+        <label>متوسط طول الدورة (أيام)
+          <input type="number" id="f-avg" min="15" max="90" placeholder="اختياري"></label>
+        <label>حمل (لو معروف)
+          <select id="f-pregnancy">
+            <option value="">غير محدد</option>
+            <option value="غير مؤكد">احتمال حمل</option>
+            <option value="مؤكد">حمل مؤكد</option>
+            <option value="لا">لا</option>
+          </select></label>
+        <label>وسيلة منع الحمل <input type="text" id="f-contraception" placeholder="اختياري"></label>
+
+        <h3>آخر الدورات</h3>
+        <div id="f-last">
+          <div class="cycle-row">
+            <input type="date" class="c-date">
+            <input type="number" class="c-len" min="1" max="90" placeholder="أيام">
+          </div>
+          <div class="cycle-row">
+            <input type="date" class="c-date">
+            <input type="number" class="c-len" min="1" max="90" placeholder="أيام">
+          </div>
+          <div class="cycle-row">
+            <input type="date" class="c-date">
+            <input type="number" class="c-len" min="1" max="90" placeholder="أيام">
+          </div>
+        </div>
+
+        <label>أمراض مشخّصة
+          <textarea id="f-conditions" rows="2"
+            placeholder="كل سطر: اسم الحالة | مشخّصة أو غير متأكدة"></textarea></label>
+
+        <div class="settings-actions">
+          <button class="btn-primary" onclick="saveSettings()">حفظ</button>
+          <button class="btn-ghost" onclick="clearSettings()">مسح</button>
+        </div>
+        <p class="settings-note">البيانات تُحفظ محليًا في متصفحك ولا تُرسل لغير خادم التطبيق.</p>
+      </div>
+    </aside>
+
+    <!-- واجهة الطوارئ -->
+    <div class="overlay" id="overlay" hidden>
+      <div class="overlay-card" id="overlay-card">
+        <div class="overlay-icon" id="overlay-icon">!</div>
+        <h2 id="overlay-title">رعاية طبية عاجلة</h2>
+        <pre id="overlay-text"></pre>
+        <button class="btn-primary" onclick="closeOverlay()">فهمت</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
