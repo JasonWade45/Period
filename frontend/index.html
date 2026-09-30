@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CycleCare — مساعدتك لصحة الدورة</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="rtl.css">
 </head>
 <body>
   <div id="app">
@@ -13,28 +14,30 @@
         <span class="logo">C</span>
         <div>
           <h1>CycleCare</h1>
-          <p>مساعد تثقيفي لصحة الدورة الشهرية</p>
+          <p data-i18n="app.tagline">مساعد تثقيفي لصحة الدورة الشهرية</p>
         </div>
       </div>
       <div class="topbar-actions">
         <div class="mode-toggle" role="tablist">
-          <button id="mode-chat" class="mode-btn active" onclick="setMode('chat')">محادثة</button>
-          <button id="mode-summary" class="mode-btn" onclick="setMode('summary')">ملخص</button>
+          <button id="mode-chat" class="mode-btn active" onclick="setMode('chat')" data-i18n="ui.mode_chat">محادثة</button>
+          <button id="mode-summary" class="mode-btn" onclick="setMode('summary')" data-i18n="ui.mode_summary">ملخص</button>
         </div>
-        <button class="icon-btn" id="tracker-btn" onclick="toggleTracker()" title="دوراتي وأعراضي">📖</button>
-        <button class="icon-btn" id="settings-btn" onclick="toggleSettings()" title="بياناتي">⚙</button>
+        <button class="icon-btn no-flip" id="lang-btn" onclick="toggleLanguage()"
+                title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
+        <button class="icon-btn no-flip" id="tracker-btn" onclick="toggleTracker()" title="دوراتي وأعراضي">📖</button>
+        <button class="icon-btn no-flip" id="settings-btn" onclick="toggleSettings()" title="بياناتي">⚙</button>
       </div>
     </header>
 
-    <div class="disclaimer">
+    <div class="disclaimer" data-i18n="app.not_a_diagnosis">
       مساعد تثقيفي فقط — لا يشخّص ولا يصف علاجًا. في حالات الطوارئ توجّهي للطوارئ مباشرة.
     </div>
 
     <main class="chat" id="chat">
       <div class="welcome" id="welcome">
         <div class="welcome-card">
-          <h2>أهلاً بكِ 👋</h2>
-          <p>سجّلي دوراتك وأعراضك من 📖، واسألي عن أي شيء يخص الدورة الشهرية.</p>
+          <h2 data-i18n="ui.welcome_title">أهلاً بكِ 👋</h2>
+          <p data-i18n="ui.welcome_body">سجّلي دوراتك وأعراضك من 📖، واسألي عن أي شيء يخص الدورة الشهرية.</p>
           <div class="suggestions">
             <button class="chip" onclick="ask('إيه الفرق بين الدورة المنتظمة والغير منتظمة؟')">الدورة المنتظمة والغير منتظمة</button>
             <button class="chip" onclick="ask('إيه أعراض ما قبل الدورة؟')">أعراض ما قبل الدورة</button>
@@ -54,9 +57,10 @@
       <form id="chat-form" onsubmit="return handleSubmit(event)">
         <textarea id="input" rows="1" placeholder="اكتبي سؤالك هنا…"
                   onkeydown="handleKey(event)"></textarea>
-        <button type="submit" id="send-btn" aria-label="إرسال">➤</button>
+        <button type="submit" id="send-btn" class="flip-rtl" aria-label="إرسال"
+                data-i18n-attr="aria-label" data-i18n="ui.send">➤</button>
       </form>
-      <div class="composer-hint" id="hint">Enter للإرسال · Shift+Enter لسطر جديد</div>
+      <div class="composer-hint" id="hint" data-i18n="ui.composer_hint">Enter للإرسال · Shift+Enter لسطر جديد</div>
     </footer>
 
     <!-- لوحة التتبّع: الدورات والأعراض والرؤى -->
@@ -167,6 +171,7 @@
     </div>
   </div>
 
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

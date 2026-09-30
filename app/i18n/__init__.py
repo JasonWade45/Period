@@ -97,6 +97,14 @@ class Translator:
             raise MissingTranslation(f"لا صيغة جمع صالحة للمفتاح {key} ({loc}/{chosen})")
         return _interpolate(text, {**params, "count": count})
 
+    def node(self, key: str, locale: str | None = None) -> Any:
+        """عقدة مورد غير نصية (قائمة أسماء شهور مثلًا) — نفس قواعد الانحدار."""
+        loc = _normalize_locale(locale or self.default_locale)
+        result = self._resolve_node(key, loc)
+        if result is None:
+            raise MissingTranslation(f"مفتاح ترجمة مفقود: {key} ({loc})")
+        return result
+
     def error(self, code: str, locale: str | None = None, **params: Any) -> str:
         """رسالة خطأ من كود مستقر — الواجهة تتلقّى الكود والنص معًا."""
         key = ERROR_CODES.get(code)

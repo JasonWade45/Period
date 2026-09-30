@@ -1,0 +1,60 @@
+/* قواعد RTL: خصائص منطقية بدل فيزيائية + عزل الأرقام والهواتف + عكس الأيقونات.
+ *
+ * المبدأ: الاتجاه خاصية منطقية (start/end) لا فيزيائية (left/right). استخدام
+ * `margin-left` يجعل التخطيط ينكسر عند التحويل للعربية أو العكس، ويُصلح فرضًا
+ * بـ`[dir="rtl"]` لكل عنصر — وهو ما يتضاعف مع كل مكوّن جديد.
+ */
+
+:root {
+  --space-inline: 1rem;
+}
+
+/* لا تباعد أحرف ولا ميل في النص العربي: كلاهما يضرّ الاتصال البصري للحروف */
+[dir="rtl"] body,
+[lang^="ar"] body {
+  letter-spacing: normal;
+  font-style: normal;
+}
+
+[dir="rtl"] * {
+  letter-spacing: normal !important;
+}
+
+/* النصوص التي يجب ألا تنعكس: أرقام الهواتف، الأكواد، التواريخ الرقمية.
+ * بلا العزل يعرض محرك BiDi «123» داخل جملة عربية بترتيب قد يُقرأ مقلوبًا،
+ * ورقم طوارئ مقلوب خطر حقيقي. */
+.ltr-isolate,
+.phone-number,
+[data-ltr] {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+  text-align: start;
+}
+
+/* الأيقونات الاتجاهية (أسهم، رجوع، إرسال) تُقلب في RTL — أما أيقونات الشعار
+ * والصور غير الاتجاهية فلا تُقلب أبدًا. */
+.flip-rtl { transform: scaleX(1); }
+[dir="rtl"] .flip-rtl { transform: scaleX(-1); }
+[dir="rtl"] .no-flip { transform: none !important; }
+
+/* التخطيطات المنطقية للمكوّنات الجديدة */
+.logical-inline { padding-inline: var(--space-inline); }
+.logical-start { margin-inline-start: var(--space-inline); }
+.logical-end { margin-inline-end: var(--space-inline); }
+.logical-border-start { border-inline-start: 3px solid var(--rose, #e0507a); }
+
+/* فقاعات المحادثة: بداية الفقاعة من جهة اللغة لا من اليسار */
+.chat-log { text-align: start; }
+
+/* الأزرار الأيقونية: موضع منطقي */
+.icon-btn { inset-inline-end: auto; }
+
+/* جداول وتقارير: محاذاة من البداية المنطقية */
+table[dir="rtl"] th,
+table[dir="rtl"] td { text-align: start; }
+
+/* حجم خط أكبر قليلًا للعربية: تشكيل الحروف يحتاج مساحة عمودية أكبر */
+[lang^="ar"] {
+  line-height: 1.7;
+}

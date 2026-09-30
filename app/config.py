@@ -90,6 +90,12 @@ class Settings:
     digits_style: str = _env("DIGITS_STYLE", "western")
     week_start: str = _env("WEEK_START", "saturday")
     locales_path: Path = Path(_env("LOCALES_PATH", str(REPO_DIR / "locales")))
+    # خط التصدير العربي: IBM Plex Sans Arabic أو Noto Sans Arabic.
+    # لا خط مضمّن في المستودع (حقوق الخطوط)، والقيمة الفارغة تعني البحث في
+    # assets/fonts/ ثم خط النظام.
+    pdf_arabic_font_path: str = _env("PDF_ARABIC_FONT_PATH", "")
+    # أرقام الدعم للعرض (غير مُتحقَّق منها حتى تُؤكَّد): شرطة/موحّد/صحة/أطفال
+    export_timezone_default: str = _env("EXPORT_TIMEZONE", _env("DEFAULT_TIMEZONE", "Africa/Cairo"))
 
     # ------------------------------------------ أرقام الطوارئ (قابلة للتحقق)
     # إعداد مصر يجب أن يعيش في الإعدادات/البيئة لا في الكود، فلا تُثبَّت أرقام

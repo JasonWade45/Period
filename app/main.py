@@ -429,6 +429,18 @@ def meta() -> dict[str, Any]:
             for code in _emergency_numbers.known_countries
         ],
         "prompt_version": settings.prompt_version,
+        # إعداد اللغة للواجهة: كل ما تحتاجه لتهيئة i18next/RTL بلا قيم مكتوبة
+        # في التطبيق (المصدر الوحيد هو الإعدادات/البيئة).
+        "locale": {
+            "default": settings.default_locale,
+            "supported": settings.supported_locale_list,
+            "digits_style": settings.digits_style,
+            "week_start": settings.week_start,
+            "week_start_index": settings.week_start_index,
+            "timezone": settings.default_timezone,
+            "dir": {loc: ("rtl" if loc.startswith("ar") else "ltr")
+                    for loc in settings.supported_locale_list},
+        },
     }
 
 
@@ -539,6 +551,11 @@ if settings.cors_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# ملفات الترجمة تُخدم من نفس الأصل حتى تقرأها الواجهة بلا طلبات عبر أصل آخر.
+if Path(settings.locales_path).exists():
+    app.mount("/locales", StaticFiles(directory=str(settings.locales_path)),
+              name="locales")
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if _FRONTEND_DIR.exists():

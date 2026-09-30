@@ -150,7 +150,7 @@ The full pipeline runs (prompt → HTTP → SDK → validator → audit) against
 ## Tests
 
 ```bash
-pytest                 # 98 tests: unit, API, and end-to-end against the fake provider
+pytest                 # 560+ test: unit, API, e2e, KB, eval, i18n/RTL static
 ```
 
 `tests/test_e2e_pipeline.py` drives the real pipeline over real HTTP against the fake provider, so it covers what unit tests cannot: the rendered prompt (no unfilled variables, user text kept out of the system prompt), provider 429/500 handling, one-retry-then-fallback, and the validator gates firing on live traffic.
@@ -204,6 +204,12 @@ Both always include `prompt_version` and `rule_codes`. Status is 200 even when t
 ```
 app/
   main.py                  FastAPI app, pipeline, endpoints, static frontend mount
+  routers/ai.py            /api/v1/ai/chat + /summary + /health
+  kb/                      schemas, store (SQLite/PostgreSQL+pgvector), embedding,
+                           retrieval (RRF), ingest CLI, review CLI
+  i18n/                    resource-file loader, Arabic plural rules, formatting
+  eval/                    eval runner + deterministic checks + judge
+  services/ai_pipeline.py  rules → emergency → retrieval → LLM → validate → retry
   config.py                env/.env settings
   schemas.py               request/response/audit models
   data/                    sources.json (RAG), rules_glossary.json,
@@ -212,6 +218,15 @@ app/
   services/                emergency_filter, emergency_numbers, rules_engine, rag,
                            prompt_builder, validator, llm, audit, store, security
 frontend/                  vanilla JS + CSS, RTL Arabic UI, tracker panel
+  i18n.js                  locale loading, RTL direction, plural/digits in JS
+  rtl.css                  logical properties, phone isolation, icon flipping
+  tests/rtl.spec.js        Playwright RTL screenshot spec (needs a browser)
+locales/                   ar.json, en.json, needs_review.json
+knowledge/                 glossary_ar.csv + seed/registry templates
+migrations/                pgvector SQL (kb_sources, kb_chunks, HNSW, GIN)
+eval/                      eval set (JSONL) + reports (gitignored)
+store/                     ar.md + en.md store listings
+tools/                     check_i18n.py, check_rtl.py, check_glossary.py
 tests/                     offline unit, API and end-to-end tests (325)
 tools/fake_groq_server.py  local Groq-compatible server for development
 smoke_test.py              live end-to-end check
@@ -232,6 +247,157 @@ These are known gaps, not features:
 9. **Keyword RAG.** Matching is lexical, so paraphrased questions retrieve nothing. Replace with embeddings while keeping the source-id allowlist.
 10. **Audit log privacy.** `request_excerpt` stores up to 300 characters of user text in plaintext JSONL — sensitive health data. Define retention, access control, and encryption before production.
 11. **Conversation state.** Each request is independent; there is no multi-turn memory.
+12. **PostgreSQL/pgvector path is written but not executed here.** `app/kb/postgres.py`
+    and `migrations/001_kb_pgvector.sql` could not be run in this environment
+    (no PostgreSQL, no package mirrors, Hugging Face and api.groq.com blocked).
+    They match the SQLite implementation's semantics and are written for review,
+    but they must be exercised once (`pytest -m postgres` after setting
+    `DATABASE_URL`) before any deployment. The same applies to the embedding
+    benchmark between bge-m3 and multilingual-e5-large.
+13. **Arabic PDF depends on the font you supply.** IBM Plex Sans Arabic and
+    Noto Sans Arabic are not bundled (licence), and ReportLab has no native
+    Arabic shaping. A system font is used as a fallback so the smoke test can
+    run; ship a proper Arabic font and re-check the rendering visually.
+14. **Arabic strings still inside `frontend/app.js`.** The chrome, suggestions,
+    emergency overlay and language switching now come from `locales/`, but ~19
+    content strings remain in JS. `tools/check_rtl.py` reports the count as a
+    warning rather than a failure until they are migrated.
+
+## قاعدة المعرفة (v2): استيراد، استرجاع، مراجعة
+
+هذه الطبقة الجديدة تُنتج المعرفة من ملفات JSONL بمخطط صريح، وتفصل **الاستيراد**
+عن **الاعتماد**: استيراد مقطع لا يعني أنه قابل للاسترجاع.
+
+### دورة حياة المقطع
+
+```
+draft_unreviewed ──▶ physician_reviewed ──▶ approved ──▶ retired
+       ▲                    │                   │           │
+       └────────────────────┴───────────────────┴───────────┘  (إعادة للمراجعة)
+```
+
+الانتقالات مسموحة فقط وفق جدول صريح (`app/kb/schemas.py: ALLOWED_TRANSITIONS`)،
+والانتقال يتطلب اسم مراجع وتاريخًا. لا قفز من مسودة إلى معتمد: مراجعة الطبيبة
+خطوة إلزامية ومسجّلة.
+
+**حالة الاسترجاع في الإنتاج:** `approved` فقط. `KB_ALLOW_DRAFT=1` يضيف المسودات
+لبيئة تجريبية داخلية فقط، و`/api/v1/ai/health` يُظهر الحالات المسموحة فعليًا.
+
+### الاستيراد
+
+```bash
+python -m app.kb.ingest --path knowledge/knowledge_seed.example.jsonl \
+    --registry knowledge/sources_registry.example.json --dry-run
+```
+
+- **بوابة الرخصة:** أي مقطع من مصدر `approved_for_ingest=false` لا يُكتب إطلاقًا.
+  إن لم يحمل الملف أي مصدر معتمد، يرفض الاستيراد كاملًا (exit 3) إلا مع
+  `--skip-unapproved`. القرار بشري: لا يُضبط هذا الحقل آليًا ولا من سكربت.
+- **Idempotency:** إعادة الاستيراد لا تغيّر حالة مقطع لم يتغيّر محتواه ولا تزيد
+  إصداره. تغيّر المحتوى يُعيده إلى `draft_unreviewed`، يزيد
+  `content_version`، **ويمسح متجهه القديم** (متجه نص قديم على نص جديد يجعل البحث
+  يعقّر بنتيجة لا تخص المحتوى الحالي).
+- مقارنة المحتوى تتم على نص مُطبَّع: اختلاف تشكيل أو مسافات أو أرقام عربية-هندية
+  ليس «تغيّر محتوى».
+- السجلات غير الصالحة تُبلَّغ عنها سطرًا سطرًا ولا تُسقط الملف (exit 1).
+
+**التضمين:** `KB_EMBEDDING_MODEL=BAAI/bge-m3` (افتراضيًا) أو
+`intfloat/multilingual-e5-large`، عبر `sentence-transformers`. للاختبار بلا شبكة
+يوجد `KB_EMBEDDING_BACKEND=local` (محوّل حتمي) — **لا يُستخدم في الإنتاج**.
+لمقارنة النموذجين: `python -m app.eval.run --set ...` مع كل نموذج وسجّلي
+`retrievable_chunks` ونتيجة الفئات.
+
+### الاسترجاع
+
+`app/kb/retrieval.py` — استرجاع هجين: متجهات (أفضل 20) + كلمات مفتاحية (أفضل 20)
+ثم دمج RRF بمعامل `k=60`، وأخيرًا أعلى `KB_TOP_K` (افتراضي 6، والبريف يطلب 4–6).
+
+- التصفية بالحالة واللغة **قبل** الترتيب: نص غير معتمد لا يظهر ولو بدرجة منخفضة.
+- عتبتان:`KB_MIN_SIMILARITY=0.30` و`KB_MIN_KEYWORD_SCORE=0.34`. تجاوزهما لأسفل
+  يعني تمرير مقاطع ضعيفة الصلة إلى الموديل.
+- نتيجة فارغة ⇐ `reason` تشخيصي، والرد «لا أملك مصدرًا موثوقًا» **بلا استدعاء
+  للموديل**. هذا معيار قبول مُختبَر (`tests/test_ai_pipeline.py`).
+- خلفية إنجليزية إذا لم يُرجع البحث بلغة المستخدمة شيئًا.
+
+### المراجعة البشرية
+
+```bash
+python -m app.kb.review list --status draft_unreviewed
+python -m app.kb.review show kb-cycle-length-01          # مع قائمة تحقق قبل الاعتماد
+python -m app.kb.review set-status kb-cycle-length-01 physician_reviewed \
+    --reviewer "د. فلانة — أخصائية نسا وتوليد" --date 2026-10-05
+```
+
+## واجهة /api/v1/ai
+
+الترتيب غير قابل للتفاوض:
+
+```
+توثيق ← فلتر طوارئ ← محرك القواعد ← استرجاع ← موديل (JSON) ← تحقق ← إعادة مرة ← رد احتياطي
+```
+
+- `POST /api/v1/ai/chat` و`POST /api/v1/ai/summary`، والمصادقة داخل المسار لا
+  كاعتماد عام، حتى لا يحجب مفتاح خاطئ ردَّ طوارئ.
+- الطوارئ/الأزمة: رد ثابت من `locales/`، **بلا استدعاء للموديل**، ومعه
+  `emergency_payload` يحتوي الرقم وحالة التحقق منه.
+- كل إجابة تحمل `sources_used` من معرّفات المقاطع المسترجَعة فقط؛ موديل يستشهد
+  بمعرّف غير مسترجَع يُرفض ← إعادة ← رد احتياطي.
+- `decision` في الرد يوضح المسار: `ok | no_source | fallback | emergency_filter`.
+- التدقيق يخزّن `prompt_version` و`model` والقرار وطول الرسالة — **ولا يخزّن
+  نص رسالة الطوارئ ولا نص رسائلكِ أصلًا** في هذه المسارات.
+- `GET /api/v1/ai/health` يعرض عدد المقاطع القابلة للاسترجاع والنموذج واللغات.
+
+## التقييم (Eval)
+
+```bash
+python -m app.eval.run --set eval/eval_questions_seed.jsonl           # بلا شبكة
+python -m app.eval.run --live --judge auto                            # بموديل حقيقي
+python -m app.eval.run --kb-db data/kb.db --allow-draft               # قاعدة معرفة مسوَّرة
+```
+
+كل سؤال يمرّ بخط الأنابيب الكامل، ثم تُطبَّق **فحوص حتمية** (لا تتأثر بموديل):
+لا عبارات تشخيص، لا جرعات، الطوارئ لا تصل إلى الموديل (عدّاد نداءات = 0)،
+عقد JSON (قرار `ok` لا `fallback`)، التطابق اللغوي، والإسناد للمصادر المسترجَعة.
+لكل سؤال طوارئ/أزمة فحص إضافي: يجب إعلان العلَم ووجود الرقم في النص.
+
+- **البوّابة:** فشل أي سؤال طوارئ/أزمة أو أي اختبار مصيدة ⇒ مخرج غير صفري
+  (exit 1) مع قائمة `gating_failures` في التقرير. فشل تعليمي يُسجَّل ولا يوقف.
+- **الحكم (judge):** افتراضيًا محلي حتمي (`local_rubric`) وموسوم بأنه غير
+  متحقَّق منه؛ `--judge llm/auto` يستخدم موديلًا إن توفّر. الحكم لا يُصلح فحصًا
+  حتميًا فاشلًا ولا يُسقط سلامة.
+- التقرير JSON في `eval/reports/` (مُتجاهَل في git) وفيه: `by_category`,
+  `totals`, `gating_failures`, وتحليل كل سؤال.
+
+## التعريب (i18n) و RTL
+
+- **مصدر واحد للنص:** `locales/ar.json` و`locales/en.json`. لا نص عربي في الكود
+  لسطح المستخدمة — حتى ردود الطوارئ انتقلت إلى الملفات بنفس نصها حرفيًا
+  (والاختبارات القديمة هي الدليل على عدم تغيّر السلوك).
+- **جمع عربي صحيح** (CLDR: zero/one/two/few/many/other) في الباك-إند
+  (`app/i18n/plural.py`) وفي الواجهة (`frontend/i18n.js`).
+- **الأرقام:** غربية افتراضيًا، والعربية-الهندية إعداد مستخدمة؛ والتحقق والقواعد
+  تعمل على الأرقام بعد التطبيع دائمًا.
+- **التواريخ:** غريغوري، وبداية الأسبوع إعداد (`WEEK_START=saturday` افتراضيًا).
+- **الواجهة:** `dir` يُشتق من اللغة (`rtl` للعربية)، خصائص CSS منطقية، أيقونات
+  اتجاهية بـ`flip-rtl`، وأرقام الهواتف داخل عزل LTR حتى لا يقلبها BiDi.
+- **التدقيق:** `python tools/check_i18n.py` (تكافؤ المفاتيح، المفاتيح غير
+  المستخدمة، نصوص عربية في مسارات API) و`python tools/check_rtl.py` (فحوص RTL
+  ساكنة) و`python tools/check_glossary.py` (المصطلحات المعتمدة).
+- **لقطات RTL:** `frontend/tests/rtl.spec.js` جاهز لـPlaywright:
+  `npx playwright test frontend/tests/rtl.spec.js` (يحتاج متصفحًا وتنزيله).
+- **المصطلحات:** `knowledge/glossary_ar.csv` هو المصدر الوحيد؛ أي صيغة غير
+  مفضّلة تُفشل الفحص. النصوص التي تحتاج مراجعة طبيبة/مترجم في
+  `locales/needs_review.json`.
+
+## التصدير
+
+- **CSV:** UTF-8 مع BOM (بدونه يقرأ Excel العربي مشوّهًا)، وترويسات من ملفات
+  الموارد، وأرقام/تواريخ حسب إعداد المستخدمة (`app/services/export_ar.py`).
+- **PDF عربي:** إعادة تشكيل الحروف (`arabic-reshaper`) + ترتيب ثنائي الاتجاه
+  (`python-bidi`) + محاذاة يمين + سطر بارتفاع 1.7 + خط عربي مُضمَّن. الخط
+  المفضّل IBM Plex Sans Arabic ثم Noto Sans Arabic، ويُضبط بـ`PDF_ARABIC_FONT_PATH`.
+  **حدّ مكتبي:** reportlab لا يشكّل عربيًا أصليًا (بلا HarfBuzz)، فالناتج جيد
+  للنص العادي وقد يقصّر في الاتجاه المختلط المعقّد؛ البديل WeasyPrint عند الحاجة.
 
 ---
 

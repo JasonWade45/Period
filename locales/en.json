@@ -137,5 +137,41 @@
   },
   "retrieval": {
     "summary_query": "menstrual cycle bleeding symptoms"
+  },
+  "pdf": {
+    "intro": "These are your recorded cycles exactly as entered. Values are in days.",
+    "disclaimer_heading": "Notice"
+  },
+  "ui": {
+    "mode_chat": "Chat",
+    "mode_summary": "Summary",
+    "language": "Language",
+    "send": "Send",
+    "composer_hint": "Enter to send · Shift+Enter for a new line",
+    "placeholders": {
+      "chat": "Type your question…",
+      "summary": "Add a note for the summary, or leave it empty…"
+    },
+    "welcome_title": "Welcome 👋",
+    "welcome_body": "Record your cycles and symptoms in 📖, and ask anything about your cycle.",
+    "suggestions": [
+      "What's the difference between a regular and an irregular cycle?",
+      "What are premenstrual symptoms?",
+      "Why is my period late?",
+      "Summarise my cycles"
+    ],
+    "suggestion_labels": [
+      "Regular vs irregular cycle",
+      "Premenstrual symptoms",
+      "Reasons for a late period",
+      "Summary of my cycles"
+    ],
+    "insights": "Insights from my data",
+    "country_none": "Not set",
+    "country_unavailable": "Unavailable",
+    "server_error": "Could not reach the server",
+    "overlay_medical": "Urgent medical care",
+    "overlay_crisis": "Reasons to get help now",
+    "needs_doctor": "Needs medical review"
   }
 }

@@ -91,13 +91,14 @@ async function loadCountries() {
   try {
     const meta = await api("/v1/meta", "GET");
     const saved = loadSettings().country_code;
-    select.innerHTML = '<option value="">غير محدد</option>' +
+    select.innerHTML = `<option value="">${i18nText("ui.country_none", "غير محدد")}</option>` +
       (meta.countries || []).map((c) =>
-        `<option value="${c.code}"${c.code === saved ? " selected" : ""}>${c.name_ar} — ${c.emergency}</option>`
+        `<option value="${c.code}"${c.code === saved ? " selected" : ""}>`
+        + `${c.name_ar} — ${c.emergency}</option>`
       ).join("");
     if (!saved && meta.default_country) select.value = meta.default_country;
   } catch {
-    select.innerHTML = '<option value="">غير متاح</option>';
+    select.innerHTML = `<option value="">${i18nText("ui.country_unavailable", "غير متاح")}</option>`;
   }
 }
 
@@ -188,10 +189,19 @@ function appendMeta(container, data) {
     meta.appendChild(b);
   };
 
-  if (data.needs_doctor) add("doctor", "يستحق مراجعة طبية");
-  (data.rule_codes || []).forEach((r) => add("rule", r));
-  (data.sources_used || []).forEach((s) => add("source", s));
-  (data.missing_info || []).forEach((m) => add("missing", `ناقص: ${m}`));
+  if (data.needs_doctor) {
+    add("doctor", i18nText("ui.needs_doctor", "يستحق مراجعة طبية"));
+  }
+  const rules = data.rule_codes || [];
+  const sources = data.sources_used || [];
+  /* العدّ بصيغة الجمع الصحيحة (مصدر واحد/مصدران/3 مصادر…) بدل «المصادر: 3» */
+  if (sources.length) {
+    add("source", window.i18n
+      ? window.i18n.tn("units.sources_count", sources.length)
+      : String(sources.length));
+  }
+  (data.missing_info || []).forEach((m) => add("missing", m));
+  rules.forEach((r) => add("rule", r));
 
   if (meta.children.length) container.appendChild(meta);
 }
@@ -211,9 +221,30 @@ function showOverlay(data) {
   const crisis = !!data.crisis;
   overlay.classList.toggle("crisis", crisis);
   document.getElementById("overlay-title").textContent = crisis
-    ? "دواعي فورية لطلب المساعدة"
-    : "رعاية طبية عاجلة";
-  document.getElementById("overlay-text").textContent = data.answer || "";
+    ? i18nText("ui.overlay_crisis", "دواعي فورية لطلب المساعدة")
+    : i18nText("ui.overlay_medical", "رعاية طبية عاجلة");
+
+  /* نص الرد يأتي من الخادم كما هو (نص أمني مُراجَع — لا تُعاد صياغته في
+   * الواجهة). الرقم وحده يُعزل اتجاهيًا حتى لا ينقلبه BiDi داخل جملة عربية. */
+  const textEl = document.getElementById("overlay-text");
+  const number = data.emergency_payload && data.emergency_payload.number;
+  const answer = data.answer || "";
+  textEl.textContent = "";
+  if (number && answer.includes(number)) {
+    const parts = answer.split(number);
+    parts.forEach((part, index) => {
+      textEl.appendChild(document.createTextNode(part));
+      if (index < parts.length - 1) {
+        const span = document.createElement("span");
+        span.className = "phone-number";
+        span.setAttribute("data-ltr", "");
+        span.textContent = number;
+        textEl.appendChild(span);
+      }
+    });
+  } else {
+    textEl.textContent = answer;
+  }
   overlay.hidden = false;
 }
 
@@ -273,7 +304,8 @@ async function send(text) {
       addMessage("bot", data);
     }
   } catch (e) {
-    addError(`تعذّر الاتصال بالخادم: ${e.message}`);
+    const prefix = window.i18n ? window.i18n.t("ui.server_error") : "تعذّر الاتصال بالخادم";
+    addError(`${prefix}: ${e.message}`);
   } finally {
     state.loading = false;
     document.getElementById("send-btn").disabled = false;
@@ -518,8 +550,70 @@ async function deleteAllData() {
 
 /* ---------------- تهيئة ---------------- */
 
+/* ---------------- التعريب ---------------- */
+/* التهيئة قبل أي رسم: نقرأ إعداد اللغة من الخادم (/v1/meta) ثم نحمّل ملف
+ * الموارد. لا قيم مكتوبة هنا: اللغة الافتراضية والأرقام وبداية الأسبوع كلها
+ * من إعدادات الخادم حتى لا تختلف الواجهة عن الباك-إند. */
+async function initI18n() {
+  try {
+    const meta = await api("/v1/meta", "GET");
+    window.__LOCALE_CONFIG__ = meta.locale || {};
+  } catch {
+    window.__LOCALE_CONFIG__ = { default: "ar", supported: ["ar", "en"] };
+  }
+  await window.i18n.load();
+  renderSuggestions();
+}
+
+/* نص من ملف الموارد. الاحتياطي يمنع ظهور مفتاح خام لو نادى كودٌ الترجمة قبل
+ * جهوزها (التحميل غير متزامن). */
+function i18nText(key, fallback) {
+  try {
+    const value = window.i18n ? window.i18n.t(key) : key;
+    return value === key ? fallback : value;
+  } catch {
+    return fallback;
+  }
+}
+
+function toggleLanguage() {
+  const current = window.i18n.state.locale;
+  const supported = (window.__LOCALE_CONFIG__ && window.__LOCALE_CONFIG__.supported) || ["ar", "en"];
+  const index = supported.indexOf(current);
+  const next = supported[(index + 1) % supported.length];
+  window.i18n.setLocale(next).then(renderSuggestions);
+}
+
+/* الاقتراحات تأتي من ملف الترجمة لا من HTML: تغيير اللغة يغيّرها فورًا */
+function renderSuggestions() {
+  const box = document.querySelector(".suggestions");
+  if (!box || !window.i18n) return;
+  const prompts = window.i18n.t("ui.suggestions");
+  const labels = window.i18n.t("ui.suggestion_labels");
+  if (!Array.isArray(prompts)) return;
+  box.innerHTML = "";
+  prompts.forEach((prompt, i) => {
+    const button = document.createElement("button");
+    button.className = "chip";
+    button.textContent = Array.isArray(labels) ? labels[i] || prompt : prompt;
+    button.onclick = () => ask(prompt);
+    box.appendChild(button);
+  });
+  const insights = document.createElement("button");
+  insights.className = "chip";
+  insights.textContent = window.i18n.t("ui.insights");
+  insights.onclick = () => showInsights();
+  box.appendChild(insights);
+}
+
+/* الرقم داخل عزل LTR: عرضه في جملة عربية بلا عزل قد يقلبه BiDi */
+function phoneHtml(number, verified) {
+  const cls = verified ? "phone-number" : "phone-number unverified";
+  return `<span class="${cls}" data-ltr>${number}</span>`;
+}
+
 fillSettingsForm(loadSettings());
-loadCountries();
+initI18n().then(loadCountries);
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 document.getElementById("c-date").value = todayIso();
