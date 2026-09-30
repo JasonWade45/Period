@@ -212,6 +212,11 @@ def needs_review_terms(terms: list[GlossaryTerm]) -> list[GlossaryTerm]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for _stream in (sys.stdout, sys.stderr):  # ويندوز cp1256: إخراج UTF-8
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — بيئة بلا reconfigure
+            pass
     parser = argparse.ArgumentParser(description="تدقيق مصطلحات الترجمة")
     parser.add_argument("--path", default=str(GLOSSARY_PATH))
     parser.add_argument("--root", default=".")

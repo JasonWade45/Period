@@ -46,6 +46,11 @@ def _build(pipeline_args: argparse.Namespace):
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    for _stream in (sys.stdout, sys.stderr):  # ويندوز cp1256: إخراج UTF-8 بدل انهيار ⇒/✓
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — بيئة بلا reconfigure
+            pass
     parser = argparse.ArgumentParser(description="تقريران منفصلان للتقييم")
     parser.add_argument("--agent-set", default=str(AGENT_SET))
     parser.add_argument("--user-set", default=str(USER_SET))

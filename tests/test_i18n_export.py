@@ -310,13 +310,15 @@ def test_english_boundary_does_not_flag_words_containing_terms():
 
 def test_i18n_lint_passes():
     result = subprocess.run([sys.executable, "tools/check_i18n.py"],
-                            capture_output=True, text=True, cwd=Path.cwd())
+                            capture_output=True, text=True, encoding="utf-8",
+                            cwd=Path.cwd())
     assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_glossary_lint_passes():
     result = subprocess.run([sys.executable, "tools/check_glossary.py"],
-                            capture_output=True, text=True, cwd=Path.cwd())
+                            capture_output=True, text=True, encoding="utf-8",
+                            cwd=Path.cwd())
     assert result.returncode == 0, result.stdout + result.stderr
 
 
@@ -341,7 +343,8 @@ def test_glossary_csv_is_single_source_with_required_columns():
 
 def test_rtl_static_lint_passes():
     result = subprocess.run([sys.executable, "tools/check_rtl.py"],
-                            capture_output=True, text=True, cwd=Path.cwd())
+                            capture_output=True, text=True, encoding="utf-8",
+                            cwd=Path.cwd())
     assert result.returncode == 0, result.stdout + result.stderr
 
 

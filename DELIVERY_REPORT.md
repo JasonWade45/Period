@@ -118,8 +118,14 @@ python tools/check_glossary.py --report audit/glossary_pending_review.json
 1. ~~مقاطع NHS/ACOG/WHO الستة~~ — **أُنجز (2026-09-30)**: خُفّضت إلى مسودات
    وأُزيل نصها بانتظار الترخيص، و`sources.json` فارغ عن قصد (تفصيل في §8.1).
 2. **الطبيبة المراجعة:** اسم/بيانات المراجعة (يُطلب في كل `set-status`).
-3. **تراخيص المصادر:** كل مصدر في `sources_registry` يحتاج قرار `licence` بشريًا.
-   لا شيء مُعتمد حاليًا (`approved_for_ingest=false` للجميع).
+3. **تراخيص المصادر:** ~~حالة `licence` فارغة/محتملة~~ **حُدِّث (2026-09-30)**:
+   تحققتُ من صفحات الرسمية وسجّلتُ النتيجة مع الرابط داخل `license_status`
+   لكل مصدر: NHS = Open Government Licence v3.0 (مع إلزامات الإسناد)، NICE =
+   UK Open Content Licence داخل المملكة فقط (الاستخدام الدولي/AI يحتاج إذنًا
+   ورسومًا)، MedlinePlus = ملكية عامة للمحتوى الحكومي (باستثناء A.D.A.M.)،
+   WHO/EMRO = CC BY-NC-SA 3.0 IGO للمنشورات + شروط تعليمية/غير تجارية للموقع.
+   الباقون موسومون `needs_verification` بصدق. القرار البشري المتبقي: قلب
+   `approved_for_ingest` — **لا شيء مُعتمد حاليًا (false للجميع)**.
 4. **صياغة اللمسات:** فصحى أم عامية مصرية في الترحيب والتلميحات؟
 5. **النصوص القانونية:** عناصر نائبة فقط حتى يعتمدها مستشار قانوني.
 6. **نموذج التضمين النهائي** بعد تشغيل المقارنة في بيئة فيها شبكة.
@@ -134,7 +140,7 @@ python tools/check_glossary.py --report audit/glossary_pending_review.json
 | نموذج التضمين | `huggingface.co` محجوب | الواجهة جاهزة (`sentence-transformers`)، والاختبارات تعمل بمحوّل حتمي محلي. المقارنة bge-m3 ↔ e5-large تُنفَّذ في بيئة متصلة |
 | التوليد الحقيقي | `api.groq.com` محجوب | كل اختبارات خط الأنابيب بموديل مُحاكى (`RecordingLLM`)؛ `--live` جاهز للتشغيل في بيئة متصلة |
 | PDF عربي | reportlab بلا HarfBuzz | الناتج مُتحقَّق بصريًا (تشكيل + RTL + محاذاة يمين + سطر 1.7). يقصّر في الاتجاه المختلط المعقّد؛ البديل WeasyPrint عند الحاجة |
-| الخطوط | لا IBM Plex Sans Arabic / Noto Sans Arabic في البيئة (وحقوق الخطوط) | المُصدِّر يبحث عن الخط المطلوب أولًا (`PDF_ARABIC_FONT_PATH` أو `assets/fonts/`)، واستخدم في الاختبار خط نظام عربي. **يجب** إضافة خط معتمد ومراجعة الشكل بصريًا قبل النشر |
+| الخطوط | ~~لا IBM Plex Sans Arabic / Noto Sans Arabic~~ | **مُضاف (2026-09-30):** `assets/fonts/IBMPlexSansArabic-Regular.ttf` (OFL-1.1، مع نص الترخيص `assets/fonts/OFL.txt`)، و`resolve_arabic_font()` يجده تلقائيًا. يبقى فحص الشكل البصري قبل النشر |
 | لقطات RTL | تنزيل Chromium لـPlaywright محجوب | `frontend/tests/rtl.spec.js` جاهز للـCI + `tools/check_rtl.py` يغطي ما يمكن فحصه ساكنًا |
 | شبكة الأزمات (مساعد طبي حقيقي) | لا يمكن قياس جودة الإجابات بلا موديل | الفحوص الحتمية هي الحاكم، ونتائج الحكم موسومة `verified_locally=false` |
 

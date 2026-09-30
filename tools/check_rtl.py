@@ -115,6 +115,11 @@ def check_js(path: Path) -> list[Issue]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for _stream in (sys.stdout, sys.stderr):  # ويندوز cp1256: إخراج UTF-8
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — بيئة بلا reconfigure
+            pass
     parser = argparse.ArgumentParser(description="تدقيق RTL")
     parser.add_argument("--root", default="frontend")
     args = parser.parse_args(argv)

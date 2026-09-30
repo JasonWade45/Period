@@ -115,6 +115,11 @@ def check_prompt(text: str) -> Report:
 
 
 def main() -> int:
+    for _stream in (sys.stdout, sys.stderr):  # ويندوز cp1256: إخراج UTF-8 بدل انهيار ✓/✗
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — بيئة بلا reconfigure
+            pass
     parser = argparse.ArgumentParser(description="فحص برومبت مقابل عقد التطبيق")
     parser.add_argument("path", nargs="?", default=str(settings.prompt_path))
     args = parser.parse_args()

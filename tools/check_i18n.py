@@ -144,6 +144,11 @@ def find_hardcoded_strings(root: Path) -> list[Issue]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for _stream in (sys.stdout, sys.stderr):  # ويندوز cp1256: إخراج UTF-8
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — بيئة بلا reconfigure
+            pass
     parser = argparse.ArgumentParser(description="تدقيق ملفات الترجمة")
     parser.add_argument("--root", default=".")
     parser.add_argument("--locales", default="locales")

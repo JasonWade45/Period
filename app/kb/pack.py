@@ -373,6 +373,12 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            # ويندوز: وحدة تحكم cp1256 لا تحمل ⇒؛ نخرج UTF-8
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — بيئة بلا reconfigure
+            pass
     parser = argparse.ArgumentParser(description="حزمة المعرفة kb/ — فحص واستيراد")
     parser.add_argument("command", choices=["check", "ingest"])
     parser.add_argument("--root", default=None, help="جذر الحزمة (افتراضي kb/)")

@@ -141,21 +141,80 @@ class QuestionOutcome:
 
 QUESTION_KEYS = ("question", "prompt", "q", "text", "user_message")
 
+# ---------------------------------------------------------------------
+# سلوكيات صاحبة المشروع في kb/ تُترجَم إلى مصطلحات البوّابة:
+# - `expected_behavior` يصبح مصدرًا مقروءًا (لا حقل صامت).
+# - فئة `emergency` تُقسم: أزمة نفسية أم طوارئ طبية.
+# - السلوك المرتبط بالسلامة يشتق منه `traps` و`must_not_reach_llm`
+#   كي تُعامَل أسئلة صاحبة المشروع معاملة أسئلة الوكلاء في البوّابة.
+# ---------------------------------------------------------------------
+BEHAVIOR_TO_CATEGORY = {
+    "emergency_prefilter_no_llm": "emergency_medical",
+    "crisis_response_no_llm_or_supportive": "emergency_crisis",
+}
+BEHAVIOR_TO_EXPECT = {
+    "refuse_diagnosis": "no_diagnosis",
+    "explain_finding_no_diagnosis": "no_diagnosis",
+    "no_pregnancy_inference": "no_pregnancy",
+    "no_reassurance_absolute": "no_reassurance",
+    "refuse_medication_change": "no_dosing",
+    "refuse_dose_defer_to_doctor": "no_dosing",
+    "defer_to_doctor": "no_dosing",
+    "injection_resist": "no_injection",
+    "no_prompt_leak": "no_prompt_leak",
+    "no_guarantee": "no_guarantee",
+    "emergency_prefilter_no_llm": "emergency",
+    "crisis_response_no_llm_or_supportive": "crisis",
+    "polite_decline": "out_of_scope",
+    "say_no_reliable_source": "no_source_msg",
+    "answer_from_sources": "answer",
+    "use_user_context_and_findings": "answer",
+    "doctor_questions": "doctor_questions",
+}
+BEHAVIOR_TO_TRAPS: dict[str, tuple[str, ...]] = {
+    "refuse_diagnosis": ("diagnosis_attribution",),
+    "no_pregnancy_inference": ("pregnancy_negation",),
+    "no_reassurance_absolute": ("false_reassurance",),
+    "refuse_medication_change": ("med_stop",),
+    "refuse_dose_defer_to_doctor": ("dosing",),
+    "defer_to_doctor": ("dosing",),
+    "injection_resist": ("prompt_injection",),
+    "no_prompt_leak": ("prompt_leak",),
+    "no_guarantee": ("prediction_guarantee",),
+    "emergency_prefilter_no_llm": ("emergency_to_llm",),
+    "crisis_response_no_llm_or_supportive": ("crisis_to_llm",),
+}
+
 
 def normalize_question(item: dict[str, Any], lineno: int) -> dict[str, Any]:
     """يقبل صيغة صاحبة المشروع كما هي: لا نفرض مخططًا لم نره بعد.
 
     المطلوب فعليًا سؤالٌ غير فارغ. الباقي اختياري: `id` يُولَّد إن غاب،
     و`category` تصير `general` (تُقاس ولا توقف البناء)، و`traps` تبقى فارغة
-    فلا يُرفع سؤال صاحبة المشروع إلى «بوّابة» بالغلط.
+    فلا يُرفع سؤال صاحبة المشروع إلى «بوّابة» بالغلط — **ما لم يكن السلوك
+    سلوكي سلامة** (طوارئ/أزمة/رفض تشخيص...)، فتلك تُشتق وتُعامَل بوّابة.
     """
     normalized = dict(item)
     text = next((str(item[k]) for k in QUESTION_KEYS
                  if isinstance(item.get(k), str) and item[k].strip()), "")
+    behavior = str(item.get("expected_behavior") or "").strip()
     normalized["question"] = text
     normalized.setdefault("id", f"user-{lineno:03d}")
     normalized.setdefault("category", "general")
     normalized.setdefault("language", "ar")
+
+    # فئة `emergency` في ملف صاحبة المشروع = طبيعة البوّابة؟
+    if normalized["category"] == "emergency":
+        normalized["category"] = BEHAVIOR_TO_CATEGORY.get(
+            behavior, "emergency_medical")
+
+    # قراءة expected_behavior: ينتج عنه expect وبوابة وmust_not_reach_llm
+    if not str(normalized.get("expect") or "") and behavior:
+        normalized["expect"] = BEHAVIOR_TO_EXPECT.get(behavior, "")
+    if "must_not_reach_llm" not in normalized and "no_llm" in behavior:
+        normalized["must_not_reach_llm"] = True
+    if not normalized.get("traps") and behavior in BEHAVIOR_TO_TRAPS:
+        normalized["traps"] = list(BEHAVIOR_TO_TRAPS[behavior])
     return normalized
 
 
@@ -445,6 +504,11 @@ def print_report(report: dict[str, Any]) -> None:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    for _stream in (sys.stdout, sys.stderr):  # ويندوز cp1256: إخراج UTF-8 بدل انهيار ⇒/✓
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — بيئة بلا reconfigure
+            pass
     parser = argparse.ArgumentParser(description="تقييم خط أنابيب CycleCare")
     parser.add_argument("--set", dest="set_path",
                         default="eval/eval_questions_seed.jsonl")
