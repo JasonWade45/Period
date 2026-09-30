@@ -308,3 +308,42 @@ def test_audit_for_emergency_stores_no_excerpt(kb_store):
     assert entry.request_excerpt == ""
     assert extra["decision"] == "emergency_filter"
     assert "فلانة" not in json.dumps(entry.model_dump(), ensure_ascii=False)
+
+
+# ==================================================== سطر الاستشارة الإلزامي
+
+def test_normal_answer_is_sealed_with_referral_notice(kb_store):
+    """قرار المالك: كل إجابة عادية مختومة بسطر الاستشارة — فرض الخادم لا حسن ظن الموديل."""
+    from app.services.referral import ensure_referral_notice  # noqa: F401 — النص من locales
+
+    _seed_approved(kb_store)
+    pipeline = _pipeline(kb_store, RecordingLLM())
+    response = pipeline.chat(_request("إيه طول الدورة الشهرية الطبيعي؟"))
+
+    assert response.decision == "ok"
+    notice = get_translator().t("answer.referral_notice", "ar")
+    assert response.answer.endswith(notice)
+
+
+def test_referral_notice_is_appended_exactly_once():
+    from app.services.referral import ensure_referral_notice
+
+    notice = get_translator().t("answer.referral_notice", "ar")
+    once = ensure_referral_notice("الإجابة باختصار.", "ar")
+    assert once.endswith(notice)
+    assert ensure_referral_notice(once, "ar") == once        # لا تكرار
+    assert ensure_referral_notice("", "ar") == ""            # بلا نص لا شيء يُختم
+
+    en_notice = get_translator().t("answer.referral_notice", "en")
+    assert ensure_referral_notice("Short answer.", "en").endswith(en_notice)
+
+
+def test_emergency_answers_are_excluded_from_the_referral_seal(kb_store):
+    """رقم الطوارئ يسبق كل شيء: رد الطوارئ لا يُختم بسطر الاستشارة."""
+    _seed_approved(kb_store)
+    response = _pipeline(kb_store, RecordingLLM()).chat(
+        _request("عندي نزيف غزير وبغير فوطه كل ساعه"))
+
+    assert response.emergency is True
+    notice = get_translator().t("answer.referral_notice", "ar")
+    assert notice not in response.answer

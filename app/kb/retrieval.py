@@ -45,8 +45,9 @@ def producible_statuses(allow_draft: bool | None = None) -> list[ChunkStatus]:
     """الحالات القابلة للاسترجاع.
 
     الإنتاج: `approved` فقط. في بيئة تجريبية (KB_ALLOW_DRAFT=true) يُضاف
-    `draft_unreviewed` للاختبار الداخلي. `physician_reviewed` غير قابل
-    للاسترجاع: المراجعة الطبية خطوة في الطريق إلى الاعتماد لا حالة نهائية.
+    `draft_unreviewed` للاختبار الداخلي. `owner_reviewed` و`physician_reviewed`
+    غير قابلين للاسترجاع: المراجعة (مالك أو طبيب) خطوة في الطريق إلى
+    الاعتماد لا حالة نهائية.
     """
     allow = settings.kb_allow_draft if allow_draft is None else allow_draft
     statuses = [ChunkStatus.APPROVED]

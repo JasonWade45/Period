@@ -44,6 +44,7 @@ from .emergency_filter import (
 )
 from .emergency_numbers import EmergencyNumbers
 from .prompt_builder import PromptBuilder
+from .referral import ensure_referral_notice
 from .rules_engine import compute_all_findings, max_severity
 from .validator import validate
 
@@ -277,6 +278,9 @@ class AiPipeline:
             data["answer"] = ensure_emergency_text(str(data.get("answer") or ""), info,
                                                    crisis=crisis)
             data["needs_doctor"] = True
+        else:
+            # سطر الاستشارة يفرضه الخادم لا التزام الموديل بالبرومبت (قرار المالك).
+            data["answer"] = ensure_referral_notice(str(data.get("answer") or ""), language)
 
         used = [sid for sid in data.get("sources_used", []) if sid in allowed_ids]
         payload = None

@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
     -- 1024 بُعد مطابق للنموذجين المرشّحين (bge-m3 / multilingual-e5-large)
     embedding             VECTOR(1024),
     status                TEXT        NOT NULL DEFAULT 'draft_unreviewed'
-                          CHECK (status IN ('draft_unreviewed', 'physician_reviewed',
+                          CHECK (status IN ('draft_unreviewed', 'owner_reviewed',
+                                            'physician_reviewed',
                                             'approved', 'retired')),
     reviewed_by           TEXT        NOT NULL DEFAULT '',
     authored_by           TEXT        NOT NULL DEFAULT '',

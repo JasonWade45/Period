@@ -124,7 +124,7 @@ class Settings:
     kb_embedding_model: str = _env("KB_EMBEDDING_MODEL", "BAAI/bge-m3")
     # local = محوّل حتمي بلا شبكة (اختبار فقط) | sentence-transformers = الإنتاج
     kb_embedding_backend: str = _env("KB_EMBEDDING_BACKEND", "local")
-    kb_top_k: int = int(_env("KB_TOP_K", "6"))            # البريف: 4–6
+    kb_top_k: int = int(_env("KB_TOP_K", "4"))            # البريف: 4–6؛ 4 ليتّسع الطلب في حدّ 8000 رمز/دقيقة
     kb_min_similarity: float = float(_env("KB_MIN_SIMILARITY", "0.30"))
     kb_min_keyword_score: float = float(_env("KB_MIN_KEYWORD_SCORE", "0.34"))
     kb_postgres_dsn: str = _env("DATABASE_URL", "")

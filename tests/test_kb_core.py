@@ -98,8 +98,12 @@ def test_new_chunk_is_draft_unreviewed(store):
 
 @pytest.mark.parametrize("old,new,allowed", [
     (ChunkStatus.DRAFT_UNREVIEWED, ChunkStatus.PHYSICIAN_REVIEWED, True),
+    (ChunkStatus.DRAFT_UNREVIEWED, ChunkStatus.OWNER_REVIEWED, True),
     (ChunkStatus.DRAFT_UNREVIEWED, ChunkStatus.APPROVED, False),      # لا قفز
     (ChunkStatus.PHYSICIAN_REVIEWED, ChunkStatus.APPROVED, True),
+    (ChunkStatus.OWNER_REVIEWED, ChunkStatus.APPROVED, True),
+    (ChunkStatus.OWNER_REVIEWED, ChunkStatus.RETIRED, True),
+    (ChunkStatus.OWNER_REVIEWED, ChunkStatus.DRAFT_UNREVIEWED, True), # تراجع
     (ChunkStatus.APPROVED, ChunkStatus.RETIRED, True),
     (ChunkStatus.RETIRED, ChunkStatus.APPROVED, False),               # يحتاج مراجعة
     (ChunkStatus.RETIRED, ChunkStatus.DRAFT_UNREVIEWED, True),
@@ -112,6 +116,19 @@ def test_skipping_physician_review_is_refused(store):
     store.upsert_chunk(_chunk())
     with pytest.raises(TransitionError):
         store.set_status("kb-1", ChunkStatus.APPROVED, "د. فلانة", "2026-10-01")
+
+
+def test_owner_review_path_approves_a_draft(store):
+    """مسار المالك (قرار مقصود): draft → owner_reviewed → approved بلا طبيب."""
+    store.upsert_chunk(_chunk())
+    mid = store.set_status("kb-1", ChunkStatus.OWNER_REVIEWED, "JasonWade45", "2026-09-30")
+    assert mid.status == ChunkStatus.OWNER_REVIEWED
+    assert mid.reviewed_by == "JasonWade45"
+
+    done = store.set_status("kb-1", ChunkStatus.APPROVED, "JasonWade45", "2026-09-30")
+    assert done.status == ChunkStatus.APPROVED
+    assert done.reviewed_by == "JasonWade45"
+    assert done.reviewed_at == "2026-09-30"
 
 
 def test_status_change_requires_reviewer_name(store):
@@ -271,6 +288,19 @@ def test_physician_reviewed_is_not_retrievable_without_flag(store):
     assert retriever.retrieve("طول الدورة").chunks == []
 
 
+def test_owner_reviewed_is_not_retrievable_until_approved(store):
+    """مراجعة المالك أيضًا خطوة في الطريق: لا استرجاع إلا بعد `approved`."""
+    store.upsert_chunk(_chunk())
+    store.set_status("kb-1", ChunkStatus.OWNER_REVIEWED, "JasonWade45", "2026-09-30")
+
+    retriever = HybridRetriever(store, DeterministicLocalEmbedder(dim=64),
+                                allow_draft=False, min_similarity=0.0)
+    assert retriever.retrieve("طول الدورة").chunks == []
+
+    store.set_status("kb-1", ChunkStatus.APPROVED, "JasonWade45", "2026-09-30")
+    assert retriever.retrieve("طول الدورة").chunks
+
+
 def test_retired_chunk_is_never_retrievable(store):
     store.upsert_chunk(_chunk())
     _approve(store, "kb-1")
@@ -339,3 +369,34 @@ def test_empty_query_returns_nothing(store):
     _approve(store, "kb-1")
     retriever = HybridRetriever(store, DeterministicLocalEmbedder(dim=64))
     assert retriever.retrieve("   ").chunks == []
+
+
+# ====================================================== أمر الترقية الجماعية
+
+def test_bulk_approve_promotes_all_drafts_via_owner_path(tmp_path):
+    from app.kb.review import main as review_main
+
+    db = tmp_path / "kb.db"
+    store = SqliteKbStore(db)
+    store.upsert_chunk(_chunk("kb-1"))
+    store.upsert_chunk(_chunk("kb-2", content="النزيف الغزير يستدعي استشارة الطبيب"))
+
+    code = review_main(["--db", str(db), "bulk-approve",
+                        "--reviewer", "JasonWade45", "--date", "2026-09-30"])
+    assert code == 0
+    for chunk_id in ("kb-1", "kb-2"):
+        chunk = store.get_chunk(chunk_id)
+        assert chunk.status == ChunkStatus.APPROVED
+        assert chunk.reviewed_by == "JasonWade45"
+        assert chunk.reviewed_at == "2026-09-30"
+
+
+def test_bulk_approve_requires_a_reviewer_name(tmp_path):
+    """بلا اسم مراجع مسجّل لا ترقية — حتى الأمر الجماعي لا يتجاوز التوثيق."""
+    from app.kb.review import main as review_main
+
+    db = tmp_path / "kb.db"
+    SqliteKbStore(db).upsert_chunk(_chunk())
+
+    assert review_main(["--db", str(db), "bulk-approve", "--reviewer", "   "]) == 2
+    assert SqliteKbStore(db).get_chunk("kb-1").status == ChunkStatus.DRAFT_UNREVIEWED

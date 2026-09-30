@@ -16,7 +16,8 @@ not a substitute for your doctor**, and it never prescribes medicines or doses.
 - **Private reminders:** notification text on the lock screen reveals no health
   information at all.
 - **Explanations from approved sources only:** any medical statement must come
-  from a chunk approved by a physician or a trusted body. Otherwise the app says
+  from a chunk that passed the recorded review gate (product owner or
+  physician). Otherwise the app says
   plainly: *"I do not have an approved, reliable source."*
 - **Immediate emergency guidance:** when dangerous symptoms are mentioned
   (heavy bleeding, fainting, sudden severe pain, shoulder pain with possible
@@ -53,6 +54,7 @@ Questions or issues: [put support email here] — to be added before release.
 
 ---
 
-**Required before release:** [ ] physician review of fixed responses, [ ] legal
-sign-off on policies, [ ] verification of emergency and crisis numbers, [ ]
-Arabic store screenshots.
+**Required before release:** [ ] recorded review sign-off on fixed responses
+(owner decision — reference-only content with a consult-your-doctor line), [ ]
+legal sign-off on policies, [ ] verification of emergency and crisis numbers,
+[ ] Arabic store screenshots.

@@ -178,7 +178,7 @@ def test_ai_draft_survives_a_content_update_and_goes_back_to_review(kb_pack, tmp
 
 # ---------------------------------------------------------------- أسئلة التقييم
 
-def test_eval_seed_is_marked_needs_physician_review(kb_pack):
+def test_eval_seed_is_marked_needs_review(kb_pack):
     questions = load_eval_seed(root=kb_pack)
     assert len(questions) == len(EVAL)          # لا دمج ولا إعادة ترقيم
     assert [q["id"] for q in questions] == ["q1", "q2", "q3"]

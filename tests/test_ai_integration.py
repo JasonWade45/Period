@@ -262,7 +262,9 @@ def test_health_endpoints_report_the_knowledge_state_truthfully(ai_client, kb_st
     assert "api_key" not in json.dumps(knowledge).lower()
 
     legacy = ai_client.get("/health").json()
-    # المسار القديم يُظهر الملف الثابت (فارغ عن قصد) لا قاعدة المعرفة الجديدة
-    assert legacy["chunks_citable"] == 0
+    # المسار القديم يُعلن ملفه الثابت: 38 معتمدًا ملكيًا، 6 محجوزًا بانتظار الترخيص،
+    # وصفر مسودة (كلها رُقّت) — وأي فرق هنا تكذيب في الإحصاء نفسه.
+    assert legacy["chunks_citable"] == 38
     assert legacy["chunks_text_removed"] == 6
+    assert legacy["drafts_pending_review"] == 0
     assert legacy["emergency_number_verified"] in (True, False)

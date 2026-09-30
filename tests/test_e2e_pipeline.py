@@ -99,6 +99,18 @@ def test_valid_chat_response_is_used(fake, audit_entries) -> None:
     assert entry.validator_retries == 0
 
 
+def test_successful_chat_answer_is_sealed_with_referral_notice(fake) -> None:
+    """المسار القديم أيضًا: كل إجابة عادية ناجحة تُختم بسطر الاستشارة (قرار المالك)."""
+    from app.i18n import get_translator
+
+    fake.scenarios = [{"content": GOOD_CHAT}]
+    resp = main._run_pipeline(_req("إيه أعراض ما قبل الدورة؟"))
+
+    notice = get_translator().t("answer.referral_notice", "ar")
+    assert resp.answer.endswith(notice)
+    assert resp.answer.count(notice) == 1          # ختم واحد لا ازدواج
+
+
 def test_request_sent_to_provider_is_well_formed(fake) -> None:
     fake.scenarios = [{"content": GOOD_CHAT}]
     main._run_pipeline(_req("إيه أعراض ما قبل الدورة؟"))

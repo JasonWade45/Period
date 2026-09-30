@@ -27,7 +27,8 @@
     "not_configured": "The assistant is unavailable right now, so I cannot answer this question. If something feels alarming, seeing a doctor is the right next step.",
     "not_verified": "The assistant's answer could not be verified",
     "does_not_mean": "This pattern does not identify a medical condition.",
-    "ask_doctor_default": "What is the doctor's assessment of my recorded cycles?"
+    "ask_doctor_default": "What is the doctor's assessment of my recorded cycles?",
+    "referral_notice": "This is educational information; it does not replace consulting your doctor."
   },
   "emergency": {
     "medical": {

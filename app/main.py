@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
+from .i18n import resolve_locale
 from .schemas import (
     AuditEntry,
     ChatRequest,
@@ -36,6 +37,7 @@ from .services.emergency_numbers import EmergencyNumbers
 from .services.llm import LLMClient
 from .services.prompt_builder import PromptBuilder
 from .services.rag import KeywordRag
+from .services.referral import ensure_referral_notice
 from .services.rules_engine import compute_all_findings, max_severity
 from .services.security import api_key_header, key_fingerprint, limiter
 from .services.store import Store, StoreError
@@ -276,7 +278,7 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
     # 3ب) لا مصدر معتمد ⇒ لا استدعاء للموديل. القاعدة نفسها في /api/v1/ai: بلا
     #     مصدر لا إجابة من معرفة عامة، بل نص صريح «لا أملك مصدرًا موثوقًا».
     if not sources:
-        from .i18n import get_translator, resolve_locale
+        from .i18n import get_translator
         locale = resolve_locale(req.language_hint)
         t = get_translator()
         answer = t.t("answer.no_reliable_source", locale)
@@ -384,6 +386,11 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
             }
     else:
         data = result.data
+        # سطر الاستشارة في كل إجابة عادية ناجحة (قرار المالك) — لا في الطوارئ.
+        if req.mode != "summary" and isinstance(data, dict) \
+                and not data.get("emergency") and not data.get("crisis"):
+            data["answer"] = ensure_referral_notice(
+                str(data.get("answer") or ""), resolve_locale(req.language_hint))
 
     # 6) طبقة ما بعد الموديل: إن أعلن طوارئ/أزمة لم يلتقطها الفلتر المعجمي،
     #    فالرقم يجب أن يظهر في نص الرد نفسه لا في العلم وحده.

@@ -22,21 +22,24 @@ REAL_DRAFTS = Path(settings.draft_sources_path)
 
 # --------------------------------------------------------------- سلامة الملفات
 
-def test_shipped_verified_file_is_empty_until_a_physician_signs_off():
-    """`sources.json` لا يحتوي أي مقطع مُتحقَّق حتى تُراجَع المسودات طبيًا.
+def test_shipped_sources_are_owner_reviewed_and_license_held():
+    """`sources.json` الآن معتمد ملكيًا (قرار المالك) — والمحجوز ترخيصيًا بقي محجوبًا.
 
-    قرار مقصود: المقاطع الستة التي كانت هنا نسبت نفسها إلى NHS/ACOG/WHO بلا
-    مراجعة موثوقة، فأُزيل نصها ونُقلت إلى المسودات بانتظار تأكيد الترخيص.
-    الأثر المطلوب: صفر مقاطع قابلة للاستشهاد ⇒ المساعد يقول «لا أملك مصدرًا
-    موثوقًا» بدل الإجابة من معرفة عامة.
+    قرار مقصود (2026-09-30): لا يُشترط طبيب؛ المحتوى مرجعي إرشادي مع سطر
+    استشارة الطبيب، والمراجع المسجّل هو صاحبة المشروع. المقاطع الستة التي نصها
+    محجوب بانتظار الترخيص تبقى غير قابلة للاستشهاد مهما كان حالتها.
     """
-    assert load_chunks([REAL_SOURCES]) == []
-    # مع تضمين المسودات (وضع تجريبي داخلي) لا يظهر أي مقطع مُتحقَّق ولا أي
-    # مقطع أُزيل نصه — يبقى 38 مسودة تثقيفية غير مُراجَعة فقط.
+    chunks = load_chunks([REAL_SOURCES])
+    assert len(chunks) == 44
+    assert all(c.status == VERIFIED for c in chunks)
+    assert all(c.reviewer.strip() for c in chunks)
+    citable = [c for c in chunks if not c.text_removed]
+    assert len(citable) == 38
+    # مع تضمين المسودات (وضع تجريبي): لا مسودة متبقية، والمحجوز لا يظهر
     rag = KeywordRag(REAL_SOURCES, drafts_path=REAL_DRAFTS, include_drafts=True)
-    assert all(c.status == DRAFT for c in rag.retrievable)
-    assert all(not c.text_removed for c in rag.retrievable)
+    assert rag.draft_chunks == []
     assert len(rag.retrievable) == 38
+    assert all(not c.text_removed for c in rag.retrievable)
 
 
 def test_any_future_verified_chunk_must_carry_full_provenance():
@@ -64,20 +67,17 @@ def test_text_removed_chunks_are_never_retrievable_even_with_drafts_on():
         assert all(not c.text_removed for c in rag.retrieve(query, top_k=50))
 
 
-def test_shipped_drafts_are_declared_drafts_with_origin():
-    drafts = load_chunks([REAL_DRAFTS])
-    assert drafts, "لا مسودات محمّلة"
-    for chunk in drafts:
-        assert chunk.status == DRAFT, f"{chunk.id} ليس draft"
-        assert chunk.drafted_at, f"{chunk.id} بلا تاريخ كتابة"
-        assert chunk.derived_from, f"{chunk.id} بلا مراجع أصلية"
-        assert not chunk.reviewed_at, f"{chunk.id} يحمل reviewed_at وهو مسودة"
-        assert "غير مُراجَعة" in chunk.source_name or "مسودة" in chunk.source_name
+def test_shipped_drafts_were_all_promoted():
+    """لا مسودة متبقية: كل المسودات رُقّت بمسار مراجعة مسجّل باسم المراجع."""
+    assert load_chunks([REAL_DRAFTS]) == []
+    assert list_pending(REAL_DRAFTS) == []
 
 
-def test_draft_source_name_does_not_impersonate_a_body():
-    """المسودة لا تُنسب إلى NHS/ACOG/NICE لأن ذلك إسناد زائف."""
-    for chunk in load_chunks([REAL_DRAFTS]):
+def test_no_shipped_chunk_impersonates_a_body():
+    """لا ينسب أي مقطع — مسودة كان أو معتمدًا — نفسه إلى جهة حقيقية."""
+    chunks = load_chunks([REAL_SOURCES]) + load_chunks([REAL_DRAFTS])
+    assert chunks
+    for chunk in chunks:
         assert not any(body in chunk.source_name for body in ("NHS", "ACOG", "NICE", "WHO"))
 
 
@@ -97,18 +97,29 @@ def test_draft_ids_are_not_citable():
         assert rag.is_citable(chunk.id) is False, f"{chunk.id} قابل للاستشهاد!"
 
 
-def test_drafts_load_only_when_explicitly_enabled():
-    rag = KeywordRag(REAL_SOURCES, drafts_path=REAL_DRAFTS, include_drafts=True)
-    # المسودات موجودة في الحالتين (للعدّ والمراجعة) لكن تُسترجع فقط عند التفعيل
-    assert rag.draft_chunks
-    hits = rag.retrieve("بطانة الرحم المهاجرة", top_k=20)
-    assert any(c.status == DRAFT for c in hits), "التفعيل الصريح لم يُدرج المسودات"
+def test_include_drafts_flag_gates_draft_retrieval(tmp_path):
+    """تضمّن المسودات خيار صريح: محجوبة افتراضيًا، وتظهر فقط عند تفعيلها."""
+    drafts, sources = _draft_files(tmp_path)
+
+    off = KeywordRag(sources, drafts_path=drafts, include_drafts=False)
+    assert off.draft_chunks                      # موجودة للعدّ والمراجعة
+    assert off.retrieve("كلمة", top_k=10) == []  # لكنها محجوبة عن الاسترجاع
+
+    on = KeywordRag(sources, drafts_path=drafts, include_drafts=True)
+    assert any(c.status == DRAFT for c in on.retrieve("كلمة", top_k=10))
 
 
-def test_no_verified_chunks_means_the_assistant_says_so():
-    """معيار القبول: بلا مصدر معتمد يُقال ذلك صراحةً ولا يُستدعى الموديل."""
+def test_no_verified_chunks_means_the_assistant_says_so(monkeypatch, tmp_path):
+    """معيار القبول: بلا مصدر معتمد يُقال ذلك صراحةً ولا يُستدعى الموديل.
+
+    (المصادر المُصدَّرة الآن معتمدة — نعزل المسار على مخزن فارغ لحماية الضمان.)
+    """
     from app.i18n import get_translator
     from app.schemas import ChatRequest, UserContext
+
+    empty = tmp_path / "empty.json"
+    empty.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(main, "_rag", KeywordRag(empty, drafts_path=empty))
 
     response = main._run_pipeline(
         ChatRequest(message="إيه طول الدورة الشهرية؟", user_context=UserContext()))
@@ -237,15 +248,18 @@ def test_promote_twice_fails(tmp_path):
 
 # ---------------------------------------------------- ضمان على مستوى النظام
 
-def test_production_rag_excludes_drafts():
-    """الإعداد الافتراضي في التطبيق نفسه: بلا مسودات."""
+def test_production_rag_excludes_drafts_and_license_holds():
+    """الإعداد الافتراضي في التطبيق نفسه: بلا مسودات، ومحجوز الترخيص خارج القابل للاستشهاد."""
     assert settings.knowledge_include_drafts is False
-    assert len(main._rag.retrievable) == len(load_chunks([REAL_SOURCES]))
-    assert len(main._rag.draft_chunks) > 0  # موجودة للمراجعة، محجوبة عن الاستشهاد
+    chunks = load_chunks([REAL_SOURCES])
+    citable = [c for c in chunks if not c.text_removed]
+    assert len(main._rag.retrievable) == len(citable) == 38
+    assert main._rag.draft_chunks == []          # كلها رُقّت
+    assert len(main._rag.text_removed_chunks) == 6  # محجوزة بانتظار الترخيص
 
 
-def test_prompt_never_contains_draft_ids(monkeypatch):
-    """حتى لو طلبت المستخدمة موضوعًا تغطيه المسودة فقط، لا يُرسل نص المسودة."""
+def test_prompt_never_contains_blocked_or_draft_ids(monkeypatch):
+    """حتى لو طلبت المستخدمة موضوعًا تغطيه مسودة أو مقطع محجوز، لا يُرسل نصّهما."""
     from app.schemas import ChatRequest, UserContext
     from app.services.prompt_builder import PromptBuilder
 
@@ -257,6 +271,10 @@ def test_prompt_never_contains_draft_ids(monkeypatch):
         sources=sources, rules_glossary={}, current_date="2026-09-30",
         emergency_number="123", crisis_line="",
     )
+    blocked = main._rag.text_removed_chunks + main._rag.draft_chunks
+    assert blocked  # محجوز الترخيص موجود، لكنه خارج الاسترجاع دائمًا
+    for chunk in blocked:
+        assert chunk.id not in prompt, f"تسرّب مقطع محجوب {chunk.id} إلى البرومبت"
     for chunk in load_chunks([REAL_DRAFTS]):
         assert chunk.id not in prompt, f"تسرّبت مسودة {chunk.id} إلى البرومبت"
 
@@ -266,5 +284,7 @@ def test_health_reports_knowledge_gating():
     with TestClient(main.app) as client:
         body = client.get("/health").json()
     assert body["drafts_included"] is False
-    assert body["drafts_pending_review"] > 0
-    assert body["chunks_citable"] == body["chunks_loaded"] - body["drafts_pending_review"]
+    assert body["drafts_pending_review"] == 0        # كلها رُقّت
+    assert body["chunks_citable"] == (
+        body["chunks_loaded"] - body["drafts_pending_review"]
+        - body["chunks_text_removed"])               # 6 محجوزة بانتظار الترخيص

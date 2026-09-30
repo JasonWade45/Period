@@ -271,14 +271,26 @@ These are known gaps, not features:
 ### دورة حياة المقطع
 
 ```
-draft_unreviewed ──▶ physician_reviewed ──▶ approved ──▶ retired
-       ▲                    │                   │           │
-       └────────────────────┴───────────────────┴───────────┘  (إعادة للمراجعة)
+                    ┌─▶ owner_reviewed ────┐
+draft_unreviewed ───┤                      ├─▶ approved ──▶ retired
+                    └─▶ physician_reviewed ┘       │           │
+                        ▲                          │           │
+                        └──────────────────────────┴───────────┘  (إعادة للمراجعة)
 ```
 
-الانتقالات مسموحة فقط وفق جدول صريح (`app/kb/schemas.py: ALLOWED_TRANSITIONS`)،
-والانتقال يتطلب اسم مراجع وتاريخًا. لا قفز من مسودة إلى معتمد: مراجعة الطبيبة
-خطوة إلزامية ومسجّلة.
+الانتقالات مسموحة فقط وفق جدول صريح (`app/kb/schemas.py: ALLOWED_TRANSITIONS`)，
+والانتقال يتطلب اسم مراجع وتاريخًا. لا قفز من مسودة إلى معتمد مباشرة.
+
+**مساران مسجّلان، والقرار مقصود:** المحتوى إرشادي مرجعي (لا تشخيص ولا دواء)
+ومعه إحالة صريحة لاستشارة الطبيب، فمراجعة المالك (`owner_reviewed`) تكفي بلا
+اشتراط طبيب؛ ومسار الطبيب (`physician_reviewed`) يبقى متاحًا لرفعة أعلى إن
+أُريد. التوثيق لا يتغيّر: اسم إنسان + تاريخ في الحالتين.
+
+**ختم الاستشارة يفرضه الخادم:** كل إجابة عادية ناجحة في المسارين
+(`/api/v1/ai/chat` و`/v1/chat`) تُختم تلقائيًا بسطر «هذه معلومات إرشادية ولا
+تُغني عن استشارة طبيبك» من `locales/<lang>.json` (مفتاح
+`answer.referral_notice`)، سواء التزم الموديل بالبرومبت أو لا — دون تكرار إن كان
+السطر موجودًا. ردود الطوارئ مستثناة (رقم الطوارئ يسبق كل شيء).
 
 **حالة الاسترجاع في الإنتاج:** `approved` فقط. `KB_ALLOW_DRAFT=1` يضيف المسودات
 لبيئة تجريبية داخلية فقط، و`/api/v1/ai/health` يُظهر الحالات المسموحة فعليًا.
@@ -355,7 +367,7 @@ python -m app.kb.pack ingest --require-approved-source --db data/kb.db   # لل�
   `reviewed_by=null`، `reviewed_at=null`، وملاحظة ترخيص إلزامية:
   *AI-written summary; verify against source_refs_to_verify; never present refs
   as verbatim source*. أي ادّعاء مراجعة داخل الملف **يُلغى ويُبلَّغ عنه**.
-- كل سؤال تقييم: `status="needs_physician_review"`.
+- كل سؤال تقييم: `status="needs_review"`.
 - كل مصدر في السجل: `approved_for_ingest=false`. هذا المسار **لا يقلب الحقل إلى
   `true` أبدًا**؛ لو جاء `true` في الملف يُسجَّل ويُبقى `false` في الذاكرة،
   فيبقى الاستيراد موقوفًا حتى يُراجَع الترخيص بشريًا. (اختبارات:
@@ -370,7 +382,7 @@ python -m app.kb.pack ingest --require-approved-source --db data/kb.db   # لل�
 ### الاسترجاع
 
 `app/kb/retrieval.py` — استرجاع هجين: متجهات (أفضل 20) + كلمات مفتاحية (أفضل 20)
-ثم دمج RRF بمعامل `k=60`، وأخيرًا أعلى `KB_TOP_K` (افتراضي 6، والبريف يطلب 4–6).
+ثم دمج RRF بمعامل `k=60`، وأخيرًا أعلى `KB_TOP_K` (افتراضي 4 ضمن نطاق البريف 4–6 — تُبقي حجم الطلب تحت حدّ 8000 رمز/دقيقة في خطة Groq المجانية).
 
 - التصفية بالحالة واللغة **قبل** الترتيب: نص غير معتمد لا يظهر ولو بدرجة منخفضة.
 - عتبتان:`KB_MIN_SIMILARITY=0.30` و`KB_MIN_KEYWORD_SCORE=0.34`. تجاوزهما لأسفل
@@ -382,11 +394,26 @@ python -m app.kb.pack ingest --require-approved-source --db data/kb.db   # لل�
 ### المراجعة البشرية
 
 ```bash
+# المسار الأساسي (قرار المالك): ترقية كل المكدّسات دفعة واحدة
+python -m app.kb.review bulk-approve --reviewer "JasonWade45"
+
+# أو مقطعًا واحدًا خطوة خطوة
 python -m app.kb.review list --status draft_unreviewed
 python -m app.kb.review show kb-cycle-length-01          # مع قائمة تحقق قبل الاعتماد
+python -m app.kb.review set-status kb-cycle-length-01 owner_reviewed \
+    --reviewer "JasonWade45" --date 2026-09-30
+python -m app.kb.review set-status kb-cycle-length-01 approved \
+    --reviewer "JasonWade45" --date 2026-09-30
+
+# المسار البديل (رفعة أعلى إن أُريد لاحقًا)
 python -m app.kb.review set-status kb-cycle-length-01 physician_reviewed \
     --reviewer "د. فلانة — أخصائية نسا وتوليد" --date 2026-10-05
 ```
+
+النظام القديم له أمر مقابل: `python tools/review_sources.py promote-all
+--reviewer "JasonWade45"` (يرقّي `sources_draft.json` إلى `sources.json`؛
+والمقاطع الستة التي نصها محجوب بانتظار الترخيص تبقى غير قابلة للاستشهاد
+مهما تغيّرت حالتها — علامة `text_removed=true` تحجبها من الاسترجاع).
 
 `/health` يعرض حالة المعرفة بأرقام صريحة: `chunks_loaded`, `chunks_citable`,
 `drafts_pending_review`, و`chunks_text_removed` (مقاطع أُزيل نصها بانتظار

@@ -13,7 +13,7 @@
 1. كل مقطع بذرة: `status="draft_unreviewed"`، `authored_by="ai_draft"`،
    `reviewed_by=null`، `reviewed_at=null`، وملاحظة ترخيص إلزامية. أي ادّعاء
    بمراجعة سابقة في الملف يُتجاهَل ويُبلَّغ عنه — لا يُصدَّق أبدًا.
-2. كل سؤال تقييم: `status="needs_physician_review"`.
+2. كل سؤال تقييم: `status="needs_review"`.
 3. كل مصدر في السجل: `approved_for_ingest=false`. القيمة لا تُقلب هنا مطلقًا:
    الاعتماد قرار بشري يُكتب في الملف نفسه بعد مراجعة الرخصة، وأي `true` قادم من
    مسار آلي يُسجَّل كتحذير ويُبقى على `false` في الذاكرة.
@@ -43,7 +43,7 @@ SEED_LICENSE_NOTE = (
     "AI-written summary; verify against source_refs_to_verify; "
     "never present refs as verbatim source"
 )
-EVAL_SEED_STATUS = "needs_physician_review"
+EVAL_SEED_STATUS = "needs_review"
 REGISTRY_APPROVED_FOR_INGEST = False
 # بذرة صاحبة المشروع لا تحمل `source_id` لكل مقطع: الإسناد محفوظ لكل مقطع في
 # `source_refs_to_verify`. نستخدم معرّفًا محايدًا للفهرسة الداخلية فقط — ولا
@@ -158,7 +158,7 @@ def load_knowledge_seed(path: Path | str | None = None,
 # ------------------------------------------------------------------ أسئلة التقييم
 def load_eval_seed(path: Path | str | None = None,
                    *, root: Path | str | None = None) -> list[dict[str, Any]]:
-    """يقرأ أسئلة التقييم ويضع على كل سجل `status="needs_physician_review"`.
+    """يقرأ أسئلة التقييم ويضع على كل سجل `status="needs_review"`.
 
     المجموعة تبقى **منفصلة** عن مجموعة الوكلاء: لا دمج، ولا إعادة ترقيم، ولا
     استبدال. تُكتب تقاريرها في ملف تقرير خاص بها.

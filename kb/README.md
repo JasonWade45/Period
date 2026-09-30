@@ -35,16 +35,23 @@ python -m app.eval.compare                                   # تقريران م
 
 | الحقل | القيمة المفروضة | لماذا |
 | --- | --- | --- |
-| `status` | `draft_unreviewed` | لا يُستشهد بمقطع لم تراجعه طبيبة |
-| `authored_by` | `ai_draft` | المكتوب آليًا لا يحمل اسم طبيب |
+| `status` | `draft_unreviewed` | لا يُستشهد بمقطع قبل مراجعة بشرية مسجّلة (مالك أو طبيب) |
+| `authored_by` | `ai_draft` | المكتوب آليًا لا يُقدَّم بوصفه كلام إنسان |
 | `reviewed_by` / `reviewed_at` | فارغان | لا مراجعة بلا إنسان |
 | `license_note` | `AI-written summary; verify against source_refs_to_verify; never present refs as verbatim source` | تمنع تقديم المراجع كمنقولة حرفيًا |
+
+بعد الاستيراد تُعتمد المقاطع عبر مسار المالك (قرار مقصود: المحتوى إرشادي
+مرجعي لا تشخيص ولا دواء، ومعه إحالة لاستشارة الطبيب):
+
+```bash
+python -m app.kb.review bulk-approve --reviewer "JasonWade45"
+```
 
 ### `eval_questions_seed.jsonl` — سطر JSON لكل سؤال
 
 الحقل الأساسي `question` (وتُقبل `prompt`/`q`/`text`). الباقي اختياري:
 `id` (يُولَّد إن غاب)، `category`، `language`، `expect`، `must_not_reach_llm`،
-`traps`. كل سجل يأخذ `status="needs_physician_review"`،
+`traps`. كل سجل يأخذ `status="needs_review"`،
 وتبقى المجموعة **منفصلة تمامًا** عن أسئلة الوكلاء في `eval/`.
 
 ### `glossary_ar.csv` — قاموس المصطلحات

@@ -1,13 +1,20 @@
-"""سير مراجعة المقاطع: `python -m app.kb.review <list|show|set-status|stats>`.
+"""سير مراجعة المقاطع: `python -m app.kb.review <list|show|set-status|bulk-approve|stats>`.
 
 الفكرة الحاكمة: لا يصل نص إلى مستخدمة إلا بعد سلسلة موثّقة باسم إنسان وتاريخ.
-`draft_unreviewed → physician_reviewed → approved`، وأي قفزة تُرفض.
+مساران للوصول إلى `approved`، وكلاهما بلا قفزة مباشرة من مسودة:
+
+    draft_unreviewed → owner_reviewed    → approved   (مالك — بلا طبيب)
+    draft_unreviewed → physician_reviewed → approved  (طبيب — رفعة أعلى)
 
     python -m app.kb.review list
     python -m app.kb.review list --status draft_unreviewed
     python -m app.kb.review show kb-001
-    python -m app.kb.review set-status kb-001 approved \\
-        --reviewer "د. فلانة — أخصائية نسا وتوليد" --date 2026-10-05
+    python -m app.kb.review set-status kb-001 owner_reviewed \\
+        --reviewer "JasonWade45" --date 2026-09-30
+    python -m app.kb.review bulk-approve --reviewer "JasonWade45"
+
+قرار مقصود (صاحببة المشروع): المحتوى إرشادي مرجعي — لا تشخيص ولا دواء —
+ومعه إحالة صريحة لاستشارة الطبيب، فمراجعة المالك تكفي بلا اشتراط طبيب.
 """
 from __future__ import annotations
 
@@ -23,10 +30,15 @@ from .postgres import build_store
 
 STATUS_HELP = {
     ChunkStatus.DRAFT_UNREVIEWED: "مسودة لم تُراجَع — غير قابلة للاسترجاع في الإنتاج",
+    ChunkStatus.OWNER_REVIEWED: "راجعها المالك — محتوى إرشادي مرجعي، لم يُعتمد بعد",
     ChunkStatus.PHYSICIAN_REVIEWED: "راجعها طبيب — لم تُعتمد بعد، وغير قابلة للاسترجاع",
     ChunkStatus.APPROVED: "معتمد — قابل للاسترجاع في الإنتاج",
     ChunkStatus.RETIRED: "منسحب — خارج الاستخدام",
 }
+
+# ملاحظة التوثيق الافتراضية لمسار المالك — تُخزَّن في قرار المراجعة.
+OWNER_NOTE_DEFAULT = ("مراجعة مالك: محتوى إرشادي مرجعي — لا تشخيص ولا دواء — "
+                      "ويُنصح باستشارة الطبيب.")
 
 
 def _store(args):
@@ -108,6 +120,48 @@ def cmd_set_status(args) -> int:
     return 0
 
 
+def cmd_bulk_approve(args) -> int:
+    """ترقية كل المقاطع المكدّسة عبر مسار المالك: draft → owner_reviewed → approved.
+
+    اسم المراجع شرط (الكود يرفضه)، ولا قفزة مباشرة إلى `approved` — المسار
+    يمرّ بالحالة الوسيطة المسجّلة حتى يبقى السجل صادقًا عن مَن راجع ومتى.
+    """
+    store = _store(args)
+    reviewer = (args.reviewer or "").strip()
+    if not reviewer:
+        print("اسم المراجع مطلوب — لا ترقية بلا توثيق.", file=sys.stderr)
+        return 2
+    reviewed_at = args.date or date.today().isoformat()
+    note = args.note or OWNER_NOTE_DEFAULT
+    drafts = store.list_chunks([ChunkStatus.DRAFT_UNREVIEWED])
+    if not drafts:
+        print("لا مقاطع مسودة — لا شيء لترقيته.")
+        return 0
+
+    approved: list[str] = []
+    failed: list[tuple[str, str]] = []
+    for chunk in drafts:
+        try:
+            store.set_status(chunk.id, ChunkStatus.OWNER_REVIEWED,
+                             reviewer, reviewed_at, note)
+            store.set_status(chunk.id, ChunkStatus.APPROVED,
+                             reviewer, reviewed_at, note)
+            approved.append(chunk.id)
+        except (ValueError, TransitionError) as exc:
+            failed.append((chunk.id, str(exc)))
+
+    print(f"المعتمَد ملكيًا: {len(approved)} من {len(drafts)} — المراجع: {reviewer}"
+          f" — {reviewed_at}")
+    for chunk_id in approved:
+        print(f"  [تم] {chunk_id}")
+    for chunk_id, error in failed:
+        print(f"  [فشل] {chunk_id}: {error}", file=sys.stderr)
+    if approved:
+        print(f"\nملاحظة التوثيق: {note}")
+        print("صارت هذه المقاطع قابلة للاسترجاع في الإنتاج.")
+    return 1 if failed else 0
+
+
 def cmd_stats(args) -> int:
     store = _store(args)
     chunks = store.list_chunks()
@@ -148,6 +202,16 @@ def main(argv: list[str] | None = None) -> int:
     setst.add_argument("--date", default=None)
     setst.add_argument("--note", default=None)
     setst.set_defaults(func=cmd_set_status)
+
+    bulk = sub.add_parser(
+        "bulk-approve",
+        help="ترقية كل المكدّسات عبر مسار المالك: draft → owner_reviewed → approved")
+    bulk.add_argument("--reviewer", required=True,
+                      help="اسم المراجع (مالك المنتج) — يُسجَّل في كل قرار")
+    bulk.add_argument("--date", default=None)
+    bulk.add_argument("--note", default=None,
+                      help=f"ملاحظة التوثيق (الافتراضي: {OWNER_NOTE_DEFAULT})")
+    bulk.set_defaults(func=cmd_bulk_approve)
 
     sub.add_parser("stats", help="إحصاء الحالات والمصادر").set_defaults(func=cmd_stats)
 

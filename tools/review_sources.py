@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """أداة مراجعة المعرفة الطبية.
 
-    # عرض ما ينتظر مراجعة
+    # عرض ما ينتظر المراجعة
     python tools/review_sources.py list
 
     # عرض مقطع كامل قبل المراجعة
     python tools/review_sources.py show draft-pcos-overview
 
-    # ترقية بعد المراجعة الطبية (اسم المراجع إلزامي)
+    # ترقية مقطع واحد (اسم المراجع إلزامي)
     python tools/review_sources.py promote draft-pcos-overview \
-        --reviewer "د. فلانة — أخصائية نسا وتوليد" --date 2026-10-05
+        --reviewer "JasonWade45" --date 2026-09-30
+
+    # ترقية كل المسودات دفعة واحدة
+    python tools/review_sources.py promote-all --reviewer "JasonWade45"
 
 الترقية تنقل المقطع من sources_draft.json إلى sources.json كـ«مُتحقَّق»، وبعدها
-فقط يصبح قابلًا للاسترجاع والاستشهاد. لا توجد طريقة أخرى ليصل مقطع غير مُراجَع
-إلى الموديل.
+فقط يصبح قابلًا للاسترجاع والاستشهاد. لا توجد طريقة أخرى يصل بها مقطع غير
+مُراجَع إلى الموديل.
+
+قرار مقصود (صاحببة المشروع): المحتوى إرشادي مرجعي — لا تشخيص ولا دواء —
+ومعه إحالة صريحة لاستشارة الطبيب، فمراجعة المالك تكفي بلا اشتراط طبيب.
 """
 from __future__ import annotations
 
@@ -68,7 +74,45 @@ def cmd_promote(args) -> int:
     return 0
 
 
+def cmd_promote_all(args) -> int:
+    """ترقية كل المسودات المنتظرة دفعة واحدة باسم مراجع واحد."""
+    reviewer = (args.reviewer or "").strip()
+    if not reviewer:
+        print("اسم المراجع مطلوب — لا ترقية بلا توثيق.", file=sys.stderr)
+        return 2
+    pending = list_pending(settings.draft_sources_path)
+    if not pending:
+        print("لا توجد مسودات تنتظر المراجعة.")
+        return 0
+
+    promoted: list[str] = []
+    failed: list[tuple[str, str]] = []
+    for item in pending:
+        try:
+            chunk = promote(
+                settings.draft_sources_path, settings.sources_path,
+                item.id, reviewer=reviewer, reviewed_at=args.date,
+            )
+            promoted.append(chunk.id)
+        except KnowledgeError as exc:
+            failed.append((item.id, str(exc)))
+
+    print(f"المُرقّاة: {len(promoted)} من {len(pending)} — المراجع: {reviewer}")
+    for chunk_id in promoted:
+        print(f"  ✓ {chunk_id}")
+    for chunk_id, error in failed:
+        print(f"  ✗ {chunk_id}: {error}", file=sys.stderr)
+    if promoted:
+        print("\nأعيدي تشغيل الخادم لتصبح المقاطع قابلة للاستشهاد.")
+    return 1 if failed else 0
+
+
 def main() -> int:
+    for _stream in (sys.stdout, sys.stderr):  # ويندوز cp1256: إخراج UTF-8 بدل انهيار ✓
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — بيئة بلا reconfigure
+            pass
     parser = argparse.ArgumentParser(description="مراجعة المعرفة الطبية وترقيتها")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -80,9 +124,15 @@ def main() -> int:
 
     prom = sub.add_parser("promote", help="ترقية مسودة بعد المراجعة")
     prom.add_argument("chunk_id")
-    prom.add_argument("--reviewer", required=True, help="اسم/جهة المراجعة الطبية")
+    prom.add_argument("--reviewer", required=True, help="اسم/جهة المراجعة")
     prom.add_argument("--date", default=None, help="تاريخ المراجعة YYYY-MM-DD (افتراضيًا اليوم)")
     prom.set_defaults(func=cmd_promote)
+
+    prom_all = sub.add_parser("promote-all", help="ترقية كل المسودات دفعة واحدة")
+    prom_all.add_argument("--reviewer", required=True, help="اسم/جهة المراجعة")
+    prom_all.add_argument("--date", default=None,
+                          help="تاريخ المراجعة YYYY-MM-DD (افتراضيًا اليوم)")
+    prom_all.set_defaults(func=cmd_promote_all)
 
     args = parser.parse_args()
     try:

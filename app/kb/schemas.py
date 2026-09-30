@@ -1,8 +1,14 @@
 """نماذج قاعدة المعرفة ودورة حياة حالة المراجعة.
 
-الحالة ليست تسمية تجميلية: هي البوابة التي تمنع نصًا لم يراجعه طبيب من الوصول
-إلى مستخدمة. لذلك الانتقالات محدودة صراحةً، وأي انتقال غير مسموح يرفضه الكود
-بدل أن يمرّ صامتًا.
+الحالة ليست تسمية تجميلية: هي البوابة التي تمنع نصًا بلا مراجعة بشرية موثّقة
+من الوصول إلى مستخدمة. لذلك الانتقالات محدودة صراحةً، وأي انتقال غير مسموح
+يرفضه الكود بدل أن يمرّ صامتًا.
+
+مساران مسجّلان، والفرق مقصود وموثّق في السجل:
+- `owner_reviewed`: مراجعة مالك المنتج — قرار مقصود بعدم اشتراط طبيب، لأن
+  المحتوى إرشادي مرجعي (لا تشخيص ولا دواء) ومعه إحالة صريحة لاستشارة الطبيب.
+- `physician_reviewed`: مراجعة طبية — يبقى متاحًا إن أُريد رفعة أعلى لاحقًا.
+في الحالتين: لا قفزة من مسودة إلى «معتمد» مباشرة.
 """
 from __future__ import annotations
 
@@ -18,17 +24,25 @@ from ..services.arabic import normalize_for_search
 
 class ChunkStatus(str, Enum):
     DRAFT_UNREVIEWED = "draft_unreviewed"
+    OWNER_REVIEWED = "owner_reviewed"
     PHYSICIAN_REVIEWED = "physician_reviewed"
     APPROVED = "approved"
     RETIRED = "retired"
 
 
 # الانتقالات المسموحة. الترتيب مقصود: لا يمكن القفز من مسودة إلى «معتمد»
-# بلا مراجعة طبيب، ولا إعادة شيء منسحب إلى الاعتماد بلا مراجعة جديدة.
+# بلا مراجعة بشرية مسجّلة (مالك أو طبيب)، ولا إعادة شيء منسحب للاعتماد
+# بلا مراجعة جديدة. مسار المالك: draft → owner_reviewed → approved.
 ALLOWED_TRANSITIONS: dict[ChunkStatus, set[ChunkStatus]] = {
-    ChunkStatus.DRAFT_UNREVIEWED: {ChunkStatus.PHYSICIAN_REVIEWED, ChunkStatus.RETIRED},
+    ChunkStatus.DRAFT_UNREVIEWED: {ChunkStatus.OWNER_REVIEWED,
+                                   ChunkStatus.PHYSICIAN_REVIEWED,
+                                   ChunkStatus.RETIRED},
+    ChunkStatus.OWNER_REVIEWED: {ChunkStatus.APPROVED, ChunkStatus.RETIRED,
+                                 ChunkStatus.DRAFT_UNREVIEWED,
+                                 ChunkStatus.PHYSICIAN_REVIEWED},
     ChunkStatus.PHYSICIAN_REVIEWED: {ChunkStatus.APPROVED, ChunkStatus.RETIRED,
-                                     ChunkStatus.DRAFT_UNREVIEWED},
+                                     ChunkStatus.DRAFT_UNREVIEWED,
+                                     ChunkStatus.OWNER_REVIEWED},
     ChunkStatus.APPROVED: {ChunkStatus.RETIRED, ChunkStatus.PHYSICIAN_REVIEWED,
                            ChunkStatus.DRAFT_UNREVIEWED},
     ChunkStatus.RETIRED: {ChunkStatus.DRAFT_UNREVIEWED},
