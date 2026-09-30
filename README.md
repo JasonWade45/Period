@@ -150,7 +150,7 @@ The full pipeline runs (prompt → HTTP → SDK → validator → audit) against
 ## Tests
 
 ```bash
-pytest                 # 568 test: unit, API, e2e, KB, eval, AI integration, i18n/RTL static
+pytest                 # 572 test: unit, API, e2e, KB, eval, AI integration, i18n/RTL static
 ```
 
 `tests/test_e2e_pipeline.py` drives the real pipeline over real HTTP against the fake provider, so it covers what unit tests cannot: the rendered prompt (no unfilled variables, user text kept out of the system prompt), provider 429/500 handling, one-retry-then-fallback, and the validator gates firing on live traffic.
