@@ -1,4 +1,4 @@
-/* CycleCare frontend */
+/* CycleCare frontend — بلا مكتبات خارجية، يعمل مع FastAPI من نفس الأصل */
 "use strict";
 
 const API = ""; // نفس الأصل (يُخدم من FastAPI)
@@ -6,12 +6,24 @@ const API = ""; // نفس الأصل (يُخدم من FastAPI)
 const state = {
   mode: "chat",
   loading: false,
+  tab: "cycles",
   messages: [], // {role, text?, data?}
 };
 
-/* ---------------- settings (localStorage) ---------------- */
+/* ---------------- مفاتيح التخزين المحلي ---------------- */
 
-const SETTINGS_KEY = "cyclecare_context_v1";
+const SETTINGS_KEY = "cyclecare_context_v1";   // بيانات شخصية (تبقى في المتصفح)
+const DEVICE_KEY = "cyclecare_device_v1";      // معرّف جهاز لعزل البيانات على الخادم
+
+function deviceKey() {
+  let key = localStorage.getItem(DEVICE_KEY);
+  if (!key) {
+    // معرّف عشوائي: ليس مصادقة، الغرض عزل صفوف قاعدة البيانات فقط
+    key = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+    localStorage.setItem(DEVICE_KEY, key);
+  }
+  return key;
+}
 
 function loadSettings() {
   try {
@@ -21,20 +33,15 @@ function loadSettings() {
   }
 }
 
+/* ---------------- البيانات الشخصية ---------------- */
+
 function fillSettingsForm(s) {
   document.getElementById("f-age").value = s.age ?? "";
-  document.getElementById("f-cycles").value = s.cycles_recorded ?? 0;
-  document.getElementById("f-avg").value = s.avg_cycle_days ?? "";
+  document.getElementById("f-country").value = s.country_code ?? "";
   document.getElementById("f-pregnancy").value = s.pregnancy_status ?? "";
   document.getElementById("f-contraception").value = s.contraception ?? "";
   document.getElementById("f-conditions").value =
     (s.conditions || []).map((c) => `${c.name} | ${c.status}`).join("\n");
-
-  const rows = document.querySelectorAll("#f-last .cycle-row");
-  (s.last_cycles || []).slice(0, rows.length).forEach((c, i) => {
-    rows[i].querySelector(".c-date").value = c.start_date || "";
-    rows[i].querySelector(".c-len").value = c.length_days || "";
-  });
 }
 
 function readSettingsForm() {
@@ -48,13 +55,6 @@ function readSettingsForm() {
     })
     .filter((c) => c.name);
 
-  const last_cycles = [];
-  document.querySelectorAll("#f-last .cycle-row").forEach((row) => {
-    const d = row.querySelector(".c-date").value;
-    const l = parseInt(row.querySelector(".c-len").value, 10);
-    if (d) last_cycles.push({ start_date: d, length_days: Number.isFinite(l) ? l : null });
-  });
-
   const num = (id) => {
     const v = document.getElementById(id).value;
     return v === "" ? null : Number(v);
@@ -62,18 +62,15 @@ function readSettingsForm() {
 
   return {
     age: num("f-age"),
-    cycles_recorded: num("f-cycles") ?? 0,
-    avg_cycle_days: num("f-avg"),
+    country_code: document.getElementById("f-country").value || null,
     pregnancy_status: document.getElementById("f-pregnancy").value || null,
     contraception: document.getElementById("f-contraception").value || null,
     conditions,
-    last_cycles,
   };
 }
 
 function saveSettings() {
-  const s = readSettingsForm();
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(readSettingsForm()));
   toggleSettings();
 }
 
@@ -87,7 +84,24 @@ function toggleSettings() {
   el.hidden = !el.hidden;
 }
 
-/* ---------------- mode ---------------- */
+/* ---------------- البلد ورقم الطوارئ ---------------- */
+
+async function loadCountries() {
+  const select = document.getElementById("f-country");
+  try {
+    const meta = await api("/v1/meta", "GET");
+    const saved = loadSettings().country_code;
+    select.innerHTML = '<option value="">غير محدد</option>' +
+      (meta.countries || []).map((c) =>
+        `<option value="${c.code}"${c.code === saved ? " selected" : ""}>${c.name_ar} — ${c.emergency}</option>`
+      ).join("");
+    if (!saved && meta.default_country) select.value = meta.default_country;
+  } catch {
+    select.innerHTML = '<option value="">غير متاح</option>';
+  }
+}
+
+/* ---------------- الوضع ---------------- */
 
 function setMode(mode) {
   state.mode = mode;
@@ -97,7 +111,7 @@ function setMode(mode) {
     mode === "summary" ? "اطلب ملخصًا لدوراتي…" : "اكتبي سؤالك هنا…";
 }
 
-/* ---------------- chat rendering ---------------- */
+/* ---------------- المحادثة ---------------- */
 
 const chatEl = () => document.getElementById("chat");
 
@@ -183,13 +197,14 @@ function appendMeta(container, data) {
 }
 
 function addError(text) {
+  hideWelcome();
   const div = document.createElement("div");
   div.className = "msg msg-error";
   div.textContent = text;
   chatEl().appendChild(div);
 }
 
-/* ---------------- emergency overlay ---------------- */
+/* ---------------- الطوارئ ---------------- */
 
 function showOverlay(data) {
   const overlay = document.getElementById("overlay");
@@ -206,7 +221,7 @@ function closeOverlay() {
   document.getElementById("overlay").hidden = true;
 }
 
-/* ---------------- send ---------------- */
+/* ---------------- الإرسال ---------------- */
 
 async function ask(text) {
   if (!text || state.loading) return;
@@ -219,6 +234,21 @@ function setModeFromShortcut(text) {
   if (text.includes("ملخص") && state.mode !== "summary") setMode("summary");
 }
 
+async function api(path, method = "GET", body = null) {
+  const opts = { method, headers: {} };
+  if (body) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const resp = await fetch(`${API}${path}`, opts);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    const detail = typeof err.detail === "string" ? err.detail : `HTTP ${resp.status}`;
+    throw new Error(detail);
+  }
+  return resp.json();
+}
+
 async function send(text) {
   state.loading = true;
   document.getElementById("send-btn").disabled = true;
@@ -226,22 +256,14 @@ async function send(text) {
   scrollBottom();
 
   try {
-    const resp = await fetch(`${API}/v1/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: text,
-        mode: state.mode,
-        user_context: loadSettings(),
-      }),
+    const settings = readSettingsForm();
+    const data = await api("/v1/chat", "POST", {
+      message: text,
+      mode: state.mode,
+      user_key: deviceKey(),
+      country_code: settings.country_code,
+      user_context: settings,
     });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.detail || `HTTP ${resp.status}`);
-    }
-
-    const data = await resp.json();
     state.messages.push({ role: "user", text }, { role: "bot", data });
 
     if (data.emergency) {
@@ -284,14 +306,231 @@ function handleKey(event) {
   }
 }
 
-/* ---------------- init ---------------- */
+/* ---------------- لوحة التتبّع ---------------- */
+
+function toggleTracker() {
+  const el = document.getElementById("tracker");
+  el.hidden = !el.hidden;
+  if (!el.hidden) refreshTracker();
+}
+
+function setTrackerTab(tab) {
+  state.tab = tab;
+  ["cycles", "symptoms", "insights"].forEach((t) => {
+    document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
+    document.getElementById(`pane-${t}`).hidden = t !== tab;
+  });
+  if (tab === "insights") refreshInsights();
+}
+
+async function refreshTracker() {
+  await Promise.all([loadCycles(), loadSymptoms()]);
+  if (state.tab === "insights") await refreshInsights();
+}
+
+function fmtDate(iso) {
+  try {
+    return new Date(iso + "T00:00:00").toLocaleDateString("ar-EG",
+      { year: "numeric", month: "long", day: "numeric" });
+  } catch {
+    return iso;
+  }
+}
+
+async function loadCycles() {
+  const list = document.getElementById("cycles-list");
+  try {
+    const rows = await api(`/v1/cycles?user_key=${encodeURIComponent(deviceKey())}`);
+    document.getElementById("cycles-count").textContent =
+      rows.length ? `${rows.length} مسجّل` : "";
+    if (!rows.length) {
+      list.innerHTML = '<li class="muted">لا يوجد تسجيل بعد.</li>';
+      return;
+    }
+    list.innerHTML = "";
+    rows.forEach((c) => {
+      const li = document.createElement("li");
+      const label = c.length_days
+        ? `${fmtDate(c.start_date)} · ${c.length_days} يوم نزيف`
+        : fmtDate(c.start_date);
+      const span = document.createElement("span");
+      span.textContent = label;
+      const btn = document.createElement("button");
+      btn.className = "link-danger";
+      btn.textContent = "حذف";
+      btn.onclick = () => removeCycle(c.id);
+      li.append(span, btn);
+      list.appendChild(li);
+    });
+  } catch (e) {
+    list.innerHTML = `<li class="muted">تعذّر تحميل البيانات: ${e.message}</li>`;
+  }
+}
+
+async function addCycle() {
+  const start = document.getElementById("c-date").value;
+  const len = document.getElementById("c-length").value;
+  if (!start) return alert("اختاري تاريخ أول يوم نزيف.");
+  try {
+    await api(`/v1/cycles?user_key=${encodeURIComponent(deviceKey())}`, "POST", {
+      start_date: start,
+      length_days: len === "" ? null : Number(len),
+    });
+    document.getElementById("c-date").value = "";
+    document.getElementById("c-length").value = "";
+    await loadCycles();
+  } catch (e) {
+    alert(`تعذّرت الإضافة: ${e.message}`);
+  }
+}
+
+async function removeCycle(id) {
+  if (!confirm("حذف هذه الدورة؟")) return;
+  try {
+    await api(`/v1/cycles/${id}?user_key=${encodeURIComponent(deviceKey())}`, "DELETE");
+    await loadCycles();
+  } catch (e) {
+    alert(`تعذّر الحذف: ${e.message}`);
+  }
+}
+
+async function loadSymptoms() {
+  const list = document.getElementById("symptoms-list");
+  try {
+    const rows = await api(`/v1/symptoms?user_key=${encodeURIComponent(deviceKey())}`);
+    document.getElementById("symptoms-count").textContent =
+      rows.length ? `${rows.length} سجل` : "";
+    if (!rows.length) {
+      list.innerHTML = '<li class="muted">لا يوجد تسجيل بعد.</li>';
+      return;
+    }
+    list.innerHTML = "";
+    rows.forEach((s) => {
+      const li = document.createElement("li");
+      const sev = s.severity ? ` · شدّة ${s.severity}/5` : "";
+      const note = s.note ? ` · ${s.note}` : "";
+      const span = document.createElement("span");
+      span.textContent = `${fmtDate(s.log_date)} — ${s.symptom}${sev}${note}`;
+      const btn = document.createElement("button");
+      btn.className = "link-danger";
+      btn.textContent = "حذف";
+      btn.onclick = () => removeSymptom(s.id);
+      li.append(span, btn);
+      list.appendChild(li);
+    });
+  } catch (e) {
+    list.innerHTML = `<li class="muted">تعذّر تحميل البيانات: ${e.message}</li>`;
+  }
+}
+
+async function addSymptom() {
+  const day = document.getElementById("s-date").value;
+  const name = document.getElementById("s-name").value.trim();
+  const sev = document.getElementById("s-severity").value;
+  const note = document.getElementById("s-note").value.trim();
+  if (!day) return alert("اختاري التاريخ.");
+  if (!name) return alert("اكتبي اسم العرض.");
+  try {
+    await api(`/v1/symptoms?user_key=${encodeURIComponent(deviceKey())}`, "POST", {
+      log_date: day,
+      symptom: name,
+      severity: sev === "" ? null : Number(sev),
+      note: note || null,
+    });
+    document.getElementById("s-name").value = "";
+    document.getElementById("s-severity").value = "";
+    document.getElementById("s-note").value = "";
+    await loadSymptoms();
+  } catch (e) {
+    alert(`تعذّرت الإضافة: ${e.message}`);
+  }
+}
+
+async function removeSymptom(id) {
+  if (!confirm("حذف هذا السجل؟")) return;
+  try {
+    await api(`/v1/symptoms/${id}?user_key=${encodeURIComponent(deviceKey())}`, "DELETE");
+    await loadSymptoms();
+  } catch (e) {
+    alert(`تعذّر الحذف: ${e.message}`);
+  }
+}
+
+async function refreshInsights() {
+  const box = document.getElementById("insights-body");
+  box.innerHTML = '<p class="muted">جارٍ التحليل…</p>';
+  try {
+    const data = await api(`/v1/insights?user_key=${encodeURIComponent(deviceKey())}`);
+    box.innerHTML = "";
+
+    const summary = document.createElement("p");
+    summary.className = "muted";
+    summary.textContent = data.cycles_recorded
+      ? `عدد الدورات المسجّلة: ${data.cycles_recorded}` +
+        (data.avg_cycle_days ? ` · متوسط الطول: ${data.avg_cycle_days} يومًا` : "")
+      : "لا توجد دورات مسجّلة بعد؛ سجّلي دورة على الأقل ليبدأ التحليل.";
+    box.appendChild(summary);
+
+    if (data.needs_doctor) {
+      const note = document.createElement("div");
+      note.className = "insight-alert";
+      note.textContent = "في بياناتكِ ما يستحق مراجعة طبية. هذا ليس تشخيصًا.";
+      box.appendChild(note);
+    }
+
+    (data.findings || []).forEach((f) => {
+      const card = document.createElement("div");
+      card.className = "insight-card";
+      const h = document.createElement("h4");
+      h.textContent = `${f.title} — ${f.rule_code}`;
+      const p = document.createElement("p");
+      p.textContent = data.glossary?.[f.rule_code] || "";
+      const ev = document.createElement("small");
+      ev.textContent = `الأرقام: ${(f.evidence || []).join(" · ")}`;
+      card.append(h, p, ev);
+      box.appendChild(card);
+    });
+
+    if (!(data.findings || []).length) {
+      box.innerHTML += '<p class="muted">لا نتائج بعد.</p>';
+    }
+  } catch (e) {
+    box.innerHTML = `<p class="muted">تعذّر التحليل: ${e.message}</p>`;
+  }
+}
+
+function showInsights() {
+  const el = document.getElementById("tracker");
+  el.hidden = false;
+  setTrackerTab("insights");
+}
+
+async function deleteAllData() {
+  if (!confirm("سيُحذف كل ما سجّلتِه من دورات وأعراض. متأكدة؟")) return;
+  try {
+    await api(`/v1/data?user_key=${encodeURIComponent(deviceKey())}`, "DELETE");
+    await refreshTracker();
+    alert("تم حذف كل بياناتك.");
+  } catch (e) {
+    alert(`تعذّر الحذف: ${e.message}`);
+  }
+}
+
+/* ---------------- تهيئة ---------------- */
 
 fillSettingsForm(loadSettings());
+loadCountries();
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+document.getElementById("c-date").value = todayIso();
+document.getElementById("s-date").value = todayIso();
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
+    const tracker = document.getElementById("tracker");
     const settings = document.getElementById("settings");
-    if (!settings.hidden) settings.hidden = true;
+    if (!tracker.hidden) tracker.hidden = true;
+    else if (!settings.hidden) settings.hidden = true;
     else closeOverlay();
   }
 });

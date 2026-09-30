@@ -293,3 +293,71 @@ def test_emergency_finding_from_rules_engine_also_blocks_the_model(fake) -> None
 
     assert resp.emergency is True
     assert fake.call_count == 0
+
+
+# ------------------------------------------- طبقة ما بعد الموديل (طوارئ)
+
+MODEL_EMERGENCY = json.dumps({
+    "answer": "ما تصفينه يستدعي تقييمًا طبيًا سريعًا.",
+    "sources_used": [], "needs_doctor": True,
+    "emergency": True, "crisis": False, "missing_info": [],
+}, ensure_ascii=False)
+
+
+def test_model_emergency_flag_forces_number_into_the_answer(fake, audit_entries) -> None:
+    """الفلتر معجمي وقد تفوت صيغة لم تُدرج. إن أعلن الموديل طوارئ، يجب أن يظهر
+    الرقم في نص الرد نفسه — العلم وحده لا يكفي (واجهة أخرى قد تتجاهله)."""
+    fake.scenarios = [{"content": MODEL_EMERGENCY}]
+
+    resp = main._run_pipeline(_req("حالة غريبة لم تُدرج في القاموس"))
+
+    assert resp.emergency is True
+    assert resp.needs_doctor is True
+    assert main.settings.emergency_number in resp.answer
+    assert "رعاية طبية عاجلة" in resp.answer
+    # شرح الموديل محفوظ بعد التعليمات المباشرة
+    assert "ما تصفينه يستدعي تقييمًا طبيًا سريعًا." in resp.answer
+
+
+def test_model_crisis_flag_forces_support_text(fake) -> None:
+    crisis = json.dumps({
+        "answer": "أفهم أنك تمرين بوقت صعب.",
+        "sources_used": [], "needs_doctor": True,
+        "emergency": True, "crisis": True, "missing_info": [],
+    }, ensure_ascii=False)
+    fake.scenarios = [{"content": crisis}]
+
+    resp = main._run_pipeline(_req("صياغة غير مدرجة في القاموس"))
+
+    assert resp.crisis is True
+    assert "إيذاء النفس" in resp.answer
+    assert main.settings.emergency_number in resp.answer
+
+
+def test_model_emergency_answer_unchanged_when_number_already_present(fake) -> None:
+    already = json.dumps({
+        "answer": f"توجهي للطوارئ على {main.settings.emergency_number} الآن.",
+        "sources_used": [], "needs_doctor": True,
+        "emergency": True, "crisis": False, "missing_info": [],
+    }, ensure_ascii=False)
+    fake.scenarios = [{"content": already}]
+
+    resp = main._run_pipeline(_req("حالة غير مدرجة"))
+
+    assert resp.answer == f"توجهي للطوارئ على {main.settings.emergency_number} الآن."
+
+
+def test_summary_mode_does_not_get_answer_wrapper(fake) -> None:
+    """وضع الملخص له حقول مختلفة: لا نُدخل حقل answer فيه."""
+    emergency_summary = json.dumps({
+        "overview": "ملخص", "what_changed": "", "patterns": "",
+        "medical_alerts": "يستدعي مراجعة عاجلة",
+        "what_this_does_not_mean": "ليس تشخيصًا.",
+        "questions_for_doctor": ["س1", "س2", "س3"], "sources_used": [],
+    }, ensure_ascii=False)
+    fake.scenarios = [{"content": emergency_summary}]
+
+    resp = main._run_pipeline(_req("ملخص", mode="summary"))
+
+    assert resp.overview == "ملخص"
+    assert not hasattr(resp, "answer")

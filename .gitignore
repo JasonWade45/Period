@@ -21,3 +21,8 @@ _live*.json
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local tracker DB (health data)
+*.db
+*.db-wal
+*.db-shm

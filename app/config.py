@@ -78,6 +78,19 @@ class Settings:
     # RAG
     rag_top_k: int = int(_env("RAG_TOP_K", "5"))
 
+    # التتبّع (البيانات المسجّلة)
+    db_path: Path = Path(_env("DB_PATH", str(REPO_DIR / "data" / "cyclecare.db")))
+
+    # البلد: يحدّد رقم الطوارئ من app/data/emergency_numbers.json
+    country_code: str = _env("COUNTRY_CODE", "EG").upper()
+
+    # المصادقة: إن كانت فارغة فالتطبيق مفتوح (للتطوير المحلي فقط)
+    api_key: str = _env("API_KEY")
+
+    # تحديد المعدّل: عدد الطلبات لكل نافذة زمنية لكل مستخدمة/جهاز
+    rate_limit_requests: int = int(_env("RATE_LIMIT_REQUESTS", "30"))
+    rate_limit_window_seconds: int = int(_env("RATE_LIMIT_WINDOW_SECONDS", "60"))
+
     # CORS — الواجهة تُخدم من نفس التطبيق، لذا الافتراضي هو «نفس الأصل فقط».
     # أضيفي أصولًا أخرى بفاصلة، أو "*" (غير آمن بدون مصادقة).
     cors_allow_origins: str = _env("CORS_ALLOW_ORIGINS", "")

@@ -21,6 +21,7 @@
           <button id="mode-chat" class="mode-btn active" onclick="setMode('chat')">محادثة</button>
           <button id="mode-summary" class="mode-btn" onclick="setMode('summary')">ملخص</button>
         </div>
+        <button class="icon-btn" id="tracker-btn" onclick="toggleTracker()" title="دوراتي وأعراضي">📖</button>
         <button class="icon-btn" id="settings-btn" onclick="toggleSettings()" title="بياناتي">⚙</button>
       </div>
     </header>
@@ -33,11 +34,12 @@
       <div class="welcome" id="welcome">
         <div class="welcome-card">
           <h2>أهلاً بكِ 👋</h2>
-          <p>اسألي أي شيء عن الدورة الشهرية أو الأعراض المسجّلة، أو اطلبي ملخصًا لدوراتي.</p>
+          <p>سجّلي دوراتك وأعراضك من 📖، واسألي عن أي شيء يخص الدورة الشهرية.</p>
           <div class="suggestions">
             <button class="chip" onclick="ask('إيه الفرق بين الدورة المنتظمة والغير منتظمة؟')">الدورة المنتظمة والغير منتظمة</button>
             <button class="chip" onclick="ask('إيه أعراض ما قبل الدورة؟')">أعراض ما قبل الدورة</button>
             <button class="chip" onclick="ask('ليه الدورة بتتأخر؟')">أسباب تأخر الدورة</button>
+            <button class="chip" onclick="showInsights()">رؤى من بياناتي</button>
             <button class="chip" onclick="ask('اعملي ملخص لدوراتي')">ملخص لدوراتي</button>
           </div>
         </div>
@@ -57,7 +59,73 @@
       <div class="composer-hint" id="hint">Enter للإرسال · Shift+Enter لسطر جديد</div>
     </footer>
 
-    <!-- لوحة البيانات -->
+    <!-- لوحة التتبّع: الدورات والأعراض والرؤى -->
+    <aside class="settings tracker" id="tracker" hidden onclick="if(event.target===this)toggleTracker()">
+      <div class="settings-body">
+        <div class="settings-head">
+          <h2>دوراتي وأعراضي</h2>
+          <button class="icon-btn" onclick="toggleTracker()">✕</button>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab active" id="tab-cycles" onclick="setTrackerTab('cycles')">الدورات</button>
+          <button class="tab" id="tab-symptoms" onclick="setTrackerTab('symptoms')">الأعراض</button>
+          <button class="tab" id="tab-insights" onclick="setTrackerTab('insights')">الرؤى</button>
+        </div>
+
+        <!-- الدورات -->
+        <section id="pane-cycles">
+          <label>أول يوم نزيف <input type="date" id="c-date"></label>
+          <label>طول النزيف (أيام) — اختياري
+            <input type="number" id="c-length" min="1" max="90" placeholder="مثال: 5"></label>
+          <div class="settings-actions">
+            <button class="btn-primary" onclick="addCycle()">إضافة دورة</button>
+          </div>
+          <div class="list-head">
+            <h3>المسجّل</h3>
+            <span class="muted" id="cycles-count"></span>
+          </div>
+          <ul class="record-list" id="cycles-list"><li class="muted">لا يوجد تسجيل بعد.</li></ul>
+        </section>
+
+        <!-- الأعراض -->
+        <section id="pane-symptoms" hidden>
+          <label>التاريخ <input type="date" id="s-date"></label>
+          <label>العرض <input type="text" id="s-name" placeholder="مثال: تقلصات، صداع، غثيان"></label>
+          <label>شدّته من 1 إلى 5 (تقديركِ أنتِ)
+            <input type="number" id="s-severity" min="1" max="5" placeholder="اختياري"></label>
+          <label>ملاحظة — اختياري
+            <input type="text" id="s-note" placeholder="مثال: قبل الدورة بيوم"></label>
+          <div class="settings-actions">
+            <button class="btn-primary" onclick="addSymptom()">إضافة عرض</button>
+          </div>
+          <div class="list-head">
+            <h3>السجل</h3>
+            <span class="muted" id="symptoms-count"></span>
+          </div>
+          <ul class="record-list" id="symptoms-list"><li class="muted">لا يوجد تسجيل بعد.</li></ul>
+        </section>
+
+        <!-- الرؤى -->
+        <section id="pane-insights" hidden>
+          <p class="muted">
+            تحليل محلي مبني على بياناتكِ المسجّلة فقط، ويعمل بدون إنترنت.
+            ليس تشخيصًا ولا يغني عن طبيبة.
+          </p>
+          <div id="insights-body"></div>
+        </section>
+
+        <p class="settings-note">
+          البيانات تُحفظ على خادم التطبيق بمعرّف جهازكِ، والتفاصيل الشخصية في متصفحك.
+          يمكنكِ حذف كل شيء من زر «حذف كل بياناتي».
+        </p>
+        <div class="settings-actions">
+          <button class="btn-ghost danger" onclick="deleteAllData()">حذف كل بياناتي</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- لوحة البيانات الشخصية -->
     <aside class="settings" id="settings" hidden onclick="if(event.target===this)toggleSettings()">
       <div class="settings-body">
         <div class="settings-head">
@@ -65,10 +133,8 @@
           <button class="icon-btn" onclick="toggleSettings()">✕</button>
         </div>
         <label>العمر <input type="number" id="f-age" min="10" max="60" placeholder="اختياري"></label>
-        <label>عدد الدورات المسجّلة
-          <input type="number" id="f-cycles" min="0" max="100" value="0"></label>
-        <label>متوسط طول الدورة (أيام)
-          <input type="number" id="f-avg" min="15" max="90" placeholder="اختياري"></label>
+        <label>البلد (لتحديد رقم الطوارئ)
+          <select id="f-country"></select></label>
         <label>حمل (لو معروف)
           <select id="f-pregnancy">
             <option value="">غير محدد</option>
@@ -77,23 +143,6 @@
             <option value="لا">لا</option>
           </select></label>
         <label>وسيلة منع الحمل <input type="text" id="f-contraception" placeholder="اختياري"></label>
-
-        <h3>آخر الدورات</h3>
-        <div id="f-last">
-          <div class="cycle-row">
-            <input type="date" class="c-date">
-            <input type="number" class="c-len" min="1" max="90" placeholder="أيام">
-          </div>
-          <div class="cycle-row">
-            <input type="date" class="c-date">
-            <input type="number" class="c-len" min="1" max="90" placeholder="أيام">
-          </div>
-          <div class="cycle-row">
-            <input type="date" class="c-date">
-            <input type="number" class="c-len" min="1" max="90" placeholder="أيام">
-          </div>
-        </div>
-
         <label>أمراض مشخّصة
           <textarea id="f-conditions" rows="2"
             placeholder="كل سطر: اسم الحالة | مشخّصة أو غير متأكدة"></textarea></label>
@@ -102,7 +151,7 @@
           <button class="btn-primary" onclick="saveSettings()">حفظ</button>
           <button class="btn-ghost" onclick="clearSettings()">مسح</button>
         </div>
-        <p class="settings-note">البيانات تُحفظ محليًا في متصفحك ولا تُرسل لغير خادم التطبيق.</p>
+        <p class="settings-note">البيانات الشخصية تُحفظ في متصفحك، والدورات والأعراض تُحفظ لدى الخادم بمعرّف جهازكِ.</p>
       </div>
     </aside>
 

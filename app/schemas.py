@@ -117,6 +117,10 @@ class ChatRequest(BaseModel):
     user_context: UserContext = Field(default_factory=UserContext)
     mode: str = "chat"  # chat | summary
     language_hint: Optional[str] = None
+    # معرّف جهاز تُنشئه الواجهة عشوائيًا لعزل البيانات عن بعضها. ليس مصادقة.
+    user_key: Optional[str] = None
+    # بلد المستخدمة: يحدّد رقم الطوارئ من جدول مُوثّق
+    country_code: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -140,6 +144,44 @@ class SummaryResponse(BaseModel):
     sources_used: list[str] = Field(default_factory=list)
     prompt_version: str = ""
     rule_codes: list[str] = Field(default_factory=list)
+
+
+class CycleIn(BaseModel):
+    start_date: str                      # أول يوم نزيف (YYYY-MM-DD)
+    length_days: Optional[int] = None
+
+
+class CycleOut(BaseModel):
+    id: int
+    start_date: str
+    length_days: Optional[int] = None
+
+
+class SymptomIn(BaseModel):
+    log_date: str
+    symptom: str
+    severity: Optional[int] = Field(default=None, ge=1, le=5)   # شدة ذكرتها المستخدمة
+    note: Optional[str] = None
+
+
+class SymptomOut(BaseModel):
+    id: int
+    log_date: str
+    symptom: str
+    severity: Optional[int] = None
+    note: Optional[str] = None
+
+
+class InsightsResponse(BaseModel):
+    """نتائج محرك القواعد بلا موديل — تعمل حتى بلا إنترنت أو مفتاح."""
+
+    findings: list[Finding] = Field(default_factory=list)
+    glossary: dict[str, str] = Field(default_factory=dict)
+    cycles_recorded: int = 0
+    avg_cycle_days: Optional[int] = None
+    needs_doctor: bool = False
+    rule_codes: list[str] = Field(default_factory=list)
+    prompt_version: str = ""
 
 
 class AuditEntry(BaseModel):

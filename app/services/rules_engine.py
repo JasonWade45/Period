@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from ..schemas import Finding, Severity, UserContext, max_severity_of
 
 MIN_CYCLES_FOR_PATTERN = 3
+SYMPTOM_WINDOW_DAYS = 90          # نافذة النظر في سجل الأعراض
+REPEATED_SEVERE_THRESHOLD = 3     # عدد السجلات الشديدة خلال النافذة
 SHORT_CYCLE_DAYS = 21
 LONG_CYCLE_DAYS = 35
 IRREGULAR_SPREAD_DAYS = 7
@@ -79,6 +83,47 @@ def compute_findings(ctx: UserContext) -> list[Finding]:
         ))
 
     return findings
+
+
+def compute_symptom_findings(symptoms: list[dict], today: date | None = None) -> list[Finding]:
+    """نتيجة من سجل الأعراض: تكرار أعراض شديدة (4–5) خلال آخر 90 يومًا.
+
+    القاعدة محافظة ومبنية على البيانات المسجّلة فقط: لا تفسّر سبب الأعراض ولا
+    تشخّص، بل ترصد تكرارًا يستحق النقاش مع طبيبة. مستوى MONITOR دائمًا لأن
+    الشدة هنا **تقدير المستخدمة نفسها** لا قياس سريري.
+    """
+    ref = today or date.today()
+    cutoff = ref - timedelta(days=SYMPTOM_WINDOW_DAYS)
+    severe: list[dict] = []
+    for log in symptoms or []:
+        if not log.get("severity") or int(log["severity"]) < 4:
+            continue
+        try:
+            day = date.fromisoformat(str(log.get("log_date", "")))
+        except ValueError:
+            continue
+        if day >= cutoff:
+            severe.append(log)
+
+    if len(severe) < REPEATED_SEVERE_THRESHOLD:
+        return []
+
+    names = sorted({str(s["symptom"]) for s in severe})
+    dates = sorted(str(s["log_date"]) for s in severe)
+    return [Finding(
+        rule_code="REPEATED_SEVERE_SYMPTOMS",
+        severity=Severity.MONITOR,
+        title="أعراض شديدة متكررة في السجل خلال آخر 90 يومًا",
+        evidence=[f"severe_logs={len(severe)}",
+                  f"threshold={REPEATED_SEVERE_THRESHOLD}",
+                  f"from={dates[0]}", f"to={dates[-1]}",
+                  "symptoms=" + "، ".join(names[:5])],
+    )]
+
+
+def compute_all_findings(ctx: UserContext, symptoms: list[dict] | None = None) -> list[Finding]:
+    """دمج نتائج الدورات ونتائج الأعراض (سجل فارغ = لا نتيجة منه)."""
+    return compute_findings(ctx) + compute_symptom_findings(symptoms or [])
 
 
 def max_severity(findings: list[Finding]) -> Severity:
