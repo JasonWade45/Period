@@ -58,3 +58,59 @@ def test_crisis_never_calls_llm(monkeypatch):
     resp = main._run_pipeline(_req("مش عايزة أعيش"))
     assert resp.crisis is True
     assert resp.emergency is True
+
+
+def test_missing_model_key_degrades_instead_of_erroring(monkeypatch):
+    """لا مفتاح → إجابة احتياطية بحالة 200، وليس 503."""
+    import app.main as main
+    monkeypatch.setattr(main, "_llm", None)
+    resp = main._run_pipeline(_req("إيه أعراض ما قبل الدورة؟"))
+    assert resp.answer == main.NOT_CONFIGURED_ANSWER
+    assert resp.prompt_version
+    assert resp.rule_codes
+
+
+def test_audit_failure_does_not_break_the_response(monkeypatch):
+    """قرص ممتلئ أو نظام للقراءة فقط لا يجوز أن يمنع ردًّا آمنًا."""
+    import app.main as main
+    import app.services.audit as audit
+
+    def _boom(entry):
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(audit, "write", _boom)
+    monkeypatch.setattr(main, "_llm", None)
+    resp = main._run_pipeline(_req("إيه أعراض ما قبل الدورة؟"))
+    assert resp.answer == main.NOT_CONFIGURED_ANSWER
+
+
+def test_audit_records_why_it_fell_back(monkeypatch):
+    """سبب الرد الاحتياطي يجب أن يظهر في سجل التدقيق للتشغيل والمراجعة."""
+    import app.main as main
+    import app.services.audit as audit
+
+    captured = []
+    monkeypatch.setattr(audit, "write", captured.append)
+    monkeypatch.setattr(main, "_llm", _BoomLLM())
+
+    main._run_pipeline(_req("إيه أعراض ما قبل الدورة؟"))
+
+    assert len(captured) == 1
+    entry = captured[0]
+    assert entry.fallback is True
+    assert entry.used_model is False
+    assert entry.llm_error.startswith("RuntimeError")
+
+
+def test_emergency_audit_entry_has_no_model_error(monkeypatch):
+    import app.main as main
+    import app.services.audit as audit
+
+    captured = []
+    monkeypatch.setattr(audit, "write", captured.append)
+    monkeypatch.setattr(main, "_llm", _BoomLLM())
+
+    main._run_pipeline(_req("بنزف كل ساعة وبرمي جلطات كبيرة"))
+
+    assert captured[0].emergency is True
+    assert captured[0].llm_error == ""
