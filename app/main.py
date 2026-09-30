@@ -28,7 +28,9 @@ from .schemas import (
     SymptomOut,
     UserContext,
 )
+from .routers.ai import router as ai_router
 from .services import audit
+from .services.ai_pipeline import AiPipeline, PipelineDeps
 from .services.emergency_filter import build_fixed_reply, ensure_emergency_text, run_filter
 from .services.emergency_numbers import EmergencyNumbers
 from .services.llm import LLMClient
@@ -72,6 +74,15 @@ async def lifespan(_: FastAPI):
         )
     if not settings.cors_origins:
         log.info("CORS: نفس الأصل فقط (الوضع الافتراضي).")
+    app.state.store = _store
+    app.state.limiter = limiter
+    app.state.ai_pipeline = _ai_pipeline
+    if _ai_pipeline is not None:
+        from .kb.retrieval import producible_statuses
+        log.info("طبقة AI جاهزة (/api/v1/ai) — حالات قابلة للاسترجاع: %s",
+                 [s.value for s in producible_statuses()])
+    else:
+        log.error("طبقة AI غير مُهيّأة: /api/v1/ai/* ستُرجع 503 حتى يُصلح السبب أعلاه.")
     log.info(
         "CycleCare جاهز — prompt=%s model=%s citable=%d drafts=%d db=%s rate_limit=%d/%ds",
         settings.prompt_version, settings.groq_model, len(_rag.retrievable),
@@ -98,6 +109,47 @@ _rules_glossary: dict[str, str] = json.loads(
     settings.rules_glossary_path.read_text(encoding="utf-8")
 )
 _store = Store(settings.db_path)
+
+
+def _build_ai_pipeline() -> AiPipeline | None:
+    """بناء طبقة /api/v1/ai: مخزن قاعدة المعرفة + مُضمِّن + مُسترجع.
+
+    لا نُسقط التطبيق إن تعذّر بناء النموذج المحلي: المسار الجديد يصبح غير
+    مُهيّأ (503) والمسارات القديمة تعمل. سبب الفشل يُسجَّل صراحة لأن أشهر
+    سببين — نموذج تضمين غير مُنزَّل أو absent psycopg — يحتاجان تدخّلًا.
+    """
+    from .kb.embedding import build_embedder
+    from .kb.postgres import build_store
+    from .kb.retrieval import HybridRetriever
+
+    try:
+        kb_store = build_store()
+    except Exception as exc:  # noqa: BLE001
+        log.error("تعذّر بناء مخزن قاعدة المعرفة: %s: %s", type(exc).__name__, exc)
+        return None
+    try:
+        embedder = build_embedder()
+    except Exception as exc:  # noqa: BLE001
+        log.error("تعذّر تحميل نموذج التضمين (%s): %s: %s",
+                  settings.kb_embedding_backend, type(exc).__name__, exc)
+        embedder = None
+
+    if embedder is None:
+        from .kb.embedding import DeterministicLocalEmbedder
+        log.warning("الاسترجاع المتجهي معطّل: بحث كلمي فقط حتى يُضبط نموذج التضمين.")
+        embedder = DeterministicLocalEmbedder()
+
+    deps = PipelineDeps(
+        retriever=HybridRetriever(kb_store, embedder),
+        prompt_builder=_prompt_builder,
+        llm=_llm,
+        numbers=_emergency_numbers,
+        store=_store,
+        audit_writer=audit.write,
+    )
+    return AiPipeline(deps)
+
+
 _emergency_numbers = EmergencyNumbers()
 
 FALLBACK_ANSWER = (
@@ -471,6 +523,12 @@ def insights(user_key: str) -> InsightsResponse:
         prompt_version=settings.prompt_version,
     )
 
+
+_ai_pipeline = _build_ai_pipeline()
+
+# مسارات الطبقة الجديدة (قاعدة المعرفة + التعريب). تُسجَّل قبل static mount
+# لأن Starlette يطابق بحسب ترتيب التسجيل.
+app.include_router(ai_router)
 
 # الواجهة تُخدم من نفس التطبيق، لذا لا نحتاج CORS افتراضيًا.
 # فتح "*" كان يسمح لأي موقع باستخدام الـ API (بمفتاح الخادم ودون مصادقة).

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
+from ..i18n import get_translator, resolve_locale
 from ..schemas import Finding, Severity
+from .arabic import normalize_arabic
 from .emergency_numbers import EmergencyInfo
 
 # ---------------------------------------------------------------------
@@ -70,6 +71,8 @@ CRISIS_PATTERNS: list[str] = [
     "لا اريد الحياه", "لا اريد ان اعيش", "ما عادت الحياه تعجبني",
     "انهي حياتي", "انتحار", "اقتل نفسي", "انهاء حياتي", "التخلص من حياتي",
     # عامية مصرية
+    "اذي نفسي", "اذيه نفسي", "اذاء نفسي", "اوذي نفسي", "اجرح نفسي",
+    "هاذي نفسي", "ناوي اذي نفسي",
     "اموت", "مش عايزه اعيش", "مش عايز اعيش", "مبقتش عايزه اعيش",
     "مبقتش عايز اعيش", "مخنوقه ومش عايزه", "اخلص من كل ده", "خلصت من كل حاجه",
     "عايزه اموت", "عايز اموت", "هقتل نفسي", "نفسي اموت", "مرهق نفسي",
@@ -83,15 +86,15 @@ CRISIS_PATTERNS: list[str] = [
     "end it all", "no reason to live",
 ]
 
-EMERGENCY_FIRST_SENTENCE = "الأعراض التي ذكرتِها قد تحتاج رعاية طبية عاجلة"
+# الجملتان المعياريتان تُقرآن من ملف الموارد العربي — لا نسخة ثانية في الكود.
+# (الثوابت باقية بالأسماء نفسها لأن `ensure_emergency_text` والاختبارات تعتمد
+#  عليها؛ لو تغيّر نص المورد يتغيّر معها الشرط، فلا ينفصل النص عن الفحص.)
+_TR = get_translator()
+EMERGENCY_FIRST_SENTENCE = _TR.t("emergency.medical.header", "ar")
 
-CRISIS_FIRST_SENTENCE = "ما تشهدينه من أفكار إيذاء النفس يستحق دعمًا فوريًا"
+CRISIS_FIRST_SENTENCE = _TR.t("emergency.crisis.header", "ar")
 
-_AR_DIACRITICS = re.compile(r"[\u064B-\u0652\u0670\u0640]")
-_AR_ALEF = re.compile(r"[أإآٱ]")
-_AR_YA = re.compile(r"[ىئ]")
-_AR_TA_MARBUTA = re.compile(r"\u0629")
-_WS = re.compile(r"\s+")
+# (التطبيع انتقل إلى app/services/arabic.py)
 
 
 @dataclass
@@ -106,13 +109,12 @@ class FilterResult:
 
 
 def normalize(text: str) -> str:
-    """توحيد النص لمطابقة مستقرة: تشكيل، همزات، تطويل، مسافات."""
-    text = unicodedata.normalize("NFKC", text or "")
-    text = _AR_DIACRITICS.sub("", text)
-    text = _AR_ALEF.sub("ا", text)
-    text = _AR_YA.sub("ي", text)
-    text = _AR_TA_MARBUTA.sub("ه", text)
-    return _WS.sub(" ", text.lower()).strip()
+    """تطبيع موحّد — انظر app/services/arabic.py.
+
+    يشمل تحويل الأرقام العربية-الهندية، فلا تختلف «بنزف ٤ ساعات» عن
+    «بنزف 4 ساعات».
+    """
+    return normalize_arabic(text).lower()
 
 
 def _find(patterns: Iterable[str], normalized_text: str) -> str:
@@ -167,41 +169,46 @@ def run_filter(message: str, findings: list[Finding]) -> FilterResult:
     return check_findings(findings)
 
 
-def build_fixed_reply(result: FilterResult, info: EmergencyInfo) -> str:
+def build_fixed_reply(result: FilterResult, info: EmergencyInfo,
+                      *, locale: str | None = None) -> str:
     """رد ثابت — لا استدعاء للموديل. يذكر الرقم حرفيًا مع حالته التحققية.
+
+    النص يأتي من `locales/<lang>.json` لا من الكود: النص الأمني يجب أن يمرّ
+    بمراجعة بشرية، ونصٌّ مدفون في دالة لا يخضع لها. الصياغة العربية هنا هي
+    نفسها التي كانت في الكود سابقًا (لم تُترجم آليًا).
 
     إن كان الرقم غير مُتحقق منه لهذا البلد نقول ذلك صراحة بدل تقديمه كأنه
     الصحيح، ونوجّه لطلب الإسعاف بأي رقم طوارئ محلي تعرفه.
     """
+    t = get_translator()
+    loc = locale or resolve_locale(None)
+
     caveat = ""
     if not info.verified:
-        caveat = (
-            f"الرقم {info.number} غير مُتحقق منه لبلدك، فلا تعتمدي عليه وحده: "
-            "اطلبي الإسعاف على رقم الطوارئ المحلي الذي تعرفينه."
-        )
+        caveat = t.t("emergency.medical.unverified_caveat", loc, number=info.number)
 
     if result.kind == "crisis":
         lines = [
-            CRISIS_FIRST_SENTENCE,
+            t.t("emergency.crisis.header", loc),
             "",
-            "تواصلي فورًا مع شخص تثق به الآن، ولا تكوني وحدها.",
+            t.t("emergency.crisis.talk_to_someone", loc),
         ]
         if info.crisis_line:
-            lines.append(f"خط الدعم: {info.crisis_line}")
+            lines.append(t.t("emergency.crisis.support_line", loc, line=info.crisis_line))
         else:
-            lines.append("لا يتوفّر لديّ خط دعم نفسي مُتحقق منه في بلدك؛ اطلبيه من الطوارئ أو من طبيبة.")
-        lines.append("لو كان هناك خطر مباشر على حياتكِ، اطلبي الإسعاف فورًا.")
+            lines.append(t.t("emergency.crisis.no_support_line", loc))
+        lines.append(t.t("emergency.crisis.immediate_danger", loc))
         if info.number:
-            lines.append(f"الإسعاف: {info.number}")
+            lines.append(t.t("emergency.crisis.ambulance", loc, number=info.number))
         if caveat:
             lines.append(caveat)
         return "\n".join(lines)
 
     lines = [
-        EMERGENCY_FIRST_SENTENCE,
+        t.t("emergency.medical.header", loc),
         "",
-        f"توجهي الآن لأقرب طوارئ أو اطلبي الإسعاف على {info.number} ولا تنتظري ردًّا آخر.",
-        "حاولي ألا تكوني وحدها إن أمكن.",
+        t.t("emergency.medical.call_now", loc, number=info.number),
+        t.t("emergency.medical.not_alone", loc),
     ]
     if caveat:
         lines.append(caveat)

@@ -1,0 +1,141 @@
+{
+  "meta": {
+    "locale": "en",
+    "name": "English",
+    "dir": "ltr",
+    "digits_default": "western",
+    "week_start": "saturday"
+  },
+  "app": {
+    "name": "Dawrati",
+    "tagline": "Cycle tracking and health education — not a diagnosis",
+    "not_a_diagnosis": "This is not a diagnosis and does not replace medical advice."
+  },
+  "error": {
+    "auth_missing_key": "An access key is required.",
+    "auth_invalid_key": "The access key is not valid.",
+    "rate_limited": "Too many requests right now. Please try again shortly.",
+    "empty_message": "The message is empty.",
+    "invalid_request": "The request is not valid.",
+    "internal_error": "Something went wrong. Please try again.",
+    "no_reliable_source": "I do not have an approved, reliable source to answer this question.",
+    "llm_unavailable": "The assistant is unavailable right now."
+  },
+  "answer": {
+    "no_reliable_source": "I do not yet have an approved, reliable source to answer this question, and I will not answer from unverified general knowledge.\nIf something feels alarming, seeing a doctor is the right next step.",
+    "fallback": "Sorry, a safe answer could not be generated right now. Please try again shortly; if something feels alarming, seeing a doctor is the right next step.",
+    "not_configured": "The assistant is unavailable right now, so I cannot answer this question. If something feels alarming, seeing a doctor is the right next step.",
+    "not_verified": "The assistant's answer could not be verified",
+    "does_not_mean": "This pattern does not identify a medical condition.",
+    "ask_doctor_default": "What is the doctor's assessment of my recorded cycles?"
+  },
+  "emergency": {
+    "medical": {
+      "header": "The symptoms you described may need urgent medical care",
+      "call_now": "Go to the nearest emergency department now, or call an ambulance on {number}, and do not wait for another reply.",
+      "not_alone": "Try not to be alone if you can.",
+      "unverified_caveat": "The number {number} is not verified for your country, so do not rely on it alone: call your local emergency number."
+    },
+    "crisis": {
+      "header": "What you are experiencing with thoughts of self-harm deserves immediate support",
+      "talk_to_someone": "Reach out to someone you trust right now, and do not stay alone.",
+      "support_line": "Support line: {line}",
+      "no_support_line": "I do not have a verified mental-health support line for your country; ask emergency services or your doctor.",
+      "immediate_danger": "If your life is in immediate danger, call an ambulance now.",
+      "ambulance": "Ambulance: {number}"
+    }
+  },
+  "units": {
+    "days": {
+      "zero": "no days",
+      "one": "1 day",
+      "two": "2 days",
+      "few": "{count} days",
+      "many": "{count} days",
+      "other": "{count} days"
+    },
+    "cycles": {
+      "zero": "no cycles recorded",
+      "one": "1 cycle recorded",
+      "two": "2 cycles recorded",
+      "few": "{count} cycles recorded",
+      "many": "{count} cycles recorded",
+      "other": "{count} cycles recorded"
+    },
+    "sources_count": {
+      "zero": "no sources",
+      "one": "1 source",
+      "two": "2 sources",
+      "few": "{count} sources",
+      "many": "{count} sources",
+      "other": "{count} sources"
+    }
+  },
+  "dates": {
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
+    "weekdays": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday"
+    ],
+    "long": "{day} {month} {year}",
+    "long_with_weekday": "{weekday}, {day} {month} {year}",
+    "short": "{day}/{month}/{year}",
+    "today": "today",
+    "yesterday": "yesterday",
+    "ago": {
+      "zero": "today",
+      "one": "1 day ago",
+      "two": "2 days ago",
+      "few": "{count} days ago",
+      "many": "{count} days ago",
+      "other": "{count} days ago"
+    }
+  },
+  "csv": {
+    "cycle_start": "Cycle start",
+    "bleeding_days": "Bleeding days",
+    "cycle_length": "Cycle length",
+    "symptom": "Symptom",
+    "severity": "Severity",
+    "note": "Note",
+    "log_date": "Date"
+  },
+  "notifications": {
+    "_comment": "Lock-screen copy: no health information at all — no cycle, bleeding, or symptom wording. Details stay inside the app.",
+    "generic_title": "Reminder",
+    "generic_body": "You have a reminder in the app.",
+    "cycle_expected": {
+      "title": "Reminder",
+      "body": "You have a reminder in the app."
+    },
+    "log_reminder": {
+      "title": "Daily check-in",
+      "body": "You have a reminder in the app."
+    },
+    "checkin": {
+      "title": "A gentle reminder",
+      "body": "You have a reminder in the app."
+    }
+  },
+  "retrieval": {
+    "summary_query": "menstrual cycle bleeding symptoms"
+  }
+}

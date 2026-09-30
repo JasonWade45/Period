@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
+
+from .arabic import normalize_arabic
 
 CHAT_FIELDS = {
     "answer": str,
@@ -84,10 +85,7 @@ BANNED_PATTERNS: list[re.Pattern] = [
 
 # توحيد النص العربي قبل المطابقة: التشكيل وهمزات الألف والياء تختلف
 # بين الفصحى والعامية المصرية، والتوحيد يمنع تجاوز الفلتر بفرق حرف واحد.
-_AR_DIACRITICS = re.compile(r"[\u064B-\u0652\u0670\u0640]")
-_AR_ALEF = re.compile(r"[أإآٱ]")
-_AR_YA = re.compile(r"[ىئ]")
-_AR_TA_MARBUTA = re.compile(r"[\u0629]")
+# (التطبيع انتقل إلى app/services/arabic.py)
 
 _FENCE_PATTERNS = [
     re.compile(r"^\s*```(?:json)?\s*", re.IGNORECASE),
@@ -140,13 +138,12 @@ def _check_fields(obj: dict[str, Any], spec: dict[str, type]) -> list[str]:
 
 
 def _normalize_ar(text: str) -> str:
-    """توحيد الهمزات والتشكيل — يجعل الأنماط محصّنة ضد فروق الإملاء والدلالة."""
-    text = unicodedata.normalize("NFKC", text)
-    text = _AR_DIACRITICS.sub("", text)
-    text = _AR_ALEF.sub("ا", text)
-    text = _AR_YA.sub("ي", text)
-    text = _AR_TA_MARBUTA.sub("ه", text)
-    return text.lower()
+    """تطبيع موحّد — انظر app/services/arabic.py (مصدر واحد لكل الطبقات).
+
+    يشمل الآن تحويل الأرقام العربية-الهندية (٤٥ → 45) حتى لا تمرّ صيغة جرعة
+    مكتوبة بالأرقام العربية.
+    """
+    return normalize_arabic(text, collapse_whitespace=False).lower()
 
 
 def check_banned_attribution(text: str) -> list[str]:

@@ -11,28 +11,172 @@
     "note": "رقم الطوارئ الموحّد في الاتحاد الأوروبي وكثير من الدول. غير مُتحقق منه لبلدك."
   },
   "countries": {
-    "EG": {"name_ar": "مصر", "emergency": "123", "crisis_line": "", "source": "وزارة الصحة والسكان المصرية — الإسعاف 123", "verified_at": "2026-09-30"},
-    "SA": {"name_ar": "السعودية", "emergency": "997", "crisis_line": "", "source": "هيئة الهلال الأحمر السعودي — 997", "verified_at": "2026-09-30"},
-    "AE": {"name_ar": "الإمارات", "emergency": "998", "crisis_line": "", "source": "الخدمات الطبية الطارئة — 998", "verified_at": "2026-09-30"},
-    "KW": {"name_ar": "الكويت", "emergency": "112", "crisis_line": "", "source": "الطوارئ الموحّد في الكويت — 112", "verified_at": "2026-09-30"},
-    "QA": {"name_ar": "قطر", "emergency": "999", "crisis_line": "", "source": "الإسعاف القطري — 999", "verified_at": "2026-09-30"},
-    "BH": {"name_ar": "البحرين", "emergency": "999", "crisis_line": "", "source": "الإسعاف البحريني — 999", "verified_at": "2026-09-30"},
-    "OM": {"name_ar": "عُمان", "emergency": "9999", "crisis_line": "", "source": "هيئة الدفاع المدني والإسعاف — 9999", "verified_at": "2026-09-30"},
-    "JO": {"name_ar": "الأردن", "emergency": "911", "crisis_line": "", "source": "مركز الطوارئ الوطني الأردني — 911", "verified_at": "2026-09-30"},
-    "MA": {"name_ar": "المغرب", "emergency": "150", "crisis_line": "", "source": "الحماية المدنية — الإسعاف 150", "verified_at": "2026-09-30"},
-    "TN": {"name_ar": "تونس", "emergency": "190", "crisis_line": "", "source": "الحماية المدنية — الإسعاف 190", "verified_at": "2026-09-30"},
-    "DZ": {"name_ar": "الجزائر", "emergency": "14", "crisis_line": "", "source": "الحماية المدنية — 14", "verified_at": "2026-09-30"},
-    "SD": {"name_ar": "السودان", "emergency": "333", "crisis_line": "", "source": "الدفاع المدني السوداني — 333", "verified_at": "2026-09-30"},
-    "IQ": {"name_ar": "العراق", "emergency": "122", "crisis_line": "", "source": "الإسعاف العراقي — 122", "verified_at": "2026-09-30"},
-    "SY": {"name_ar": "سوريا", "emergency": "110", "crisis_line": "", "source": "الإسعاف السوري — 110", "verified_at": "2026-09-30"},
-    "LB": {"name_ar": "لبنان", "emergency": "140", "crisis_line": "", "source": "الصليب الأحمر اللبناني — 140", "verified_at": "2026-09-30"},
-    "YE": {"name_ar": "اليمن", "emergency": "191", "crisis_line": "", "source": "الدفاع المدني — 191", "verified_at": "2026-09-30"},
-    "LY": {"name_ar": "ليبيا", "emergency": "193", "crisis_line": "", "source": "الإسعاف والطوارئ — 193", "verified_at": "2026-09-30"},
-    "PS": {"name_ar": "فلسطين", "emergency": "101", "crisis_line": "", "source": "الهلال الأحمر الفلسطيني — 101", "verified_at": "2026-09-30"},
-    "TR": {"name_ar": "تركيا", "emergency": "112", "crisis_line": "", "source": "خط الطوارئ الموحّد في تركيا — 112", "verified_at": "2026-09-30"},
-    "GB": {"name_ar": "بريطانيا", "emergency": "999", "crisis_line": "", "source": "NHS — 999 (أو 112)", "verified_at": "2026-09-30"},
-    "US": {"name_ar": "أمريكا", "emergency": "911", "crisis_line": "", "source": "الطوارئ الموحّد في الولايات المتحدة — 911", "verified_at": "2026-09-30"},
-    "DE": {"name_ar": "ألمانيا", "emergency": "112", "crisis_line": "", "source": "الطوارئ الموحّد في الاتحاد الأوروبي — 112", "verified_at": "2026-09-30"},
-    "FR": {"name_ar": "فرنسا", "emergency": "112", "crisis_line": "", "source": "الطوارئ الموحّد في الاتحاد الأوروبي — 112 (أو SAMU 15)", "verified_at": "2026-09-30"}
+    "EG": {
+      "name_ar": "مصر",
+      "emergency": "123",
+      "crisis_line": "",
+      "source": "وزارة الصحة والسكان المصرية — الإسعاف 123",
+      "verified_at": "2026-09-30",
+      "police": "122",
+      "unified_emergency": "112",
+      "health_hotline": "105",
+      "child_helpline": "16000",
+      "crisis_line_pending_verification": "08008880700",
+      "extra_numbers_note": "الأرقام الإضافية (شرطة/موحّد/صحة/أطفال) من البريف المصري، وليست كلها متحقّقًا منها في هذا الملف: UNIFIED_EMERGENCY=112 يحتاج تأكيدًا رسميًا، وخط الأزمة 08008880700 مخزّن هنا كنصّ معلّق للتحقق فقط ولم يُفعَّل كـcrisis_line لأنه لن يُعرض للمستخدمة قبل التأكد أنه يعمل."
+    },
+    "SA": {
+      "name_ar": "السعودية",
+      "emergency": "997",
+      "crisis_line": "",
+      "source": "هيئة الهلال الأحمر السعودي — 997",
+      "verified_at": "2026-09-30"
+    },
+    "AE": {
+      "name_ar": "الإمارات",
+      "emergency": "998",
+      "crisis_line": "",
+      "source": "الخدمات الطبية الطارئة — 998",
+      "verified_at": "2026-09-30"
+    },
+    "KW": {
+      "name_ar": "الكويت",
+      "emergency": "112",
+      "crisis_line": "",
+      "source": "الطوارئ الموحّد في الكويت — 112",
+      "verified_at": "2026-09-30"
+    },
+    "QA": {
+      "name_ar": "قطر",
+      "emergency": "999",
+      "crisis_line": "",
+      "source": "الإسعاف القطري — 999",
+      "verified_at": "2026-09-30"
+    },
+    "BH": {
+      "name_ar": "البحرين",
+      "emergency": "999",
+      "crisis_line": "",
+      "source": "الإسعاف البحريني — 999",
+      "verified_at": "2026-09-30"
+    },
+    "OM": {
+      "name_ar": "عُمان",
+      "emergency": "9999",
+      "crisis_line": "",
+      "source": "هيئة الدفاع المدني والإسعاف — 9999",
+      "verified_at": "2026-09-30"
+    },
+    "JO": {
+      "name_ar": "الأردن",
+      "emergency": "911",
+      "crisis_line": "",
+      "source": "مركز الطوارئ الوطني الأردني — 911",
+      "verified_at": "2026-09-30"
+    },
+    "MA": {
+      "name_ar": "المغرب",
+      "emergency": "150",
+      "crisis_line": "",
+      "source": "الحماية المدنية — الإسعاف 150",
+      "verified_at": "2026-09-30"
+    },
+    "TN": {
+      "name_ar": "تونس",
+      "emergency": "190",
+      "crisis_line": "",
+      "source": "الحماية المدنية — الإسعاف 190",
+      "verified_at": "2026-09-30"
+    },
+    "DZ": {
+      "name_ar": "الجزائر",
+      "emergency": "14",
+      "crisis_line": "",
+      "source": "الحماية المدنية — 14",
+      "verified_at": "2026-09-30"
+    },
+    "SD": {
+      "name_ar": "السودان",
+      "emergency": "333",
+      "crisis_line": "",
+      "source": "الدفاع المدني السوداني — 333",
+      "verified_at": "2026-09-30"
+    },
+    "IQ": {
+      "name_ar": "العراق",
+      "emergency": "122",
+      "crisis_line": "",
+      "source": "الإسعاف العراقي — 122",
+      "verified_at": "2026-09-30"
+    },
+    "SY": {
+      "name_ar": "سوريا",
+      "emergency": "110",
+      "crisis_line": "",
+      "source": "الإسعاف السوري — 110",
+      "verified_at": "2026-09-30"
+    },
+    "LB": {
+      "name_ar": "لبنان",
+      "emergency": "140",
+      "crisis_line": "",
+      "source": "الصليب الأحمر اللبناني — 140",
+      "verified_at": "2026-09-30"
+    },
+    "YE": {
+      "name_ar": "اليمن",
+      "emergency": "191",
+      "crisis_line": "",
+      "source": "الدفاع المدني — 191",
+      "verified_at": "2026-09-30"
+    },
+    "LY": {
+      "name_ar": "ليبيا",
+      "emergency": "193",
+      "crisis_line": "",
+      "source": "الإسعاف والطوارئ — 193",
+      "verified_at": "2026-09-30"
+    },
+    "PS": {
+      "name_ar": "فلسطين",
+      "emergency": "101",
+      "crisis_line": "",
+      "source": "الهلال الأحمر الفلسطيني — 101",
+      "verified_at": "2026-09-30"
+    },
+    "TR": {
+      "name_ar": "تركيا",
+      "emergency": "112",
+      "crisis_line": "",
+      "source": "خط الطوارئ الموحّد في تركيا — 112",
+      "verified_at": "2026-09-30"
+    },
+    "GB": {
+      "name_ar": "بريطانيا",
+      "emergency": "999",
+      "crisis_line": "",
+      "source": "NHS — 999 (أو 112)",
+      "verified_at": "2026-09-30"
+    },
+    "US": {
+      "name_ar": "أمريكا",
+      "emergency": "911",
+      "crisis_line": "",
+      "source": "الطوارئ الموحّد في الولايات المتحدة — 911",
+      "verified_at": "2026-09-30"
+    },
+    "DE": {
+      "name_ar": "ألمانيا",
+      "emergency": "112",
+      "crisis_line": "",
+      "source": "الطوارئ الموحّد في الاتحاد الأوروبي — 112",
+      "verified_at": "2026-09-30"
+    },
+    "FR": {
+      "name_ar": "فرنسا",
+      "emergency": "112",
+      "crisis_line": "",
+      "source": "الطوارئ الموحّد في الاتحاد الأوروبي — 112 (أو SAMU 15)",
+      "verified_at": "2026-09-30"
+    }
   }
 }

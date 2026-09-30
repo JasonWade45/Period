@@ -212,3 +212,74 @@ class AuditEntry(BaseModel):
     latency_ms: int = 0
     request_excerpt: str = ""
     response: dict[str, Any] = {}
+
+
+# --------------------------------------------------------------- واجهة AI الجديدة
+# أضيفت مع توسعة البريف (قاعدة المعرفة + التعريب). لا تُستخدم في /v1/chat
+# القديم حتى لا يتغيّر عقد الواجهة القائمة.
+
+class AiChatRequest(BaseModel):
+    """طلب /api/v1/ai/chat — الرسالة نص، وكل قراءة الصحة تُبنى من محرك القواعد."""
+
+    message: str
+    user_context: UserContext = Field(default_factory=UserContext)
+    user_key: Optional[str] = None
+    country_code: Optional[str] = None
+    # لغة الرد المطلوبة (ar/en). إن غابت تُحدَّد من Accept-Language أو من الرسالة.
+    language: Optional[str] = None
+    # إعدادات العرض — تُستخدم للأرقام والتواريخ في الردود الثابتة فقط
+    digits_style: Optional[str] = None      # western | arabic_indic
+    timezone: Optional[str] = None
+
+
+class EmergencyPayload(BaseModel):
+    """بيانات الطوارئ للواجهة: الرقم وحالته التحققية، بلا كلام طويل."""
+
+    kind: str = "medical"                   # medical | crisis
+    number: str = ""
+    number_verified: bool = False
+    country_code: Optional[str] = None
+    crisis_line: str = ""
+    instruction: str = ""                   # سطر واحد موجّه (نص المورد)
+
+
+class RetrievalMeta(BaseModel):
+    """ما حدث في الاسترجاع — للتشخيص وللاتساق في الواجهة والتدقيق."""
+
+    candidates: int = 0
+    used_language: str = ""
+    fell_back_to_english: bool = False
+    kind: str = "ok"                        # ok | no_source | disabled
+
+
+class AiChatResponse(BaseModel):
+    answer: str = ""
+    sources_used: list[str] = Field(default_factory=list)
+    needs_doctor: bool = False
+    emergency: bool = False
+    crisis: bool = False
+    missing_info: list[str] = Field(default_factory=list)
+    prompt_version: str = ""
+    model: str = ""
+    language: str = ""
+    rule_codes: list[str] = Field(default_factory=list)
+    # القرار المتخذ: ok | no_source | fallback | emergency_filter | summary_empty
+    decision: str = ""
+    emergency_payload: Optional[EmergencyPayload] = None
+    retrieval: RetrievalMeta = Field(default_factory=RetrievalMeta)
+
+
+class AiSummaryResponse(BaseModel):
+    overview: str = ""
+    what_changed: str = ""
+    patterns: str = ""
+    medical_alerts: str = ""
+    what_this_does_not_mean: str = ""
+    questions_for_doctor: list[str] = Field(default_factory=list)
+    sources_used: list[str] = Field(default_factory=list)
+    prompt_version: str = ""
+    model: str = ""
+    language: str = ""
+    rule_codes: list[str] = Field(default_factory=list)
+    decision: str = ""
+    retrieval: RetrievalMeta = Field(default_factory=RetrievalMeta)

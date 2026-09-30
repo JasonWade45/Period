@@ -79,8 +79,47 @@ class Settings:
     # Audit
     audit_log_path: Path = Path(_env("AUDIT_LOG_PATH", str(APP_DIR / ".." / "audit" / "responses.jsonl")))
 
-    # RAG
+    # RAG (النظام القديم — يُستبدل تدريجيًا بقاعدة المعرفة)
     rag_top_k: int = int(_env("RAG_TOP_K", "5"))
+
+    # ------------------------------------------------------------------ اللغة
+    default_locale: str = _env("DEFAULT_LOCALE", "ar")
+    supported_locales: str = _env("SUPPORTED_LOCALES", "ar,en")
+    default_timezone: str = _env("DEFAULT_TIMEZONE", "Africa/Cairo")
+    # الأرقام: western (0-9) أو arabic_indic (٠-٩). الافتراضي غربي حسب البريف.
+    digits_style: str = _env("DIGITS_STYLE", "western")
+    week_start: str = _env("WEEK_START", "saturday")
+    locales_path: Path = Path(_env("LOCALES_PATH", str(REPO_DIR / "locales")))
+
+    # ------------------------------------------ أرقام الطوارئ (قابلة للتحقق)
+    # إعداد مصر يجب أن يعيش في الإعدادات/البيئة لا في الكود، فلا تُثبَّت أرقام
+    # بلد داخل دالة. القيم القادمة من البريف:
+    #   123 إسعاف (متحقّق) | 122 شرطة | 112 موحّد | 105 صحة | 16000 أطفال
+    # ⚠️ قيد التحقق قبل الإطلاق: UNIFIED_EMERGENCY=112 لم يُؤكَّد رسميًا،
+    #    وخط الأزمة 08008880700 يجب التأكد أنه يعمل قبل عرضه على مستخدمة في خطر
+    #    (لذلك DEFAULT لـCRISIS_LINE يبقى فارغًا: رقم ميت في لحظة أزمة أسوأ من
+    #     توجيه عام للطوارئ). القيم موثّقة في .env.example مع وسم التحقق.
+    emergency_country: str = _env("EMERGENCY_COUNTRY", "EG").upper()
+    police_number: str = _env("POLICE_NUMBER", "122")
+    unified_emergency: str = _env("UNIFIED_EMERGENCY", "112")
+    health_hotline: str = _env("HEALTH_HOTLINE", "105")
+    child_helpline: str = _env("CHILD_HELPLINE", "16000")
+    unified_emergency_verified: bool = _env("UNIFIED_EMERGENCY_VERIFIED", "0") in ("1", "true", "True")
+
+    # ------------------------------------------------------------ قاعدة المعرفة
+    kb_allow_draft: bool = _env("KB_ALLOW_DRAFT", "0") in ("1", "true", "True")
+    # sqlite للتطوير المحلي، postgres للنشر (يتطلب migrations/001_kb_pgvector.sql)
+    kb_backend: str = _env("KB_BACKEND", "sqlite")
+    kb_db_path: Path = Path(_env("KB_DB_PATH", str(REPO_DIR / "data" / "kb.db")))
+    kb_source_registry_path: Path = Path(
+        _env("KB_SOURCE_REGISTRY", str(REPO_DIR / "data" / "sources_registry.json")))
+    kb_embedding_model: str = _env("KB_EMBEDDING_MODEL", "BAAI/bge-m3")
+    # local = محوّل حتمي بلا شبكة (اختبار فقط) | sentence-transformers = الإنتاج
+    kb_embedding_backend: str = _env("KB_EMBEDDING_BACKEND", "local")
+    kb_top_k: int = int(_env("KB_TOP_K", "6"))            # البريف: 4–6
+    kb_min_similarity: float = float(_env("KB_MIN_SIMILARITY", "0.30"))
+    kb_min_keyword_score: float = float(_env("KB_MIN_KEYWORD_SCORE", "0.34"))
+    kb_postgres_dsn: str = _env("DATABASE_URL", "")
 
     # التتبّع (البيانات المسجّلة)
     db_path: Path = Path(_env("DB_PATH", str(REPO_DIR / "data" / "cyclecare.db")))
@@ -106,6 +145,22 @@ class Settings:
     @property
     def emergency_number_is_default(self) -> bool:
         return self.emergency_number == DEFAULT_EMERGENCY_NUMBER
+
+    @property
+    def supported_locale_list(self) -> list[str]:
+        """اللغات المدعومة من `SUPPORTED_LOCALES` (مفصولة بفاصلة، بحروف صغيرة)."""
+        return [loc.strip().lower() for loc in self.supported_locales.split(",") if loc.strip()]
+
+    @property
+    def week_start_index(self) -> int:
+        """رقم أول أيام الأسبوع (0 = الاثنين … 6 = الأحد) — الافتراضي السبت = 5.
+
+        البريف اختار السبت بداية الأسبوع (السائد في مصر/الخليج)، والإعداد قابل
+        للتغيير لكل بلد عبر WEEK_START بدل تثبيته في كود الواجهة.
+        """
+        names = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+                 "friday": 4, "saturday": 5, "sunday": 6}
+        return names.get(self.week_start.strip().lower(), 5)
 
 
 settings = Settings()

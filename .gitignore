@@ -26,3 +26,6 @@ Thumbs.db
 *.db
 *.db-wal
 *.db-shm
+
+# تقارير التقييم (ناتجة عن تشغيل محلي)
+eval/reports/
