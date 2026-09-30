@@ -22,7 +22,7 @@ def test_prompt_has_no_unfilled_variables():
     assert _VAR_PATTERN.findall(out) == []
     assert "2026-09-30" in out
     assert "NO_ALERT_PATTERN" in out
-    assert "v1.1" in builder.version
+    assert builder.version == settings.prompt_version  # لا تُثبّتي الإصدار في الاختبار
 
 
 def test_unknown_mode_defaults_to_chat():

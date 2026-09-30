@@ -212,16 +212,33 @@ def ensure_emergency_text(answer: str, info: EmergencyInfo, *, crisis: bool) -> 
     """ضمان ذكر الرقم حرفيًا حين يعلن الموديل طوارئ لم يلتقطها الفلتر.
 
     الطبقة الأولى معجمية، لذا قد يكتشف الموديل حالة طوارئ صيغتها غير مدرجة.
-    حينها لا يكفي أن يكون العلم true: يجب أن يظهر الرقم في نص الرد نفسه.
+    حينها لا يكفي أن يكون العلم true: يجب أن يظهر الرقم **والتعليمات المعيارية**
+    في نص الرد نفسه (واجهة أخرى قد تتجاهل الأعلام).
+
+    ملاحظة عن خلل سابق: كان يكفي وجود الرقم وحده لتخطّي هذه الدالة، فتمرّ أزمة
+    بلا صياغة الدعم المعيارية؛ وكان وجود الجملة المعيارية وحدها يُسقط الرقم.
+    الآن يُضمن الاثنان معًا، بلا تكرار الجملة إن كانت موجودة.
     """
-    if info.number and info.number in (answer or ""):
-        return answer
+    text = (answer or "").strip()
     header = CRISIS_FIRST_SENTENCE if crisis else EMERGENCY_FIRST_SENTENCE
-    block = build_fixed_reply(
-        FilterResult(kind="crisis" if crisis else "medical"), info
-    )
-    body = (answer or "").strip()
-    if not body:
-        return block
-    # نُبقي شرح الموديل بعد التعليمات المباشرة، والتعليمات أولًا دائمًا
-    return f"{block}\n\n---\n\n{body}" if header not in body else body
+    has_header = header in text
+    has_number = bool(info.number) and info.number in text
+
+    # الطوارئ الطبية: ذكر الرقم كافٍ (الردّ صار موجَّهًا فعليًا).
+    # الأزمة النفسية: الشرط أشد — الجملة المعيارية والرقم معًا، لأن جملة الدعم
+    # وحثّها على عدم البقاء وحدها جزء من سلامة الرد لا تحسين أسلوبي.
+    if has_number and (has_header or not crisis):
+        return text
+    if not text:
+        return build_fixed_reply(FilterResult(kind="crisis" if crisis else "medical"), info)
+
+    block = build_fixed_reply(FilterResult(kind="crisis" if crisis else "medical"), info)
+
+    if has_header:
+        # التعليمات موجودة والناقص الرقم: نضيف سطر الرقم وحده بلا تكرار الجملة
+        number_line = next((line for line in block.split("\n")
+                            if info.number and info.number in line), "")
+        return f"{text}\n{number_line}".strip() if number_line else f"{text}\n\n{block}"
+
+    # التعليمات غائبة: تُقدَّم أولًا دائمًا، ويليها كلام الموديل
+    return f"{block}\n\n---\n\n{text}"

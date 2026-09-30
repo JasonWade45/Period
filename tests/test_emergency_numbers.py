@@ -177,3 +177,45 @@ def test_meta_lists_countries_with_numbers_and_verification(client):
     assert {"EG", "SA", "AE", "GB", "US"} <= codes
     assert all(c["emergency"] for c in body["countries"])
     assert body["default_country"] == main.settings.country_code
+
+
+# ---------------------------------------------------------------------------
+# الأزمة النفسية نصابها أشد: الجملة المعيارية والرقم معًا.
+# خلل سابق: وجود الرقم وحده كان يُسقط جملة الدعم ونصيحة «لا تكوني وحدها»،
+# ووجود الجملة وحدها كان يُسقط الرقم.
+# ---------------------------------------------------------------------------
+
+def _info(number="123", crisis_line=""):
+    return EmergencyInfo(number=number, country_code="EG", country_name="مصر",
+                         verified=True, crisis_line=crisis_line)
+
+
+def test_crisis_answer_with_number_but_no_header_gets_the_header():
+    out = ensure_emergency_text("اتصلي بالإسعاف على 123 فورًا.", _info(), crisis=True)
+    assert "إيذاء النفس" in out
+    assert "123" in out
+    assert "اتصلي بالإسعاف على 123 فورًا." in out
+
+
+def test_crisis_answer_with_header_but_no_number_gets_the_number():
+    text = "ما تشهدينه من أفكار إيذاء النفس يستحق دعمًا فوريًا. أنتِ لست وحدك."
+    out = ensure_emergency_text(text, _info(), crisis=True)
+    assert "الإسعاف: 123" in out
+    assert out.count("إيذاء النفس") == 1        # بلا تكرار الجملة
+
+
+def test_complete_crisis_answer_is_untouched():
+    text = ("ما تشهدينه من أفكار إيذاء النفس يستحق دعمًا فوريًا\n"
+            "تواصلي فورًا مع شخص تثق به.\nالإسعاف: 123")
+    assert ensure_emergency_text(text, _info(), crisis=True) == text
+
+
+def test_medical_answer_with_number_is_untouched():
+    """الطوارئ الطبية: ذكر الرقم كافٍ — لا نُثقل ردًّا موجَّهًا فعلًا."""
+    text = "توجهي لأقرب طوارئ أو اتصلي بـ 123، ولا تنتظري."
+    assert ensure_emergency_text(text, _info(), crisis=False) == text
+
+
+def test_crisis_without_number_configured_still_gets_header():
+    out = ensure_emergency_text("كلام عام", _info(number=""), crisis=True)
+    assert "إيذاء النفس" in out

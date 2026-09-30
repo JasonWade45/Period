@@ -65,8 +65,8 @@ class Settings:
     crisis_line: str = _env("CRISIS_LINE", "")
 
     # Prompt
-    prompt_version: str = _env("PROMPT_VERSION", "v1.1")
-    prompt_path: Path = Path(_env("PROMPT_PATH", str(APP_DIR / "prompts" / "system_prompt_v1.1.md")))
+    prompt_version: str = _env("PROMPT_VERSION", "v1.2")
+    prompt_path: Path = Path(_env("PROMPT_PATH", str(APP_DIR / "prompts" / "system_prompt_v1.2.md")))
 
     # Data files
     sources_path: Path = Path(_env("SOURCES_PATH", str(APP_DIR / "data" / "sources.json")))
