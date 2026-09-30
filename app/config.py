@@ -54,6 +54,11 @@ class Settings:
     groq_base_url: str = _env("GROQ_BASE_URL", "https://api.groq.com")
     llm_temperature: float = float(_env("LLM_TEMPERATURE", "0.2"))
     llm_max_tokens: int = int(_env("LLM_MAX_TOKENS", "1200"))
+    # إعدادات إعادة المحاولة عند 413/429 من المزوّد
+    llm_max_attempts: int = int(_env("LLM_MAX_ATTEMPTS", "3"))
+    # إعادات محاولة SDK نفسه (5xx/429) — الافتراضي في مكتبة groq هو 2
+    llm_sdk_max_retries: int = int(_env("LLM_SDK_MAX_RETRIES", "2"))
+    llm_retry_backoff_seconds: float = float(_env("LLM_RETRY_BACKOFF_SECONDS", "20"))
 
     # Safety numbers (يجب التحقق منها حسب بلد المستخدم قبل الإطلاق)
     emergency_number: str = _env("EMERGENCY_NUMBER", DEFAULT_EMERGENCY_NUMBER)

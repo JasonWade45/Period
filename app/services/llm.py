@@ -6,9 +6,6 @@ from groq import Groq
 
 from ..config import settings
 
-_MAX_ATTEMPTS = 3
-_BACKOFF_SECONDS = 20
-
 
 class LLMClient:
     def __init__(self):
@@ -17,12 +14,14 @@ class LLMClient:
         self.client = Groq(
             api_key=settings.groq_api_key,
             base_url=settings.groq_base_url,
+            max_retries=settings.llm_sdk_max_retries,
         )
 
     def _create(self, messages: list[dict]) -> tuple[str, int]:
         started = time.monotonic()
+        max_attempts = max(1, settings.llm_max_attempts)
         last_error: Exception | None = None
-        for attempt in range(_MAX_ATTEMPTS):
+        for attempt in range(max_attempts):
             try:
                 resp = self.client.chat.completions.create(
                     model=settings.groq_model,
@@ -34,10 +33,11 @@ class LLMClient:
                 elapsed = int((time.monotonic() - started) * 1000)
                 return resp.choices[0].message.content or "", elapsed
             except Exception as exc:  # noqa: BLE001
+                # 413/429 = تجاوز حد أو حجم: إعادة المحاولة مفيدة.
                 status = getattr(exc, "status_code", None)
-                if status in (413, 429) and attempt < _MAX_ATTEMPTS - 1:
+                if status in (413, 429) and attempt < max_attempts - 1:
                     last_error = exc
-                    time.sleep(_BACKOFF_SECONDS)
+                    time.sleep(max(0.0, settings.llm_retry_backoff_seconds))
                     continue
                 raise
         raise last_error  # type: ignore[misc]

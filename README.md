@@ -42,7 +42,7 @@ Key property: **steps 1, 2 and 6 never depend on the model or on the API key.** 
 | Pre-model filter | `app/services/emergency_filter.py` | Emergency/crisis messages never reach the model; fixed replies include the configured numbers verbatim. |
 | Rules engine | `app/services/rules_engine.py` | Severity comes from recorded data only, with `evidence` numbers attached. |
 | Prompt contract | `app/prompts/system_prompt_v1.1.md` | No diagnosis, no negation of a diagnosis, no dosing, no reassurance, education only from supplied sources. |
-| Validator | `app/services/validator.py` | Rejects bad JSON, unknown `sources_used` ids, and banned attribution/dosage phrasing. |
+| Validator | `app/services/validator.py` | Rejects bad JSON, unknown `sources_used` ids, and banned attribution/dosage phrasing. Text is normalised first (diacritics, alef/ya/ta-marbuta variants) so dialect spellings cannot slip past a pattern; 20 known bypass phrasings are covered by regression tests. |
 | Fallback | `app/main.py` | Any model or validation failure degrades to a safe answer — never a 5xx. |
 | Audit | `app/services/audit.py` | Every response is logged with its flags; a failed audit write is logged but never breaks the response. |
 
@@ -70,6 +70,8 @@ Open <http://127.0.0.1:8113/> for the app, <http://127.0.0.1:8113/docs> for the 
 | `GROQ_MODEL` | `openai/gpt-oss-120b` | |
 | `GROQ_BASE_URL` | `https://api.groq.com` | |
 | `LLM_TEMPERATURE` / `LLM_MAX_TOKENS` | `0.2` / `1200` | |
+| `LLM_MAX_ATTEMPTS` / `LLM_RETRY_BACKOFF_SECONDS` | `3` / `20` | Our retry loop, for 413/429 only. |
+| `LLM_SDK_MAX_RETRIES` | `2` | The `groq` SDK's own retries (5xx/429). |
 | `EMERGENCY_NUMBER` | `123` | **Must be verified per user's country.** `123` is Egypt's ambulance number; the server warns at startup while it stays on the default. |
 | `CRISIS_LINE` | *(empty)* | Local crisis/support line; empty replies say it is unavailable rather than inventing one. |
 | `PROMPT_VERSION` | `v1.1` | Echoed in every response and audit entry. |
@@ -80,11 +82,25 @@ Open <http://127.0.0.1:8113/> for the app, <http://127.0.0.1:8113/docs> for the 
 | `RAG_TOP_K` | `5` | |
 | `CORS_ALLOW_ORIGINS` | *(empty)* | Empty = same origin only (the frontend is served by this app). Set a comma-separated list only if you host the frontend elsewhere. `*` is unsafe here: the API has no auth and would become a free proxy for anyone's website. |
 
+## Developing without a key
+
+`tools/fake_groq_server.py` is a small Groq-compatible server for offline work — no key, no network, no quota:
+
+```bash
+python tools/fake_groq_server.py --port 8300        # terminal 1
+GROQ_API_KEY=dummy GROQ_BASE_URL=http://127.0.0.1:8300 \
+    uvicorn app.main:app --port 8113                # terminal 2
+```
+
+The full pipeline runs (prompt → HTTP → SDK → validator → audit) against canned, correctly-shaped replies — useful for frontend work. **It is not a model**: the text is a placeholder, never a medical answer. Failure handling can be exercised with `--fail-first N` (provider 500s) and `--bad-json N` (invalid JSON, to watch the retry-then-fallback path).
+
 ## Tests
 
 ```bash
-pytest                 # unit + API tests, no network, no key needed (49 tests)
+pytest                 # 98 tests: unit, API, and end-to-end against the fake provider
 ```
+
+`tests/test_e2e_pipeline.py` drives the real pipeline over real HTTP against the fake provider, so it covers what unit tests cannot: the rendered prompt (no unfilled variables, user text kept out of the system prompt), provider 429/500 handling, one-retry-then-fallback, and the validator gates firing on live traffic.
 
 `smoke_test.py` is a **live** check against a running server (and a real key). It is excluded from automatic collection on purpose:
 
@@ -137,11 +153,12 @@ These are known gaps, not features:
 1. **Emergency numbers per country.** `EMERGENCY_NUMBER` is global while users are not; a wrong number in a crisis reply is the highest-severity failure mode in this codebase. Consider per-user/per-country configuration and a verified source for each number.
 2. **Crisis line coverage.** `CRISIS_LINE` is a single value; empty means the reply admits it has no local line. Region-specific routing would be better.
 3. **No auth and no rate limiting.** Anyone who can reach the port can spend the operator's Groq quota. Add authentication plus per-user limits before exposing it.
-4. **The emergency filter is keyword-based.** Dialectal and misspelled phrasing can slip past the pre-model layer (the prompt asks the model to catch the rest). Expand the lexicon or add a trained classifier, and keep a regression suite of "must trigger" phrases.
-5. **The tracker itself is not persisted server-side.** Cycle data is typed into the settings panel and kept in `localStorage`; there is no logging/calendar/symptom-journal feature yet, just the summary stats the user enters.
-6. **Keyword RAG.** Matching is lexical, so paraphrased questions retrieve nothing. Replace with embeddings while keeping the source-id allowlist.
-7. **Audit log privacy.** `request_excerpt` stores up to 300 characters of user text in plaintext JSONL — sensitive health data. Define retention, access control, and encryption before production.
-8. **Conversation state.** Each request is independent; there is no multi-turn memory.
+4. **Both safety filters are pattern-based.** The pre-model emergency filter and the post-model validator are lexical, so unseen dialect spellings, typo variants, and phrasings outside the pattern set can slip past. The validator now normalises Arabic script and covers 20 previously-bypassing phrasings, but a pattern list is not a classifier: treat every real flagged response as a candidate new test case, and plan for a trained classifier.
+5. **Validating harder can make answers worse, not safer.** A validator rejection produces the generic fallback, so an over-eager pattern costs a good answer. The regression suite therefore pins both directions: known violations must be blocked, and legitimate educational sentences must still pass. Add both kinds of test whenever the pattern list changes.
+6. **The tracker itself is not persisted server-side.** Cycle data is typed into the settings panel and kept in `localStorage`; there is no logging/calendar/symptom-journal feature yet, just the summary stats the user enters.
+7. **Keyword RAG.** Matching is lexical, so paraphrased questions retrieve nothing. Replace with embeddings while keeping the source-id allowlist.
+8. **Audit log privacy.** `request_excerpt` stores up to 300 characters of user text in plaintext JSONL — sensitive health data. Define retention, access control, and encryption before production.
+9. **Conversation state.** Each request is independent; there is no multi-turn memory.
 
 ---
 
