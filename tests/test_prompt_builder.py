@@ -8,7 +8,7 @@ from app.services.prompt_builder import PromptBuilder
 def test_prompt_has_no_unfilled_variables():
     builder = PromptBuilder(settings.prompt_path, settings.prompt_version)
     ctx = UserContext(cycles_recorded=4, avg_cycle_days=30,
-                      last_cycles=[CycleStat(start_date="2026-08-01", length_days=30)])
+                      last_cycles=[CycleStat(start_date="2026-08-01", length_days=5)])
     findings = [Finding(rule_code="NO_ALERT_PATTERN", severity="NORMAL",
                         title="t", evidence=["e"])]
     sources = [SourceChunk(id="a", source_name="NHS", section="s",

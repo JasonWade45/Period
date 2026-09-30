@@ -84,9 +84,15 @@ class SourceChunk(BaseModel):
     id: str
     source_name: str
     section: str
-    reviewed_at: str
+    reviewed_at: str = ""
     text: str = ""
     keywords: list[str] = Field(default_factory=list)
+    # حالة المعرفة: "verified" = مُراجَعة ومُوثّقة، "draft" = مسودة لم تُراجَع طبيًا.
+    # المسودات لا تُستشهد بها: لا تُرسل للموديل افتراضيًا (KNOWLEDGE_INCLUDE_DRAFTS).
+    status: str = "verified"
+    reviewer: str = ""            # من راجع المقطع (للمُوثَّق فقط)
+    drafted_at: str = ""          # تاريخ كتابة المسودة (لغير المُوثَّق)
+    derived_from: list[str] = Field(default_factory=list)  # المراجع التي استُخلصت منها
 
 
 class ConditionStatus(BaseModel):
@@ -96,6 +102,8 @@ class ConditionStatus(BaseModel):
 
 class CycleStat(BaseModel):
     start_date: str
+    # طول النزيف بالأيام (كم يومًا استمر)، وليس طول الدورة.
+    # طول الدورة = الفرق بين تواريخ البداية المتتالية.
     length_days: Optional[int] = None
 
 
@@ -105,6 +113,9 @@ class UserContext(BaseModel):
     cycles_recorded: int = 0
     avg_cycle_days: Optional[int] = None
     last_cycles: list[CycleStat] = Field(default_factory=list)
+    # أطوال الدورات الفعلية (فروق تواريخ البداية). يملؤها الخادم من البيانات
+    # المسجّلة؛ لا تُقبل من الواجهة كمصدر ثقة.
+    cycle_gaps: list[int] = Field(default_factory=list)
     conditions: list[ConditionStatus] = Field(default_factory=list)
     pregnancy_status: Optional[str] = None
 

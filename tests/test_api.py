@@ -11,9 +11,9 @@ CTX = {
     "cycles_recorded": 5,
     "avg_cycle_days": 41,
     "last_cycles": [
-        {"start_date": "2026-06-05", "length_days": 38},
-        {"start_date": "2026-07-13", "length_days": 41},
-        {"start_date": "2026-08-23", "length_days": 44},
+        {"start_date": "2026-06-05", "length_days": 5},
+        {"start_date": "2026-07-13", "length_days": 4},
+        {"start_date": "2026-08-23", "length_days": 6},
     ],
 }
 
@@ -127,8 +127,9 @@ def test_fallback_for_short_cycle_monitor_does_not_claim_doctor_review(client, m
     monkeypatch.setattr(main, "_llm", None)
     r = client.post("/v1/chat", json={"message": "سؤال", "user_context": {
         "cycles_recorded": 4, "avg_cycle_days": 18,
-        "last_cycles": [{"start_date": "2026-07-01", "length_days": 18},
-                        {"start_date": "2026-07-19", "length_days": 18}]}})
+        "cycle_gaps": [18, 18],
+        "last_cycles": [{"start_date": "2026-07-01", "length_days": 4},
+                        {"start_date": "2026-07-19", "length_days": 5}]}})
     body = r.json()
     assert body["rule_codes"] == ["SHORT_CYCLE"]
     assert body["needs_doctor"] is False

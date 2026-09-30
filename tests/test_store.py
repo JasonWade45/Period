@@ -20,12 +20,12 @@ def _day(offset: int) -> str:
 # ------------------------------------------------------------------- الدورات
 
 def test_add_and_list_cycles(s):
-    s.add_cycle("u1", "2026-06-05", 38)
-    s.add_cycle("u1", "2026-07-13", 41)
+    s.add_cycle("u1", "2026-06-05", 5)
+    s.add_cycle("u1", "2026-07-13", 6)
 
     rows = s.list_cycles("u1")
     assert [r["start_date"] for r in rows] == ["2026-07-13", "2026-06-05"]  # الأحدث أولًا
-    assert rows[0]["length_days"] == 41
+    assert rows[0]["length_days"] == 6  # طول النزيف لا طول الدورة
 
 
 def test_duplicate_start_date_is_rejected(s):
@@ -40,7 +40,8 @@ def test_invalid_date_is_rejected(s):
 
 
 def test_impossible_length_is_rejected(s):
-    for bad in (0, -3, 91, 400):
+    # 38 يومًا نزيف مستحيل عمليًا: لو أرادت طول الدورة فهو محسوب تلقائيًا
+    for bad in (0, -3, 31, 91, 400):
         with pytest.raises(StoreError):
             s.add_cycle("u1", "2026-06-05", bad)
 
@@ -76,14 +77,16 @@ def test_delete_is_scoped_to_owner(s):
 # ------------------------------------------------------------------ الإحصاءات
 
 def test_cycle_stats_computes_average_from_real_dates(s):
-    """المتوسط يُحسب من فروق تواريخ البداية لا من الأطوال المُدخلة يدويًا."""
-    s.add_cycle("u1", "2026-06-05", 5)     # الطول المُدخل خاطئ عمدًا
-    s.add_cycle("u1", "2026-07-03", 5)     # الفرق الحقيقي 28 يومًا
+    """طول الدورة من فروق تواريخ البداية، وطول النزيف حقل منفصل تمامًا."""
+    s.add_cycle("u1", "2026-06-05", 4)
+    s.add_cycle("u1", "2026-07-03", 6)     # الفرق 28 يومًا
     s.add_cycle("u1", "2026-07-31", 5)
 
     stats = s.cycle_stats("u1")
     assert stats["cycles_recorded"] == 3
     assert stats["avg_cycle_days"] == 28
+    assert stats["cycle_gaps"] == [28, 28]           # أطوال الدورات
+    assert [c["length_days"] for c in stats["last_cycles"]] == [5, 6, 4]  # أطول النزيف
     assert stats["last_cycles"][0]["start_date"] == "2026-07-31"
 
 
@@ -96,7 +99,8 @@ def test_cycle_stats_ignores_unrealistic_gaps(s):
 
 def test_cycle_stats_empty_user(s):
     stats = s.cycle_stats("nobody")
-    assert stats == {"cycles_recorded": 0, "avg_cycle_days": None, "last_cycles": []}
+    assert stats == {"cycles_recorded": 0, "avg_cycle_days": None,
+                     "cycle_gaps": [], "last_cycles": []}
 
 
 # ------------------------------------------------------------------- الأعراض

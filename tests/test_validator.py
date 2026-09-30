@@ -134,3 +134,39 @@ def test_normalization_covers_spelling_variants():
     """فروق الهمزة/الياء/التاء المربوطة لا تُستخدم للتجاوز."""
     variants = ["أنتِ عندك أنيميا", "انتي عندك انيميا", "إنتي عندك أنيميا"]
     assert all(check_banned_attribution(v) for v in variants)
+
+
+@pytest.mark.parametrize("text", [
+    "خدي إيبوبروفين قبل الدورة",
+    "ابدئي ترانيكساميك في أيام النزيف",
+    "جربي لولب هرموني",
+    "استخدمي ميتفورمين لتنظيم الدورة",
+    "لازم تاخدي حبوب منع الحمل",
+    "take ibuprofen for the pain",
+])
+def test_directed_drug_advice_is_blocked(text):
+    """المسودة تذكر خيارات علاجية تعليميًا؛ تحويلها إلى نصيحة موجّهة ممنوع."""
+    assert check_banned_attribution(text), f"لم يُمنع: {text}"
+
+
+@pytest.mark.parametrize("text", [
+    "من الخيارات التي تقررها الطبيبة: مضادات الالتهاب غير الستيرويدية مثل الإيبوبروفين.",
+    "اللولب الهرموني من الخيارات الفعالة للنزيف الغزير، ويقرره الطبيب.",
+    "حمض الترانيكساميك يقلل النزيف وله موانع منها تاريخ جلطات.",
+])
+def test_educational_mention_of_treatments_is_allowed(text):
+    """ذكر الخيارات العلاجية كمعلومة عامة مسموح؛ الممنوع هو توجيه المستخدمة."""
+    assert not check_banned_attribution(text), f"مُنع خطأً: {text}"
+
+
+@pytest.mark.parametrize("text", ["خذي وقتك في متابعة الأعراض.", "خذي نفسًا عميقًا.",
+                                  "خذي راحتك.", "خذي وضعية الطفل 30 ثانية."])
+def test_benign_directives_are_not_blocked(text):
+    """الإفراط في المنع يُفشل ردودًا سليمة: النصيحة الحميدة يجب أن تمر."""
+    assert not check_banned_attribution(text), f"مُنع خطأً: {text}"
+
+
+@pytest.mark.parametrize("text", ["خذي مسكن", "خذي مضاد حيوي", "خذي حقنة",
+                                  "خذي كبسولة", "خذي دوا"])
+def test_directive_with_a_medicine_object_is_blocked(text):
+    assert check_banned_attribution(text), f"لم يُمنع: {text}"

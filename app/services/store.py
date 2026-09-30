@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS cycles (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_key    TEXT    NOT NULL,
     start_date  TEXT    NOT NULL,              -- ISO date لأول يوم نزيف
-    length_days INTEGER,                       -- طول الدورة بالأيام (اختياري)
+    length_days INTEGER,                       -- طول النزيف بالأيام (اختياري)
     created_at  TEXT    NOT NULL,
     UNIQUE (user_key, start_date)
 );
@@ -42,6 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_symptoms_user ON symptoms (user_key, log_date);
 """
 
 SEVERITY_MIN, SEVERITY_MAX = 1, 5
+# طول النزيف: مدى ضيق عن قصد. الدلالة هنا «كم يومًا استمر النزيف» لا «طول الدورة»؛
+# طول الدورة يُشتق من فروق تواريخ البداية (انظر cycle_stats) لأنه التعريف الطبي.
+BLEEDING_MIN, BLEEDING_MAX = 1, 30
 
 
 class StoreError(ValueError):
@@ -64,8 +67,11 @@ def _check_length(value: int | None) -> int | None:
         return None
     if not isinstance(value, int) or isinstance(value, bool):
         raise StoreError("length_days يجب أن يكون عددًا صحيحًا")
-    if not 1 <= value <= 90:
-        raise StoreError("length_days خارج المدى المعقول (1–90)")
+    if not BLEEDING_MIN <= value <= BLEEDING_MAX:
+        raise StoreError(
+            f"length_days (طول النزيف) خارج المدى المعقول ({BLEEDING_MIN}–{BLEEDING_MAX}). "
+            "لو كنتِ تقصدين طول الدورة فالتطبيق يحسبه تلقائيًا من تواريخ البداية."
+        )
     return value
 
 
@@ -188,6 +194,7 @@ class Store:
         return {
             "cycles_recorded": len(ordered),
             "avg_cycle_days": avg,
+            "cycle_gaps": gaps,              # أطوال الدورات الفعلية (فروق التواريخ)
             "last_cycles": [{"start_date": d, "length_days": l} for d, l in last[:6]],
         }
 

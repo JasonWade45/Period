@@ -39,6 +39,38 @@ POST /v1/chat
 
 Key property: **steps 1, 2 and 6 never depend on the model or on the API key.** If Groq is missing, rate-limited, down, or returns invalid JSON, the user still gets a safe answer and the emergency/crisis paths keep working at full strength.
 
+## Knowledge base
+
+Two files, deliberately separate:
+
+| File | Status | Reaches the model? |
+|---|---|---|
+| `app/data/sources.json` | verified — `source_name`, `section`, `reviewed_at`, `reviewer` | Yes, and only these ids may be cited |
+| `app/data/sources_draft.json` | draft — `drafted_at` + `derived_from`, explicitly named as unreviewed | **No** (default), and not citable |
+
+The loader rejects any chunk with missing provenance, a verified chunk without a review date or reviewer, a draft without its origin, or a duplicate id. A draft is never retrievable, so it cannot enter the prompt — and if a model ever cites a draft id anyway, the validator rejects that id and the answer falls back. Both paths are covered by tests (`tests/test_knowledge_base.py`, `tests/test_e2e_pipeline.py`).
+
+Review workflow:
+
+```bash
+python tools/review_sources.py list                          # what is pending
+python tools/review_sources.py show draft-pcos-diagnosis     # read it in full
+python tools/review_sources.py promote draft-pcos-diagnosis \
+    --reviewer "د. فلانة — أخصائية نسا وتوليد" --date 2026-10-05
+```
+
+Promotion requires a named reviewer; it moves the chunk into `sources.json` as verified. `KNOWLEDGE_INCLUDE_DRAFTS=1` sends drafts to the model for internal evaluation only — it logs a loud warning, and `/health` reports `drafts_included`.
+
+### The medical draft is explicitly *not* live knowledge
+
+The Arabic knowledge draft supplied for this project (cycle basics, PCOS, endometriosis, heavy bleeding, red flags, investigations, treatment options) was ingested as **38 draft chunks waiting for clinician sign-off**. It is not citable and never reaches a user today. Reasons, not formalities:
+
+- it is a paraphrase, and it names NHS/ACOG/NICE/FIGO/ESHRE as its basis. Publishing it as a source would be **false attribution** — `source_name` is left as an internal unreviewed draft precisely so no body is credited with text it did not write;
+- the numbers and thresholds in it have not been checked against the originals;
+- it contains treatment options (NSAIDs, tranexamic acid, hormonal IUD, metformin, SSRIs). As education that is allowed; as directed advice it is exactly what the validator now blocks by name (`خدي إيبوبروفين`, `take ibuprofen`, `your dose`), while still allowing "الإيبوبروفين من الخيارات التي تقررها الطبيبة".
+
+Two deterministic thresholds were extracted from it into the rules engine, marked in the source as draft-derived and pending sign-off: bleeding longer than 7 days (`PROLONGED_BLEEDING`) and 90 days since the last logged bleeding (`MISSED_PERIOD`). Both are MONITOR, not MEDICAL_REVIEW, because the input is user-entered and this code cannot distinguish "period actually stopped" from "log not updated" — the finding text says both.
+
 ## Safety design
 
 | Layer | File | Guarantee |
@@ -99,6 +131,8 @@ Open <http://127.0.0.1:8113/> for the app, <http://127.0.0.1:8113/docs> for the 
 | `RULES_GLOSSARY_PATH` | `app/data/rules_glossary.json` | Plain-language meaning per rule code. |
 | `AUDIT_LOG_PATH` | `audit/responses.jsonl` | Gitignored. |
 | `RAG_TOP_K` | `5` | |
+| `DRAFT_SOURCES_PATH` | `app/data/sources_draft.json` | Unreviewed material, kept out of circulation. |
+| `KNOWLEDGE_INCLUDE_DRAFTS` | `0` | Never enable in production. Internal evaluation only. |
 | `CORS_ALLOW_ORIGINS` | *(empty)* | Empty = same origin only (the frontend is served by this app). Set a comma-separated list only if you host the frontend elsewhere. `*` is unsafe here: the API has no auth and would become a free proxy for anyone's website. |
 
 ## Developing without a key
@@ -155,6 +189,10 @@ Tracker endpoints (all take `?user_key=<device id>`):
 | DELETE | `/v1/data` | Erase all data for this device key |
 | GET | `/v1/meta` | Countries, emergency numbers, verification status |
 
+`GET /v1/insights` findings now include `PROLONGED_BLEEDING` and `MISSED_PERIOD` (draft-derived thresholds, see above).
+
+Data semantics worth knowing before writing to the API: `cycles.length_days` is **how many days the bleeding lasted** (1–30), not cycle length. Cycle length is derived on the server from gaps between start dates, which is the medical definition. Mixing the two produced a real bug — a 38-day "cycle length" typed into the bleeding field fired a prolonged-bleeding flag, and the reverse misread bleeding duration as cycle irregularity. Regression tests pin both directions.
+
 `mode: "chat"` returns `answer`, `sources_used`, `needs_doctor`, `emergency`, `crisis`, `missing_info`.
 `mode: "summary"` returns `overview`, `what_changed`, `patterns`, `medical_alerts`, `what_this_does_not_mean`, `questions_for_doctor`, `sources_used`.
 Both always include `prompt_version` and `rule_codes`. Status is 200 even when the model fails (the body carries the fallback); 422 only for an empty message.
@@ -183,16 +221,17 @@ smoke_test.py              live end-to-end check
 
 These are known gaps, not features:
 
-1. **Emergency number accuracy.** The table covers 23 countries with a source each, but a number can change and an unknown country still gets a generic number. Re-verify before launch and whenever a country is added; a wrong number in a crisis reply is the highest-severity failure mode in this codebase.
-2. **Crisis line coverage.** No crisis line is shipped, because inventing one is worse than admitting none is available. Every reply currently says no verified line exists — fill this in per country from an official source.
-3. **Device key is not authentication.** `user_key` isolates rows; it is not a credential, and anyone holding it can read that data. Real accounts (and encryption at rest) are needed before this holds anything a user would not want exposed.
-4. **Single-process rate limiting.** The limiter is in memory, so N workers allow N× the limit, and it resets on restart. A shared store (Redis) is needed for a real deployment.
-5. **Both safety filters are pattern-based.** The pre-model emergency filter and the post-model validator are lexical, so unseen dialect spellings, typo variants, and phrasings outside the pattern set can slip past. The validator now normalises Arabic script and covers 20 previously-bypassing phrasings, but a pattern list is not a classifier: treat every real flagged response as a candidate new test case, and plan for a trained classifier.
-6. **Validating harder can make answers worse, not safer.** A validator rejection produces the generic fallback, so an over-eager pattern costs a good answer. The regression suite therefore pins both directions: known violations must be blocked, and legitimate educational sentences must still pass. Add both kinds of test whenever the pattern list changes.
-7. **No calendar view.** Logging is a list with a date field, not a month grid, and there is no reminder or prediction. Deliberate: the prompt forbids assured predictions, so any calendar must show logged data only.
-8. **Keyword RAG.** Matching is lexical, so paraphrased questions retrieve nothing. Replace with embeddings while keeping the source-id allowlist.
-9. **Audit log privacy.** `request_excerpt` stores up to 300 characters of user text in plaintext JSONL — sensitive health data. Define retention, access control, and encryption before production.
-10. **Conversation state.** Each request is independent; there is no multi-turn memory.
+1. **The knowledge draft needs clinical review.** 38 chunks are waiting. Until a clinician signs them off and a source's own text or licence permits reuse, the assistant can only answer from the 6 verified chunks — for most topics it will correctly say it has no reliable information rather than answer from the draft.
+2. **Emergency number accuracy.** The table covers 23 countries with a source each, but a number can change and an unknown country still gets a generic number. Re-verify before launch and whenever a country is added; a wrong number in a crisis reply is the highest-severity failure mode in this codebase.
+3. **Crisis line coverage.** No crisis line is shipped, because inventing one is worse than admitting none is available. Every reply currently says no verified line exists — fill this in per country from an official source.
+4. **Device key is not authentication.** `user_key` isolates rows; it is not a credential, and anyone holding it can read that data. Real accounts (and encryption at rest) are needed before this holds anything a user would not want exposed.
+5. **Single-process rate limiting.** The limiter is in memory, so N workers allow N× the limit, and it resets on restart. A shared store (Redis) is needed for a real deployment.
+6. **Both safety filters are pattern-based.** The pre-model emergency filter and the post-model validator are lexical, so unseen dialect spellings, typo variants, and phrasings outside the pattern set can slip past. The validator now normalises Arabic script and covers 20 previously-bypassing phrasings, but a pattern list is not a classifier: treat every real flagged response as a candidate new test case, and plan for a trained classifier.
+7. **Validating harder can make answers worse, not safer.** A validator rejection produces the generic fallback, so an over-eager pattern costs a good answer. The regression suite therefore pins both directions: known violations must be blocked, and legitimate educational sentences must still pass. Add both kinds of test whenever the pattern list changes.
+8. **No calendar view.** Logging is a list with a date field, not a month grid, and there is no reminder or prediction. Deliberate: the prompt forbids assured predictions, so any calendar must show logged data only.
+9. **Keyword RAG.** Matching is lexical, so paraphrased questions retrieve nothing. Replace with embeddings while keeping the source-id allowlist.
+10. **Audit log privacy.** `request_excerpt` stores up to 300 characters of user text in plaintext JSONL — sensitive health data. Define retention, access control, and encryption before production.
+11. **Conversation state.** Each request is independent; there is no multi-turn memory.
 
 ---
 
@@ -203,6 +242,8 @@ These are known gaps, not features:
 - **التشغيل:** `pip install -r requirements.txt` ثم ضعي `GROQ_API_KEY` في ملف `.env` ثم `uvicorn app.main:app --host 0.0.0.0 --port 8113`.
 - **التتبّع:** سجّلي الدورات والأعراض من زر 📖 في الواجهة، وتُحفظ في SQLite على الخادم بمعرّف جهازكِ. الرؤى (`/v1/insights`) تعمل بلا إنترنت وبلا مفتاح.
 - **الأمان:** اضبطي `API_KEY` قبل أي نشر؛ الرسائل التي يُفعّل فيها فلتر الطوارئ تُقبل دائمًا حتى لو كان المفتاح خاطئًا — قرار مقصود.
+- **قاعدة المعرفة:** ما يصل للموديل هو `sources.json` فقط (6 مقاطع مُتحقَّقة). المسودة التي أُرسلت للمشروع محفوظة في `sources_draft.json` كـ38 مقطعًا **محجوبة عن الاستشهاد** حتى تُراجَع طبيبيًا وتُرقّى بـ`tools/review_sources.py`. سبب الرفض ليس شكليًا: النص إعادة صياغة وينسب نفسه إلى NHS/ACOG/NICE، ونشره كمصدر إسناد زائف، والأرقام لم تُراجَع على الأصل.
+- **طول النزيف ≠ طول الدورة:** `length_days` يعني أيام النزيف (1–30)، وطول الدورة يُحسب على الخادم من فروق تواريخ البداية.
 - **بدون مفتاح:** التطبيق يقلع ويظل رد الطوارئ والأزمات يعمل كاملًا؛ الأسئلة العادية تُرد بإجابة آمنة مع `llm_configured: false` في `/health`.
 - **الأرقام:** 23 بلدًا في `app/data/emergency_numbers.json` لكل رقم مصدر؛ البلد غير المُدرج يحصل على رقم عام **مع تنبيه أنه غير مُتحقق منه**. لا تُضاف أرقام دعم نفسي مُخترعة.
 - **الاختبارات:** `pytest` (اختبارات محلية بلا شبكة) و`python smoke_test.py` (فحص حقيقي مع خادم يعمل).

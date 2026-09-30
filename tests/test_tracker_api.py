@@ -18,7 +18,7 @@ def _day(offset: int) -> str:
 
 def test_add_and_list_cycles(client):
     r = client.post(f"/v1/cycles?user_key={USER}",
-                    json={"start_date": "2026-06-05", "length_days": 38})
+                    json={"start_date": "2026-06-05", "length_days": 5})
     assert r.status_code == 200, r.text
     assert r.json()["start_date"] == "2026-06-05"
 

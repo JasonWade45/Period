@@ -70,6 +70,10 @@ class Settings:
 
     # Data files
     sources_path: Path = Path(_env("SOURCES_PATH", str(APP_DIR / "data" / "sources.json")))
+    # مسودات المعرفة: تُحفظ للمراجعة ولا تُستشهد بها افتراضيًا
+    draft_sources_path: Path = Path(_env("DRAFT_SOURCES_PATH",
+                                         str(APP_DIR / "data" / "sources_draft.json")))
+    knowledge_include_drafts: bool = _env("KNOWLEDGE_INCLUDE_DRAFTS", "0") in ("1", "true", "True")
     rules_glossary_path: Path = Path(_env("RULES_GLOSSARY_PATH", str(APP_DIR / "data" / "rules_glossary.json")))
 
     # Audit

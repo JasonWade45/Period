@@ -22,9 +22,9 @@ CTX = {
     "cycles_recorded": 5,
     "avg_cycle_days": 41,
     "last_cycles": [
-        {"start_date": "2026-06-05", "length_days": 38},
-        {"start_date": "2026-07-13", "length_days": 41},
-        {"start_date": "2026-08-23", "length_days": 44},
+        {"start_date": "2026-06-05", "length_days": 5},
+        {"start_date": "2026-07-13", "length_days": 4},
+        {"start_date": "2026-08-23", "length_days": 6},
     ],
 }
 
@@ -361,3 +361,36 @@ def test_summary_mode_does_not_get_answer_wrapper(fake) -> None:
 
     assert resp.overview == "ملخص"
     assert not hasattr(resp, "answer")
+
+
+# ------------------------------- لا يمكن للموديل الاستشهاد بمعرفة غير مُراجَعة
+
+def test_model_cannot_cite_a_draft_chunk(fake, audit_entries) -> None:
+    """حتى لو أرجع الموديل معرّف مسودة، الـ validator يرفض والرد يصير احتياطيًا.
+
+    هذا هو الضمان النهائي: المعرفة غير المُراقَعة لا تصل للمستخدمة لا بالاسترجاع
+    (محجوبة) ولا باستشهاد الموديل بها (مرفوض).
+    """
+    fabricated = json.dumps({
+        "answer": "وفق المصادر، هذا النمط شائع.",
+        "sources_used": ["draft-pcos-overview"],
+        "needs_doctor": False, "emergency": False, "crisis": False, "missing_info": [],
+    }, ensure_ascii=False)
+    fake.scenarios = [{"content": fabricated}, {"content": fabricated}]
+
+    resp = main._run_pipeline(_req("إيه تكيّس المبايض؟"))
+
+    assert resp.answer == main.FALLBACK_ANSWER
+    assert "unknown source id" in audit_entries[0].llm_error
+
+
+def test_draft_text_is_not_in_the_prompt(fake) -> None:
+    """نص المسودة لا يُرسل للموديل من الأصل، فلا يمكنه نقله حرفيًا."""
+    fake.scenarios = [{"content": GOOD_CHAT}]
+    main._run_pipeline(_req("إيه ألم التبويض؟"))
+
+    from app.services.rag import load_chunks
+    prompt = fake.last_system_prompt
+    for chunk in load_chunks([main.settings.draft_sources_path]):
+        assert chunk.id not in prompt
+        assert chunk.text[:40] not in prompt

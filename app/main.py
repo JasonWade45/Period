@@ -64,12 +64,19 @@ async def lifespan(_: FastAPI):
         log.warning(
             "API_KEY غير مضبوط: كل مسارات /v1 مفتوحة. مقبول للتطوير المحلي فقط."
         )
+    if settings.knowledge_include_drafts and _rag.draft_chunks:
+        log.warning(
+            "KNOWLEDGE_INCLUDE_DRAFTS مفعّل: %d مقطعًا غير مُراجَع طبيًا سيُرسل للموديل "
+            "ويصبح قابلًا للاستشهاد. للاختبار الداخلي فقط — لا تشغّليه في الإنتاج.",
+            len(_rag.draft_chunks),
+        )
     if not settings.cors_origins:
         log.info("CORS: نفس الأصل فقط (الوضع الافتراضي).")
     log.info(
-        "CycleCare جاهز — prompt=%s model=%s chunks=%d db=%s rate_limit=%d/%ds",
-        settings.prompt_version, settings.groq_model, len(_rag.chunks),
-        settings.db_path, settings.rate_limit_requests, settings.rate_limit_window_seconds,
+        "CycleCare جاهز — prompt=%s model=%s citable=%d drafts=%d db=%s rate_limit=%d/%ds",
+        settings.prompt_version, settings.groq_model, len(_rag.retrievable),
+        len(_rag.draft_chunks), settings.db_path,
+        settings.rate_limit_requests, settings.rate_limit_window_seconds,
     )
     yield
 
@@ -82,7 +89,11 @@ except RuntimeError:
     _llm = None  # وضع الاختبار بدون مفتاح
 
 _prompt_builder = PromptBuilder(settings.prompt_path, settings.prompt_version)
-_rag = KeywordRag(settings.sources_path)
+_rag = KeywordRag(
+    settings.sources_path,
+    drafts_path=settings.draft_sources_path,
+    include_drafts=settings.knowledge_include_drafts,
+)
 _rules_glossary: dict[str, str] = json.loads(
     settings.rules_glossary_path.read_text(encoding="utf-8")
 )
@@ -151,6 +162,7 @@ def _effective_context(req: ChatRequest) -> tuple[UserContext, list[dict], dict]
             **req.user_context.model_dump(),
             "cycles_recorded": stats["cycles_recorded"],
             "avg_cycle_days": stats["avg_cycle_days"],
+            "cycle_gaps": stats["cycle_gaps"],
             "last_cycles": [CycleStat(**c) for c in stats["last_cycles"]],
         }
     )
@@ -329,6 +341,9 @@ def health() -> dict[str, Any]:
         "model": settings.groq_model,
         "llm_configured": _llm is not None,
         "chunks_loaded": len(_rag.chunks),
+        "chunks_citable": len(_rag.retrievable),
+        "drafts_pending_review": len(_rag.draft_chunks),
+        "drafts_included": settings.knowledge_include_drafts,
         "emergency_number_is_default": settings.emergency_number_is_default,
         "emergency_number_verified": info.verified,
         "crisis_line_configured": bool(info.crisis_line),
@@ -441,6 +456,7 @@ def insights(user_key: str) -> InsightsResponse:
     ctx = UserContext(
         cycles_recorded=stats["cycles_recorded"],
         avg_cycle_days=stats["avg_cycle_days"],
+        cycle_gaps=stats["cycle_gaps"],
         last_cycles=stats["last_cycles"],
     )
     findings = compute_all_findings(ctx, symptoms)
