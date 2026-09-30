@@ -94,3 +94,41 @@ def test_frontend_is_served(client) -> None:
     r = client.get("/")
     assert r.status_code == 200
     assert "text/html" in r.headers["content-type"]
+
+
+def test_fallback_does_not_claim_doctor_review_for_monitor_findings(client, monkeypatch) -> None:
+    """شارة «يستحق مراجعة طبية» لا تظهر لنتيجة MONITOR.
+
+    هذه الحالة ظهرت في الواجهة فعليًا: المستخدمة بلا دورات مسجّلة تحصل على
+    INSUFFICIENT_DATA (MONITOR)، وكانت المقارنة الأبجدية تجعل needs_doctor=True.
+    """
+    monkeypatch.setattr(main, "_llm", None)
+    r = client.post("/v1/chat", json={"message": "إيه أعراض ما قبل الدورة؟",
+                                      "user_context": {"cycles_recorded": 0}})
+    body = r.json()
+    assert body["rule_codes"] == ["INSUFFICIENT_DATA"]
+    assert body["needs_doctor"] is False
+    assert body["emergency"] is False
+
+
+def test_fallback_does_claim_doctor_review_for_medical_review_findings(client, monkeypatch) -> None:
+    """مقابل ذلك: نتيجة MEDICAL_REVIEW (متوسط دورة ≥ 60 يومًا) تستدعي التنبيه."""
+    monkeypatch.setattr(main, "_llm", None)
+    r = client.post("/v1/chat", json={"message": "إيه أعراض ما قبل الدورة؟",
+                                      "user_context": {"cycles_recorded": 5,
+                                                       "avg_cycle_days": 70}})
+    body = r.json()
+    assert body["rule_codes"] == ["LONG_CYCLE"]
+    assert body["needs_doctor"] is True
+
+
+def test_fallback_for_short_cycle_monitor_does_not_claim_doctor_review(client, monkeypatch) -> None:
+    """SHORT_CYCLE = MONITOR أيضًا، فلا تنبيه مبالغًا فيه."""
+    monkeypatch.setattr(main, "_llm", None)
+    r = client.post("/v1/chat", json={"message": "سؤال", "user_context": {
+        "cycles_recorded": 4, "avg_cycle_days": 18,
+        "last_cycles": [{"start_date": "2026-07-01", "length_days": 18},
+                        {"start_date": "2026-07-19", "length_days": 18}]}})
+    body = r.json()
+    assert body["rule_codes"] == ["SHORT_CYCLE"]
+    assert body["needs_doctor"] is False

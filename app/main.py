@@ -176,7 +176,7 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
         data = {
             "answer": answer,
             "sources_used": [],
-            "needs_doctor": max_severity(findings) >= Severity.MEDICAL_REVIEW,
+            "needs_doctor": max_severity(findings).at_least(Severity.MEDICAL_REVIEW),
             "emergency": False,
             "crisis": False,
             "missing_info": ["تعذّر التحقق من إجابة المساعد"],

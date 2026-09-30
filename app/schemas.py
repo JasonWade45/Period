@@ -7,11 +7,70 @@ from pydantic import BaseModel, Field
 
 
 class Severity(str, Enum):
+    """مستوى الخطورة (فرز وليس تشخيصًا).
+
+    تحذير مهم: الوراثة من `str` ضرورية لتمثيل JSON، لكنها تجعل `>=` و`<`
+    يقارنان **أسماء** القيم أبجديًا لا ترتيب الخطورة:
+    `Severity.MONITOR >= Severity.MEDICAL_REVIEW` تصبح True لأن "MONITOR"
+    تأتي أبجديًا بعد "MEDICAL_REVIEW". لذلك تُعرَّف هنا دوال المقارنة
+    بترتيب الخطورة الصحيح، ويُفضَّل استخدام at_least() للوضوح.
+    """
+
     NORMAL = "NORMAL"
     MONITOR = "MONITOR"
     MEDICAL_REVIEW = "MEDICAL_REVIEW"
     URGENT = "URGENT"
     EMERGENCY = "EMERGENCY"
+
+    @property
+    def rank(self) -> int:
+        return _SEVERITY_RANK[self]
+
+    def at_least(self, other: "Severity") -> bool:
+        """هل هذا المستوى مساوٍ أو أعلى من المستوى الآخر؟"""
+        return self.rank >= _coerce_severity(other).rank
+
+    def _other_rank(self, other: Any) -> int | None:
+        if isinstance(other, Severity):
+            return other.rank
+        if isinstance(other, str) and other in _SEVERITY_RANK:
+            return _SEVERITY_RANK[Severity(other)]
+        return None
+
+    def __lt__(self, other: Any) -> bool:  # type: ignore[override]
+        rank = self._other_rank(other)
+        return NotImplemented if rank is None else self.rank < rank
+
+    def __le__(self, other: Any) -> bool:  # type: ignore[override]
+        rank = self._other_rank(other)
+        return NotImplemented if rank is None else self.rank <= rank
+
+    def __gt__(self, other: Any) -> bool:  # type: ignore[override]
+        rank = self._other_rank(other)
+        return NotImplemented if rank is None else self.rank > rank
+
+    def __ge__(self, other: Any) -> bool:  # type: ignore[override]
+        rank = self._other_rank(other)
+        return NotImplemented if rank is None else self.rank >= rank
+
+
+SEVERITY_ORDER: tuple[Severity, ...] = (
+    Severity.NORMAL,
+    Severity.MONITOR,
+    Severity.MEDICAL_REVIEW,
+    Severity.URGENT,
+    Severity.EMERGENCY,
+)
+_SEVERITY_RANK: dict[Severity, int] = {s: i for i, s in enumerate(SEVERITY_ORDER)}
+
+
+def _coerce_severity(value: Severity | str) -> Severity:
+    return value if isinstance(value, Severity) else Severity(value)
+
+
+def max_severity_of(severities: list[Severity]) -> Severity:
+    """أعلى مستوى خطورة — الترتيب من SEVERITY_ORDER لا من أسماء القيم."""
+    return max(severities, key=lambda s: s.rank) if severities else Severity.NORMAL
 
 
 class Finding(BaseModel):

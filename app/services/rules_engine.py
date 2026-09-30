@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..schemas import Finding, Severity, UserContext
+from ..schemas import Finding, Severity, UserContext, max_severity_of
 
 MIN_CYCLES_FOR_PATTERN = 3
 SHORT_CYCLE_DAYS = 21
@@ -82,8 +82,5 @@ def compute_findings(ctx: UserContext) -> list[Finding]:
 
 
 def max_severity(findings: list[Finding]) -> Severity:
-    order = [Severity.NORMAL, Severity.MONITOR, Severity.MEDICAL_REVIEW,
-             Severity.URGENT, Severity.EMERGENCY]
-    if not findings:
-        return Severity.NORMAL
-    return max((f.severity for f in findings), key=lambda s: order.index(s))
+    """أعلى مستوى خطورة بين النتائج — الترتيب من Severity.rank وحده."""
+    return max_severity_of([f.severity for f in findings])
