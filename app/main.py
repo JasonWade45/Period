@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -27,7 +29,35 @@ from .services.rag import KeywordRag
 from .services.rules_engine import compute_findings, max_severity
 from .services.validator import validate
 
-app = FastAPI(title="CycleCare AI", version=settings.prompt_version)
+log = logging.getLogger("cyclecare")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """تحقّق تشغيلي عند الإقلاع — أخطاء الإعداد تظهر في اللوج لا في وجه المستخدمة."""
+    if _llm is None:
+        log.warning(
+            "GROQ_API_KEY غير مضبوط: الطلبات غير الطارئة ستُعاد إليها إجابة احتياطية "
+            "حتى يُضبط المفتاح في البيئة أو في ملف .env"
+        )
+    if settings.emergency_number_is_default:
+        log.warning(
+            "EMERGENCY_NUMBER لا يزال على القيمة الافتراضية (%s). "
+            "تحقّقي من رقم الطوارئ الصحيح لبلد المستخدمة قبل الإطلاق.",
+            settings.emergency_number,
+        )
+    if not settings.crisis_line:
+        log.warning("CRISIS_LINE غير مضبوط: ردود الأزمات لن تتضمّن خط دعم محلي.")
+    if not settings.cors_origins:
+        log.info("CORS: نفس الأصل فقط (الوضع الافتراضي).")
+    log.info(
+        "CycleCare جاهز — prompt=%s model=%s chunks=%d rag_top_k=%d",
+        settings.prompt_version, settings.groq_model, len(_rag.chunks), settings.rag_top_k,
+    )
+    yield
+
+
+app = FastAPI(title="CycleCare AI", version=settings.prompt_version, lifespan=lifespan)
 
 try:
     _llm = LLMClient()
@@ -44,6 +74,20 @@ FALLBACK_ANSWER = (
     "عذراً، تعذّر توليد إجابة آمنة في هذه اللحظة. "
     "حاولي مرة أخرى بعد قليل، وإذا كان هناك عرض مقلق فالتوجّه لطبيبة هو الخطوة الأنسب."
 )
+
+# حالة إعداد دائم وليست عطلًا عارضًا: لا نطلب منها إعادة المحاولة بلا فائدة.
+NOT_CONFIGURED_ANSWER = (
+    "المساعد الذكي غير متاح حاليًا، فلا أستطيع الإجابة عن هذا السؤال الآن. "
+    "إن كان هناك عرض مقلق، فالتوجّه لطبيبة هو الخطوة الأنسب."
+)
+
+
+def _write_audit(entry: AuditEntry) -> None:
+    """سجل التدقيق مهم، لكن فشل كتابته (قرص ممتلئ/نظام للقراءة فقط) لا يُسقط ردًّا آمنًا."""
+    try:
+        audit.write(entry)
+    except Exception as exc:  # noqa: BLE001
+        log.error("تعذّر كتابة سجل التدقيق: %s: %s", type(exc).__name__, exc)
 
 
 def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
@@ -65,7 +109,7 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
             prompt_version=settings.prompt_version,
             rule_codes=[f.rule_code for f in findings],
         )
-        audit.write(AuditEntry(
+        _write_audit(AuditEntry(
             mode=req.mode,
             prompt_version=settings.prompt_version,
             findings=findings,
@@ -99,29 +143,38 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
     # 4) استدعاء الموديل + تحقق + إعادة واحدة ثم رد احتياطي
     retries = 0
     fallback = False
+    llm_error = ""
     raw, elapsed = "", 0
     data: dict[str, Any] | None = None
+    result = None
 
     if _llm is None:
-        raise HTTPException(status_code=503, detail="GROQ_API_KEY is not set")
-
-    # أي فشل في الموديل (شبكة، TPM، تحقق) → رد احتياطي وليس 500
-    try:
-        raw, elapsed = _llm.complete(system, req.message)
-        result = validate(raw, req.mode, allowed_ids)
-
-        while not result.ok and retries < 1:
-            retries += 1
-            raw, extra = _llm.complete(system, req.message, retry_feedback=raw)
-            elapsed += extra
+        # لا مفتاح؟ لا نُسقط الطلب: نفس مسار الرد الاحتياطي الآمن.
+        llm_error = "GROQ_API_KEY is not set"
+    else:
+        # أي فشل في الموديل (شبكة، TPM، تحقق) → رد احتياطي وليس 500
+        try:
+            raw, elapsed = _llm.complete(system, req.message)
             result = validate(raw, req.mode, allowed_ids)
-    except Exception:  # noqa: BLE001 — طبقة الأمان: لا نُسقط الطلب أبدًا
-        result = None
+
+            while not result.ok and retries < 1:
+                retries += 1
+                raw, extra = _llm.complete(system, req.message, retry_feedback=raw)
+                elapsed += extra
+                result = validate(raw, req.mode, allowed_ids)
+        except Exception as exc:  # noqa: BLE001 — طبقة الأمان: لا نُسقط الطلب أبدًا
+            result = None
+            llm_error = f"{type(exc).__name__}: {exc}"[:200]
+            log.warning("فشل استدعاء الموديل: %s", llm_error)
 
     if result is None or not result.ok or result.data is None:
         fallback = True
+        if not llm_error and result is not None:
+            llm_error = ("validation failed: " + "; ".join(result.errors))[:200]
+            log.warning("رفض validator مخرجات الموديل: %s", llm_error)
+        answer = NOT_CONFIGURED_ANSWER if _llm is None else FALLBACK_ANSWER
         data = {
-            "answer": FALLBACK_ANSWER,
+            "answer": answer,
             "sources_used": [],
             "needs_doctor": max_severity(findings) >= Severity.MEDICAL_REVIEW,
             "emergency": False,
@@ -130,7 +183,7 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
         }
         if req.mode == "summary":
             data = {
-                "overview": FALLBACK_ANSWER,
+                "overview": answer,
                 "what_changed": "",
                 "patterns": "",
                 "medical_alerts": "",
@@ -154,7 +207,7 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
                                 prompt_version=settings.prompt_version,
                                 rule_codes=rule_codes)
 
-    audit.write(AuditEntry(
+    _write_audit(AuditEntry(
         mode=req.mode,
         prompt_version=settings.prompt_version,
         findings=findings,
@@ -165,6 +218,7 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
         needs_doctor=bool(getattr(response, "needs_doctor", False)),
         validator_retries=retries,
         fallback=fallback,
+        llm_error=llm_error,
         latency_ms=int((time.monotonic() - started) * 1000),
         request_excerpt=req.message[:300],
         response=json.loads(response.model_dump_json()),
@@ -174,12 +228,15 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    """حالة التشغيل دون كشف مفاتيح أو أرقام: أعلام فقط."""
     return {
         "status": "ok",
         "prompt_version": settings.prompt_version,
         "model": settings.groq_model,
         "llm_configured": _llm is not None,
         "chunks_loaded": len(_rag.chunks),
+        "emergency_number_is_default": settings.emergency_number_is_default,
+        "crisis_line_configured": bool(settings.crisis_line),
     }
 
 
@@ -191,12 +248,15 @@ def chat(req: ChatRequest) -> dict[str, Any]:
     return json.loads(response.model_dump_json())
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# الواجهة تُخدم من نفس التطبيق، لذا لا نحتاج CORS افتراضيًا.
+# فتح "*" كان يسمح لأي موقع باستخدام الـ API (بمفتاح الخادم ودون مصادقة).
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if _FRONTEND_DIR.exists():

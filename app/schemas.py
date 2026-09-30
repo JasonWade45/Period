@@ -95,6 +95,8 @@ class AuditEntry(BaseModel):
     needs_doctor: bool = False
     validator_retries: int = 0
     fallback: bool = False
+    # سبب الرد الاحتياطي (نوع الخطأ أو أخطاء التحقق) — للتدقيق والتشغيل فقط
+    llm_error: str = ""
     latency_ms: int = 0
     request_excerpt: str = ""
     response: dict[str, Any] = {}
