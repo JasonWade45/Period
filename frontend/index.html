@@ -8,7 +8,167 @@
   <link rel="stylesheet" href="rtl.css">
 </head>
 <body>
-  <div id="app">
+  <!-- ================= صفحة الهبوط ================= -->
+  <div id="landing" class="landing">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">C</span>
+        <div>
+          <h1>CycleCare</h1>
+          <p data-i18n="app.tagline">مساعد تثقيفي لصحة الدورة الشهرية</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn no-flip" id="lang-btn-landing" onclick="toggleLanguage()"
+                title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
+        <button class="btn-ghost landing-login" onclick="enterApp()"
+                data-i18n="landing.cta_login">عندي حساب — دخول</button>
+      </div>
+    </header>
+
+    <main class="landing-main">
+      <section class="hero">
+        <span class="hero-badge" data-i18n="landing.badge">مساعدتك لصحة الدورة الشهرية</span>
+        <h2 class="hero-title" data-i18n="landing.title">اعرفي دورتك، واسألي بأمان</h2>
+        <p class="hero-sub" data-i18n="landing.subtitle">CycleCare مساعد تثقيفي يجيبك من مصادر موثوقة، يتتبّع دورتك، ويجهّز لك أسئلة لطبيبتِك — بلا تشخيص وبلا وصفات.</p>
+        <div class="hero-cta">
+          <button class="btn-primary btn-big" id="cta-start" onclick="startSignup()"
+                  data-i18n="landing.cta_start">سجّلي الآن</button>
+          <button class="btn-ghost btn-big" onclick="enterApp()"
+                  data-i18n="landing.cta_login">عندي حساب — دخول</button>
+        </div>
+        <p class="hero-note" data-i18n="landing.note">التسجيل بسيط: كم سؤال يساعدنا نفهمكِ ونجهّز إجابات تناسبكِ، وبياناتكِ تبقى في متصفحك.</p>
+      </section>
+
+      <section class="features">
+        <h3 data-i18n="landing.features_title">اللي بيمسكِ فعلاً</h3>
+        <div class="features-grid">
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">💬</span>
+            <h4 data-i18n="landing.f1_title">أسئلة بجواب مصدّر</h4>
+            <p data-i18n="landing.f1_body">كل إجابة من معرفة مراجعة مسجّلة، وفيها دائمًا سطر «استشيري طبيبك».</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">📅</span>
+            <h4 data-i18n="landing.f2_title">تتبّع دورتك</h4>
+            <p data-i18n="landing.f2_body">سجّلي الدورات والأعراض وشوف رؤى من بياناتكِ — التحليل محلي وبلا إنترنت.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">🩺</span>
+            <h4 data-i18n="landing.f3_title">ملخص وأسئلة لطبيبة</h4>
+            <p data-i18n="landing.f3_body">ملخص لدوراتكِ وقائمة أسئلة تاخديها معكِ لزيارة الطبيبة.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon" aria-hidden="true">🚨</span>
+            <h4 data-i18n="landing.f4_title">طوارئ فورية</h4>
+            <p data-i18n="landing.f4_body">فلتر لغوي يوقف أي كلام خطر ويعطيكِ رقم الطوارئ مباشرة.</p>
+          </article>
+        </div>
+      </section>
+
+      <footer class="landing-foot">
+        <p data-i18n="landing.disclaimer">CycleCare مساعد تثقيفي فقط — لا يشخّص ولا يصف علاجًا.</p>
+      </footer>
+    </main>
+  </div>
+
+  <!-- ================= استمارة التسجيل ================= -->
+  <div id="signup" class="signup" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">C</span>
+        <div>
+          <h1 data-i18n="signup.title">استمارة التسجيل</h1>
+          <p data-i18n="signup.subtitle">كم سؤال بسيط عشان نفهمكِ ونجهّز إجابات تناسبكِ</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn no-flip" id="lang-btn-signup" onclick="toggleLanguage()"
+                title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
+        <button class="icon-btn no-flip" onclick="closeSignup()"
+                title="إغلاق" data-i18n-attr="title" data-i18n="signup.btn_close">✕</button>
+      </div>
+    </header>
+
+    <main class="signup-main">
+      <div class="signup-card">
+        <div class="progress">
+          <div class="progress-text" id="signup-progress-text">الخطوة 1 من 7</div>
+          <div class="progress-track"><div class="progress-bar" id="signup-progress-bar"></div></div>
+        </div>
+
+        <section class="step" data-step="0">
+          <h2 data-i18n="signup.q_age">عمرك كام سنة؟</h2>
+          <p class="step-hint" data-i18n="signup.q_age_hint">يساعدنا في تخصيص المعلومات المناسبة لعمرك.</p>
+          <input type="number" id="s-age" min="10" max="60" inputmode="numeric"
+                 placeholder="مثال: 27" data-i18n-attr="placeholder" data-i18n="signup.ph_age">
+        </section>
+
+        <section class="step" data-step="1" hidden>
+          <h2 data-i18n="signup.q_cycles">سجّلتِ كام دورة لحد دلوقتي؟</h2>
+          <p class="step-hint" data-i18n="signup.q_cycles_hint">تقدير تقريبي يكفي — تقدرين تراجعيه بعدين من زر «بياناتي».</p>
+          <input type="number" id="s-cycles" min="0" max="200" inputmode="numeric"
+                 placeholder="مثال: 12" data-i18n-attr="placeholder" data-i18n="signup.ph_cycles">
+        </section>
+
+        <section class="step" data-step="2" hidden>
+          <h2 data-i18n="signup.q_avg">متوسط طول دورتك كام يوم؟</h2>
+          <p class="step-hint" data-i18n="signup.q_avg_hint">من أول يوم نزيف لآخر يوم قبل الدورة الجاية. الأشيع 21–35 يومًا.</p>
+          <input type="number" id="s-avg" min="15" max="60" inputmode="numeric"
+                 placeholder="مثال: 28" data-i18n-attr="placeholder" data-i18n="signup.ph_avg">
+        </section>
+
+        <section class="step" data-step="3" hidden>
+          <h2 data-i18n="signup.q_last">تاريخ أول يوم آخر دورة</h2>
+          <p class="step-hint" data-i18n="signup.q_last_hint">يُسجَّل مباشرة في التتبّع عشان نحسبلك موعد الدورة الجاية — تقدرين تتجاوزي السؤال.</p>
+          <input type="date" id="s-last" max="">
+        </section>
+
+        <section class="step" data-step="4" hidden>
+          <h2 data-i18n="signup.q_country">إيه بلدك؟</h2>
+          <p class="step-hint" data-i18n="signup.q_country_hint">لتحديد رقم الطوارئ المناسب لبلدك.</p>
+          <select id="s-country"></select>
+          <h3 class="step-sub" data-i18n="signup.q_pregnancy">احتمال حمل؟</h3>
+          <select id="s-pregnancy">
+            <option value="">غير محدد</option>
+            <option value="غير مؤكد">احتمال حمل</option>
+            <option value="مؤكد">حمل مؤكد</option>
+            <option value="لا">لا</option>
+          </select>
+        </section>
+
+        <section class="step" data-step="5" hidden>
+          <h2 data-i18n="signup.opt_title">سؤالين اختياريين</h2>
+          <p class="step-hint" data-i18n="signup.opt_hint">تقدرين تعدّيهم — ينفع تضيفيهم بعدين من «بياناتي».</p>
+          <label class="step-label" data-i18n="signup.q_contraception">وسيلة منع الحمل (لو موجودة)</label>
+          <input type="text" id="s-contraception"
+                 placeholder="مثال: حبوب، لولب…" data-i18n-attr="placeholder" data-i18n="signup.ph_contraception">
+          <label class="step-label" data-i18n="signup.q_conditions">أمراض مشخّصة (لو موجودة)</label>
+          <textarea id="s-conditions" rows="3"
+                    placeholder="كل سطر: اسم الحالة | مشخّصة أو غير متأكدة"
+                    data-i18n-attr="placeholder" data-i18n="signup.ph_conditions"></textarea>
+        </section>
+
+        <section class="step" data-step="6" hidden>
+          <div class="done-box">
+            <span class="done-icon" aria-hidden="true">✓</span>
+            <h2 data-i18n="signup.done_title">تمام! جهزنا ملفك</h2>
+            <p class="step-hint" data-i18n="signup.done_body">حفظنا إجاباتك في متصفحك، وتقدرين تعدّليها أي وقت من زر «بياناتي».</p>
+          </div>
+        </section>
+
+        <div class="step-nav">
+          <button class="btn-ghost" id="signup-back" onclick="signupBack()"
+                  data-i18n="signup.btn_back">رجوع</button>
+          <button class="btn-primary" id="signup-next" onclick="signupNext()"
+                  data-i18n="signup.btn_next">التالي</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= التطبيق (المحادثة) ================= -->
+  <div id="app" hidden>
     <header class="topbar">
       <div class="brand">
         <span class="logo">C</span>
@@ -138,6 +298,10 @@
           <button class="icon-btn" onclick="toggleSettings()">✕</button>
         </div>
         <label>العمر <input type="number" id="f-age" min="10" max="60" placeholder="اختياري"></label>
+        <label>عدد الدورات المسجّلة (تقديري)
+          <input type="number" id="f-cycles-count" min="0" max="200" placeholder="اختياري"></label>
+        <label>متوسط طول الدورة (أيام)
+          <input type="number" id="f-avg-days" min="15" max="60" placeholder="اختياري"></label>
         <label>البلد (لتحديد رقم الطوارئ)
           <select id="f-country"></select></label>
         <label>حمل (لو معروف)

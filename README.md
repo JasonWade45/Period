@@ -217,7 +217,7 @@ app/
   prompts/                 versioned system prompt
   services/                emergency_filter, emergency_numbers, rules_engine, rag,
                            prompt_builder, validator, llm, audit, store, security
-frontend/                  vanilla JS + CSS, RTL Arabic UI, tracker panel
+frontend/                  vanilla JS + CSS, RTL Arabic UI, landing + signup wizard, tracker panel
   i18n.js                  locale loading, RTL direction, plural/digits in JS
   rtl.css                  logical properties, phone isolation, icon flipping
   tests/rtl.spec.js        Playwright RTL screenshot spec (needs a browser)

@@ -8,7 +8,11 @@ const state = {
   loading: false,
   tab: "cycles",
   messages: [], // {role, text?, data?}
+  view: "landing",   // landing | signup | app
+  signupStep: 0,
 };
+
+const SIGNUP_STEPS = 7;
 
 /* ---------------- مفاتيح التخزين المحلي ---------------- */
 
@@ -37,6 +41,8 @@ function loadSettings() {
 
 function fillSettingsForm(s) {
   document.getElementById("f-age").value = s.age ?? "";
+  document.getElementById("f-cycles-count").value = s.cycles_recorded ?? "";
+  document.getElementById("f-avg-days").value = s.avg_cycle_days ?? "";
   document.getElementById("f-country").value = s.country_code ?? "";
   document.getElementById("f-pregnancy").value = s.pregnancy_status ?? "";
   document.getElementById("f-contraception").value = s.contraception ?? "";
@@ -62,6 +68,8 @@ function readSettingsForm() {
 
   return {
     age: num("f-age"),
+    cycles_recorded: num("f-cycles-count") ?? 0,
+    avg_cycle_days: num("f-avg-days"),
     country_code: document.getElementById("f-country").value || null,
     pregnancy_status: document.getElementById("f-pregnancy").value || null,
     contraception: document.getElementById("f-contraception").value || null,
@@ -82,6 +90,181 @@ function clearSettings() {
 function toggleSettings() {
   const el = document.getElementById("settings");
   el.hidden = !el.hidden;
+}
+
+/* ---------------- التنقل: هبوط ← استمارة ← تطبيق ---------------- */
+
+function isRegistered() {
+  return !!loadSettings().registered;
+}
+
+function showView(view) {
+  state.view = view;
+  document.getElementById("landing").hidden = view !== "landing";
+  document.getElementById("signup").hidden = view !== "signup";
+  document.getElementById("app").hidden = view !== "app";
+}
+
+/* التهيئة قبل أول رسم: مسجّلة ⇒ تطبيق مباشرة، وإلا صفحة الهبوط */
+function initView() {
+  showView(isRegistered() ? "app" : "landing");
+}
+
+function enterApp() {
+  showView("app");
+}
+
+function closeSignup() {
+  showView(isRegistered() ? "app" : "landing");
+}
+
+/* البدء: تعبئة الاستمارة من الملف الحاظ (إن وجد) والانتقال لأول سؤال */
+function startSignup() {
+  const s = loadSettings();
+  state.signupStep = 0;
+  document.getElementById("s-age").value = s.age ?? "";
+  document.getElementById("s-cycles").value = s.cycles_recorded ?? "";
+  document.getElementById("s-avg").value = s.avg_cycle_days ?? "";
+  document.getElementById("s-last").value = "";
+  document.getElementById("s-country").value = s.country_code ?? "";
+  document.getElementById("s-pregnancy").value = s.pregnancy_status ?? "";
+  document.getElementById("s-contraception").value = s.contraception ?? "";
+  document.getElementById("s-conditions").value =
+    (s.conditions || []).map((c) => `${c.name} | ${c.status}`).join("\n");
+  showView("signup");
+  renderSignupStep();
+  loadSignupCountries();
+}
+
+function renderSignupStep() {
+  const step = state.signupStep;
+  document.querySelectorAll("#signup .step").forEach((el) => {
+    el.hidden = Number(el.dataset.step) !== step;
+  });
+  document.getElementById("signup-progress-text").textContent = window.i18n
+    ? window.i18n.t("signup.progress", {
+        current: window.i18n.toDigits(step + 1),
+        total: window.i18n.toDigits(SIGNUP_STEPS),
+      })
+    : i18nText("signup.progress", "الخطوة 1 من 7");
+  document.getElementById("signup-progress-bar").style.inlineSize =
+    `${((step + 1) / SIGNUP_STEPS) * 100}%`;
+  document.getElementById("signup-next").textContent =
+    step === SIGNUP_STEPS - 1
+      ? i18nText("signup.btn_start", "يلا نبدأ")
+      : i18nText("signup.btn_next", "التالي");
+}
+
+function signupNext() {
+  if (!validateSignupStep()) return;
+  if (state.signupStep < SIGNUP_STEPS - 1) {
+    state.signupStep += 1;
+    renderSignupStep();
+    const field = document.querySelector(
+      "#signup .step:not([hidden]) input, #signup .step:not([hidden]) select");
+    if (field) field.focus();
+    return;
+  }
+  finishSignup();
+}
+
+function signupBack() {
+  if (state.signupStep > 0) {
+    state.signupStep -= 1;
+    renderSignupStep();
+    return;
+  }
+  showView("landing");
+}
+
+function signupNum(id) {
+  const raw = document.getElementById(id).value;
+  return raw === "" ? null : Number(raw);
+}
+
+/* تحقّق من خطوة حالية — الحقول كلها اختيارية، لكن ما يُكتب يجب أن يكون صالحًا */
+function validateSignupStep() {
+  const step = state.signupStep;
+  const bad = (key, fallback) => { alert(i18nText(key, fallback)); return false; };
+  if (step === 0) {
+    const age = signupNum("s-age");
+    if (age !== null && (!Number.isFinite(age) || age < 10 || age > 60)) {
+      return bad("signup.err_age", "لو كتبتِ عمرًا فليكن بين 10 و60، أو اتركيه فاضيًا.");
+    }
+  } else if (step === 1) {
+    const cycles = signupNum("s-cycles");
+    if (cycles !== null && (!Number.isFinite(cycles) || cycles < 0 || cycles > 200)) {
+      return bad("signup.err_cycles", "اختاري رقمًا من 0 لـ 200، أو اتركيه فاضيًا.");
+    }
+  } else if (step === 2) {
+    const avg = signupNum("s-avg");
+    if (avg !== null && (!Number.isFinite(avg) || avg < 15 || avg > 60)) {
+      return bad("signup.err_avg", "اختاري رقمًا من 15 لـ 60 يومًا، أو اتركيه فاضيًا.");
+    }
+  } else if (step === 3) {
+    const date = document.getElementById("s-last").value;
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return bad("signup.err_last", "اختاري تاريخًا صحيحًا أو اتركي الحقل فاضيًا.");
+    }
+  }
+  return true;
+}
+
+/* الحفظ: ملف محلي (registered) + حقن تاريخ آخر دورة في التتبّع إن وُجد */
+async function finishSignup() {
+  const conditions = document.getElementById("s-conditions").value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [name, status] = line.split("|").map((x) => (x || "").trim());
+      return { name, status: status || "مشخّصة" };
+    })
+    .filter((c) => c.name);
+
+  const profile = {
+    ...loadSettings(),
+    registered: true,
+    age: signupNum("s-age"),
+    cycles_recorded: signupNum("s-cycles") ?? 0,   // UserContext يتطلب رقمًا لا null
+    avg_cycle_days: signupNum("s-avg"),
+    country_code: document.getElementById("s-country").value || null,
+    pregnancy_status: document.getElementById("s-pregnancy").value || null,
+    contraception: document.getElementById("s-contraception").value.trim() || null,
+    conditions,
+    updated_at: new Date().toISOString(),
+  };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(profile));
+  fillSettingsForm(profile);
+
+  const lastStart = document.getElementById("s-last").value;
+  if (lastStart) {
+    try {
+      await api(`/v1/cycles?user_key=${encodeURIComponent(deviceKey())}`, "POST",
+                { start_date: lastStart, length_days: null });
+    } catch {
+      /* التتبّع اختياري — لا نمنع الدخول لو تعذّر التسجيل */
+    }
+  }
+  showView("app");
+}
+
+/* بلدة الاستمارة: نفس مصدر /v1/meta مع حفظ الاختيار السابق */
+async function loadSignupCountries() {
+  const select = document.getElementById("s-country");
+  if (select.options.length > 1) return;             // معبّأة مسبقًا
+  try {
+    const meta = await api("/v1/meta", "GET");
+    const saved = loadSettings().country_code;
+    select.innerHTML = `<option value="">${i18nText("ui.country_none", "غير محدد")}</option>` +
+      (meta.countries || []).map((c) =>
+        `<option value="${c.code}"${c.code === saved ? " selected" : ""}>`
+        + `${c.name_ar} — ${c.emergency}</option>`
+      ).join("");
+    if (!saved && meta.default_country) select.value = meta.default_country;
+  } catch {
+    select.innerHTML = `<option value="">${i18nText("ui.country_unavailable", "غير متاح")}</option>`;
+  }
 }
 
 /* ---------------- البلد ورقم الطوارئ ---------------- */
@@ -581,7 +764,10 @@ function toggleLanguage() {
   const supported = (window.__LOCALE_CONFIG__ && window.__LOCALE_CONFIG__.supported) || ["ar", "en"];
   const index = supported.indexOf(current);
   const next = supported[(index + 1) % supported.length];
-  window.i18n.setLocale(next).then(renderSuggestions);
+  window.i18n.setLocale(next).then(() => {
+    renderSuggestions();
+    if (!document.getElementById("signup").hidden) renderSignupStep();
+  });
 }
 
 /* الاقتراحات تأتي من ملف الترجمة لا من HTML: تغيير اللغة يغيّرها فورًا */
@@ -613,18 +799,22 @@ function phoneHtml(number, verified) {
 }
 
 fillSettingsForm(loadSettings());
+initView();                       // الهبوط أو التطبيق — قبل أول رسم
 initI18n().then(loadCountries);
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 document.getElementById("c-date").value = todayIso();
 document.getElementById("s-date").value = todayIso();
+document.getElementById("s-last").max = todayIso();   // لا «آخر دورة» في المستقبل
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     const tracker = document.getElementById("tracker");
     const settings = document.getElementById("settings");
+    const signup = document.getElementById("signup");
     if (!tracker.hidden) tracker.hidden = true;
     else if (!settings.hidden) settings.hidden = true;
+    else if (!signup.hidden) closeSignup();
     else closeOverlay();
   }
 });

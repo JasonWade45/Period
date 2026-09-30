@@ -479,3 +479,179 @@ body {
   .tracker .settings-body { width: 100%; }
   .tabs { flex-wrap: wrap; }
 }
+
+/* ---------------------------------------------------------------
+   صفحة الهبوط (Landing)
+   --------------------------------------------------------------- */
+
+.landing {
+  max-width: 1080px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.landing .topbar { border-radius: 0; }
+.landing-login { padding: 8px 14px; font-size: 13.5px; }
+.landing-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 34px;
+  padding: 26px 20px 42px;
+}
+
+.hero { text-align: center; padding: 42px 16px 6px; }
+.hero-badge {
+  display: block;
+  margin: 0 auto 14px;
+  width: fit-content;
+  background: var(--rose-soft);
+  border: 1px solid #f6cdd9;
+  color: var(--rose-dark);
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+.hero-title {
+  font-size: clamp(26px, 5vw, 40px);
+  font-weight: 700;
+  line-height: 1.4;
+}
+.hero-sub {
+  color: var(--ink-soft);
+  font-size: 15.5px;
+  line-height: 1.9;
+  max-width: 640px;
+  margin: 12px auto 0;
+}
+.hero-cta {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+.btn-big { padding: 14px 28px; font-size: 16px; border-radius: 14px; }
+.hero-note {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: 16px;
+  max-width: 520px;
+  margin-inline: auto;
+  line-height: 1.8;
+}
+
+.features h3 { text-align: center; font-size: 18px; margin-bottom: 16px; }
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.feature {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+}
+.feature-icon { font-size: 22px; }
+.feature h4 { font-size: 15.5px; margin: 8px 0 6px; }
+.feature p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.8; }
+
+.landing-foot {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------------------------------------------------------------
+   استمارة التسجيل (خطوات)
+   --------------------------------------------------------------- */
+
+.signup {
+  max-width: 640px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.signup-main {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 26px 16px 40px;
+}
+.signup-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px 22px;
+  width: 100%;
+  box-shadow: 0 8px 30px rgba(45, 35, 51, .06);
+}
+.progress-text { font-size: 13px; color: var(--ink-soft); margin-bottom: 8px; }
+.progress-track {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  block-size: 8px;
+  overflow: hidden;
+}
+.progress-bar {
+  background: linear-gradient(90deg, var(--rose), var(--violet));
+  block-size: 100%;
+  inline-size: 14%;
+  border-radius: 999px;
+  transition: inline-size .25s ease;
+}
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 0 6px;
+}
+.step h2 { font-size: 19px; }
+.step-hint { font-size: 13.5px; color: var(--ink-soft); line-height: 1.8; }
+.step input, .step select, .step textarea {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 13px;
+  font-family: inherit;
+  font-size: 15.5px;
+  background: var(--bg);
+  color: var(--ink);
+  inline-size: 100%;
+}
+.step input:focus, .step select:focus, .step textarea:focus {
+  outline: none;
+  border-color: var(--rose);
+}
+.step-sub { font-size: 15px; color: var(--rose-dark); margin-top: 4px; }
+.step-label { font-size: 13.5px; color: var(--ink-soft); }
+.step-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+}
+.done-box { text-align: center; padding: 12px 0 4px; }
+.done-icon {
+  width: 56px; height: 56px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ok);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .hero-cta { flex-direction: column; }
+  .hero-cta .btn-big { inline-size: 100%; }
+}
