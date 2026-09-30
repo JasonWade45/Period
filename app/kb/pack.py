@@ -211,6 +211,59 @@ def load_sources_registry(path: Path | str | None = None,
     return out
 
 
+# ------------------------------------------------------------------ الاستيراد
+@dataclass
+class DraftIngestReport:
+    """نتيجة استيراد البذرة كمسودات — لا شيء هنا قابل للاستشهاد."""
+
+    created: list[str] = field(default_factory=list)
+    unchanged: list[str] = field(default_factory=list)
+    content_changed: list[str] = field(default_factory=list)
+    embedded: int = 0
+
+    def summary(self) -> str:
+        return (f"جديد {len(self.created)} | بلا تغيير {len(self.unchanged)} | "
+                f"محتوى تغيّر {len(self.content_changed)} | مُضمَّن {self.embedded}")
+
+
+def ingest_seed_as_drafts(store, seed: SeedLoad, *, embedder=None) -> DraftIngestReport:
+    """يُدخل مقاطع البذرة كمسودات (`draft_unreviewed`) لا كمقاطع معتمدة.
+
+    لماذا لا تمرّ من بوابة الرخصة في `app.kb.ingest`؟ لأن تلك البوابة تحمي من
+    **نسخ نص من مصدر** بلا إذن. البذرة هنا ملخّصات مكتوبة آليًا، والخطر فيها ليس
+    النسخ بل أن تُقرأ كأنها معتمدة — وهذا ما يمنعه المخزون نفسه: الحالة تُفرض
+    `draft_unreviewed`، والمراجع تُحفظ في `source_refs_to_verify` للتحقق لاحقًا،
+    والمقطع يبقى غير قابل للاستشهاد حتى تعتمده طبيبة.
+    """
+    from .schemas import KbChunk
+
+    report = DraftIngestReport()
+    for record in seed.records:
+        chunk = KbChunk(
+            id=record.id, source_id=record.source_id, title=record.title,
+            topic=record.topic, language=record.language or "ar", content=record.content,
+            authored_by=SEED_AUTHORED_BY, license_note=SEED_LICENSE_NOTE,
+            source_refs_to_verify=[r if isinstance(r, dict) else {"ref": r}
+                                   for r in record.source_refs_to_verify],
+        )
+        outcome = store.upsert_chunk(chunk)
+        getattr(report, outcome).append(record.id)
+
+    pending = report.created + report.content_changed
+    if pending and hasattr(store, "set_embedding"):
+        vectors = (embedder or _build_default_embedder()).embed(
+            [f"{store.get_chunk(cid).title} {store.get_chunk(cid).content}" for cid in pending])
+        for chunk_id, vector in zip(pending, vectors):
+            store.set_embedding(chunk_id, vector)
+        report.embedded = len(pending)
+    return report
+
+
+def _build_default_embedder():
+    from .embedding import build_embedder
+    return build_embedder()
+
+
 # ----------------------------------------------------------------------- القاموس
 def load_glossary(path: Path | str | None = None,
                   *, root: Path | str | None = None) -> list[dict[str, str]]:
@@ -252,7 +305,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
 
 
 def _cmd_ingest(args: argparse.Namespace) -> int:
-    """يستورد البذرة كمسودات. يُرفض ما لم يكن مصدره معتمدًا في السجل."""
+    """يستورد البذرة كمسودات (الافتراضي) أو عبر بوابة الرخصة الصارمة عند الطلب."""
     from .ingest import ingest_records
     from .postgres import build_store
     from .schemas import KbSource
@@ -265,17 +318,28 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
                                     if k in KbSource.model_fields})
                for s in registry.sources if s.get("id")}
     for source in sources.values():
+        # السجل يُكتب للتوثيق، وكل approved_for_ingest فيه false كما وصل
         store.upsert_source(source)
 
-    # البوابة: لا يمرّ مقطع إلا من مصدر اعتمده إنسان في السجل (approved_for_ingest).
-    approved = {sid: s for sid, s in sources.items() if s.approved_for_ingest}
-    report = ingest_records(store, seed.records, approved)
     print(f"البذرة: {len(seed.records)} مقطعًا")
+
+    if args.require_approved_source:
+        # المسار الصارم: نسخ نص من مصدر لا يمرّ إلا بموافقة بشرية على الرخصة
+        approved = {sid: s for sid, s in sources.items() if s.approved_for_ingest}
+        report = ingest_records(store, seed.records, approved)
+        print(f"  {report.summary()}")
+        print(f"  ادّعاءات مراجعة أُلغيت: {len(seed.ignored_claims)}")
+        if report.skipped_unapproved_source:
+            print("  لم يُستورد أي مقطع: لا مصدر بـ approved_for_ingest=true في السجل.")
+            print("  هذا هو السلوك المقصود (بوابة الرخصة)، وليس عطلًا.")
+        return 0
+
+    report = ingest_seed_as_drafts(store, seed)
     print(f"  {report.summary()}")
     print(f"  ادّعاءات مراجعة أُلغيت: {len(seed.ignored_claims)}")
-    if report.skipped_unapproved_source:
-        print("  لم يُستورد أي مقطع: لا مصدر بـ approved_for_ingest=true في السجل.")
-        print("  هذا هو السلوك المقصود (بوابة الرخصة)، وليس عطلًا.")
+    print(f"  محاولات اعتماد آلي رُفضت: {len(registry.rejected_auto_approvals)}")
+    print("\nالمقاطع دخلت كمسودات draft_unreviewed: لا شيء منها قابل للاستشهاد،")
+    print("ولا يصل لمستخدمة حتى تراجعه طبيبة وترقّيه بـ app.kb.review set-status.")
     return 0
 
 
@@ -286,8 +350,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--db", default=None, help="مسار قاعدة معرفة SQLite للاستيراد")
     parser.add_argument("--backend", choices=["sqlite", "postgres"], default=None,
                         help="مصدر البيانات؛ الافتراضي من KB_BACKEND")
+    parser.add_argument("--require-approved-source", action="store_true",
+                        help="المسار الصارم: لا يستورد إلا من مصدر اعتمده إنسان "
+                             "(مناسب للنصوص المنسوخة من مصادر خارجية)")
     args = parser.parse_args(argv)
-    return _cmd_check(args) if args.command == "check" else _cmd_ingest(args)
+    try:
+        return _cmd_check(args) if args.command == "check" else _cmd_ingest(args)
+    except PackError as exc:
+        # رسالة صريحة بدل تتبّع: السبب «لم يصل ملف» لا «عطل في الكود»
+        print(f"لا يمكن إكمال الأمر: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":  # pragma: no cover

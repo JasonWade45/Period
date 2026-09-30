@@ -224,6 +224,61 @@ def test_ingest_from_a_self_approved_source_is_skipped(kb_pack, tmp_path):
     assert store.get_chunk("seed-1") is None
 
 
+# --------------------------------------------------------------- استيراد البذرة
+
+def test_ingest_cli_puts_the_seed_in_as_drafts_only(kb_pack, tmp_path, capsys):
+    """أمر واحد يستورد البذرة كمسودات، ولا شيء يصبح قابلًا للاسترجاع."""
+    from app.kb.retrieval import producible_statuses
+    from app.kb.store import SqliteKbStore
+
+    db = tmp_path / "kb.db"
+    code = main(["ingest", "--root", str(kb_pack), "--db", str(db)])
+    assert code == 0
+
+    out = capsys.readouterr().out
+    assert "مسودات draft_unreviewed" in out
+    assert "ادّعاءات مراجعة أُلغيت" in out
+
+    store = SqliteKbStore(db)
+    assert store.list_chunks(producible_statuses()) == []          # لا شيء قابل للاسترجاع
+    drafts = store.list_chunks([ChunkStatus.DRAFT_UNREVIEWED])
+    assert sorted(c.id for c in drafts) == ["seed-1", "seed-2"]
+    for chunk in drafts:
+        assert chunk.reviewed_by == "" and chunk.reviewed_at == ""
+        assert chunk.authored_by == SEED_AUTHORED_BY
+        assert chunk.license_note == SEED_LICENSE_NOTE
+        assert chunk.source_refs_to_verify                     # المراجع محفوظة للتحقق
+
+
+def test_ingest_is_idempotent_and_reingest_does_not_create_citable_content(kb_pack, tmp_path):
+    from app.kb.retrieval import producible_statuses
+    from app.kb.store import SqliteKbStore
+
+    db = tmp_path / "kb.db"
+    main(["ingest", "--root", str(kb_pack), "--db", str(db)])
+    main(["ingest", "--root", str(kb_pack), "--db", str(db)])
+
+    store = SqliteKbStore(db)
+    assert store.list_chunks(producible_statuses()) == []
+    assert all(c.content_version == 1
+               for c in store.list_chunks([ChunkStatus.DRAFT_UNREVIEWED]))
+
+
+def test_pack_ingest_refuses_to_invent_a_missing_pack(tmp_path, capsys):
+    code = main(["ingest", "--root", str(tmp_path / "nope"), "--db", str(tmp_path / "x.db")])
+    assert code == 2
+    assert "لا يمكن إكمال الأمر" in capsys.readouterr().err
+
+
+def test_strict_path_still_refuses_a_self_approved_registry(kb_pack, tmp_path, capsys):
+    """المسار الصارم (للنصوص المنسوخة) لا يستورد من مصدر لم يعتمده إنسان حقيقي."""
+    code = main(["ingest", "--root", str(kb_pack), "--db", str(tmp_path / "kb.db"),
+                 "--require-approved-source"])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "بوابة الرخصة" in out
+
+
 # ----------------------------------------------------------------------- القاموس
 
 def test_glossary_loader_reads_the_pack_dictionary(kb_pack):

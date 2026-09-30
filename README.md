@@ -344,7 +344,8 @@ $ python -m app.kb.pack check
 
 ```bash
 python -m app.kb.pack check          # ما وصل وما لم يصل، وعدد المقاطع/الأسئلة
-python -m app.kb.pack ingest --db data/kb.db
+python -m app.kb.pack ingest --db data/kb.db                # البذرة كمسودات
+python -m app.kb.pack ingest --require-approved-source --db data/kb.db   # للنصوص المنسوخة
 ```
 
 **الثوابت المفروضة على أي محتوى يمرّ من الحزمة** (`app/kb/pack.py`) — تُثبَّت في
@@ -359,6 +360,12 @@ python -m app.kb.pack ingest --db data/kb.db
   `true` أبدًا**؛ لو جاء `true` في الملف يُسجَّل ويُبقى `false` في الذاكرة،
   فيبقى الاستيراد موقوفًا حتى يُراجَع الترخيص بشريًا. (اختبارات:
   `tests/test_kb_pack.py`.)
+- البذرة تُستورد **كمسودات** (`draft_unreviewed`) بأمر واحد: لا شيء منها قابل
+  للاستشهاد ولا يصل لمستخدمة حتى تراجعه طبيبة وترقّيه. إعادة الاستيراد لا
+  تُغيّر حالة مقطع لم يتغيّر نصه (الاعتماد لا يضيع بتشغيل الأمر ثانية).
+- للنصوص **المنسوخة** من مصادر خارجية مسار منفصل: `--require-approved-source`
+  يرفض كل مقطع مصدره غير معتمد في السجل.
+- وصف الملفات الأربعة وصيغها الكاملة في `kb/README.md`.
 
 ### الاسترجاع
 
