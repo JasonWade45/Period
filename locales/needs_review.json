@@ -1,0 +1,89 @@
+{
+  "_ملاحظة": [
+    "قائمة النصوص التي يجب أن تُراجع بشريًا (طبيبة نساء + مترجم) قبل الإطلاق.",
+    "القاعدة من البريف: لا ترجمة آلية صامتة للنص الطبي/الأمني. النصوص هنا",
+    "مكتوبة/مُراجَعة داخليًا فقط، وتبقى قابلة للتغيير حتى تُعتمد.",
+    "الأثر: لا يُمنع التشغيل، لكن أي نص في هذه القائمة يُعدّ غير معتمد نهائيًا."
+  ],
+  "medical_safety_copy": [
+    {
+      "key": "emergency.medical.header",
+      "why": "جملة توجيه في حالة طوارئ"
+    },
+    {
+      "key": "emergency.medical.call_now",
+      "why": "تعليمة إسعاف + رقم"
+    },
+    {
+      "key": "emergency.medical.not_alone",
+      "why": "تعليمة سلامة"
+    },
+    {
+      "key": "emergency.medical.unverified_caveat",
+      "why": "تأكيد حالة التحقق من الرقم"
+    },
+    {
+      "key": "emergency.crisis.header",
+      "why": "جملة دعم نفسي"
+    },
+    {
+      "key": "emergency.crisis.talk_to_someone",
+      "why": "تعليمة سلامة نفسية"
+    },
+    {
+      "key": "emergency.crisis.no_support_line",
+      "why": "غياب خط دعم مُتحقق منه"
+    },
+    {
+      "key": "emergency.crisis.immediate_danger",
+      "why": "تعليمة خطر مباشر"
+    },
+    {
+      "key": "answer.no_reliable_source",
+      "why": "حدّ الإجابة: بلا مصدر معتمد"
+    },
+    {
+      "key": "answer.fallback",
+      "why": "حدّ الإجابة عند فشل التحقق"
+    },
+    {
+      "key": "answer.not_configured",
+      "why": "حدّ الإجابة عند غياب المزود"
+    },
+    {
+      "key": "app.not_a_diagnosis",
+      "why": "إخلاء مسؤولية طبي"
+    },
+    {
+      "key": "pdf.intro",
+      "why": "وصف تقرير يُسلَّم للطبيبة"
+    },
+    {
+      "key": "app.tagline",
+      "why": "وعد المنتج (تثقيف لا تشخيص)"
+    },
+    {
+      "key": "ui.overlay_medical",
+      "why": "عنوان نافذة طوارئ"
+    },
+    {
+      "key": "ui.overlay_crisis",
+      "why": "عنوان نافذة أزمة"
+    }
+  ],
+  "terminology_pending_physician": "19 مصطلحًا بانتظار اعتماد: انظري عمود needs_review في knowledge/glossary_ar.csv (يُصدَّر بـ--report).",
+  "dialect_copy": [
+    {
+      "key": "knowledge/knowledge_seed.example.jsonl",
+      "why": "نصوص تثقيفية بلهجة فصحى مبسطة — تحتاج اعتماد طبي"
+    },
+    {
+      "note": "صياغة الترحيب واللمسات (onboarding/microcopy) هي الأخرى بانتظار قرار البريف: فصحى أم عامية مصرية؟"
+    }
+  ],
+  "legal_copy": [
+    {
+      "note": "لا نص قانوني في المستودع: النماذج القانونية (سياسة الخصوصية/الشروط) تبقى عناصر نائبة حتى يعتمدها مستشار قانوني — انظر README قسم legal."
+    }
+  ]
+}

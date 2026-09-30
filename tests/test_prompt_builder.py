@@ -8,7 +8,7 @@ from app.services.prompt_builder import PromptBuilder
 def test_prompt_has_no_unfilled_variables():
     builder = PromptBuilder(settings.prompt_path, settings.prompt_version)
     ctx = UserContext(cycles_recorded=4, avg_cycle_days=30,
-                      last_cycles=[CycleStat(start_date="2026-08-01", length_days=30)])
+                      last_cycles=[CycleStat(start_date="2026-08-01", length_days=5)])
     findings = [Finding(rule_code="NO_ALERT_PATTERN", severity="NORMAL",
                         title="t", evidence=["e"])]
     sources = [SourceChunk(id="a", source_name="NHS", section="s",
@@ -22,7 +22,7 @@ def test_prompt_has_no_unfilled_variables():
     assert _VAR_PATTERN.findall(out) == []
     assert "2026-09-30" in out
     assert "NO_ALERT_PATTERN" in out
-    assert "v1.1" in builder.version
+    assert builder.version == settings.prompt_version  # لا تُثبّتي الإصدار في الاختبار
 
 
 def test_unknown_mode_defaults_to_chat():

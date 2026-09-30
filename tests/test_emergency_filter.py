@@ -1,4 +1,5 @@
 from app.schemas import Finding, Severity
+from app.services.emergency_numbers import EmergencyInfo
 from app.services.emergency_filter import (
     build_fixed_reply,
     check_findings,
@@ -50,12 +51,16 @@ def test_filter_precedence_message_over_findings():
 
 def test_fixed_reply_contains_number_verbatim():
     r = check_message("بنزف بشكل شديد")
-    reply = build_fixed_reply(r, emergency_number="123", crisis_line="")
+    info = EmergencyInfo(number="123", country_code="EG", country_name="مصر",
+                         verified=True, crisis_line="")
+    reply = build_fixed_reply(r, info)
     assert "123" in reply
     assert "الأعراض التي ذكرتِها قد تحتاج رعاية طبية عاجلة" in reply
 
 
 def test_crisis_reply_contains_crisis_line():
     r = check_message("عايزة أنهي حياتي")
-    reply = build_fixed_reply(r, emergency_number="123", crisis_line="0800-XXXX")
+    info = EmergencyInfo(number="123", country_code="EG", country_name="مصر",
+                         verified=True, crisis_line="0800-XXXX")
+    reply = build_fixed_reply(r, info)
     assert "0800-XXXX" in reply

@@ -1,0 +1,28 @@
+{
+  "_ملاحظة": [
+    "سجل المصادر — قالب. انسخيه إلى data/sources_registry.json وعدّليه.",
+    "قاعدة صارمة: approved_for_ingest قرار بشري فقط. لا يضبطه أي سكربت ولا أي",
+    "استيراد تلقائي. أي مصدر لم تُراجَع رخصته يبقى false، ومقاطعه لا تُستورد.",
+    "الحقول: licence نص صريح (أو TBD)، url رابط المصدر، notes سبب القرار."
+  ],
+  "sources": [
+    {
+      "id": "who-education-template",
+      "name": "قالب تثقيفي (مسودة داخلية)",
+      "language": "ar",
+      "url": "",
+      "licence": "TBD",
+      "approved_for_ingest": false,
+      "notes": "نصوص مكتوبة داخليًا كقالب توضيحي. لم تُراجَع طبيًا ولم تُثبَّت رخصتها ⇒ غير معتمدة للاستيراد. لا تُستَرجَع في الإنتاج."
+    },
+    {
+      "id": "example-verified-source",
+      "name": "مصدر مرخّص (مثال)",
+      "language": "ar",
+      "url": "https://example.org/health-topic",
+      "licence": "CC-BY-4.0",
+      "approved_for_ingest": false,
+      "notes": "مثال على الشكل الصحيح. تبقى false حتى يُراجع مسؤول المحتوى الرخصة كتابةً ويؤكد السماح بإعادة الاستخدام."
+    }
+  ]
+}

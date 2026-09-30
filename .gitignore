@@ -7,6 +7,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 *.egg-info/
+.venv/
+venv/
 
 # Local runtime
 audit/
@@ -19,3 +21,11 @@ _live*.json
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local tracker DB (health data)
+*.db
+*.db-wal
+*.db-shm
+
+# تقارير التقييم (ناتجة عن تشغيل محلي)
+eval/reports/
