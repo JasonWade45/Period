@@ -42,7 +42,7 @@ def test_health_reports_runtime_flags(client) -> None:
     assert "groq_api_key" not in {k.lower() for k in body}
 
 
-def test_chat_without_model_key_returns_safe_fallback(client, monkeypatch) -> None:
+def test_chat_without_model_key_returns_safe_fallback(client, monkeypatch, test_rag) -> None:
     """غياب المفتاح ليس خطأ خادم: ترجع إجابة آمنة بحالة 200."""
     monkeypatch.setattr(main, "_llm", None)
     r = client.post("/v1/chat", json={"message": "إيه أعراض ما قبل الدورة؟", "user_context": CTX})
@@ -54,7 +54,7 @@ def test_chat_without_model_key_returns_safe_fallback(client, monkeypatch) -> No
     assert body["rule_codes"]
 
 
-def test_summary_without_model_key_returns_safe_fallback(client, monkeypatch) -> None:
+def test_summary_without_model_key_returns_safe_fallback(client, monkeypatch, test_rag) -> None:
     monkeypatch.setattr(main, "_llm", None)
     r = client.post("/v1/chat", json={"message": "ملخص لدوراتي", "mode": "summary",
                                       "user_context": CTX})

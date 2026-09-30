@@ -172,3 +172,37 @@ def test_report_is_written_as_utf8_json(tmp_path):
     data = json.loads(report_path.read_text(encoding="utf-8"))
     assert data["totals"]["questions"] == 1
     assert "created_at" in data
+
+
+# ------------------------------------------------ فصل مجموعتي التقييم (kb/ و eval/)
+
+def test_set_label_separates_the_two_question_sets():
+    """أسئلة صاحبة المشروع وأسئلة الوكلاء لا تُخلط في تقرير واحد."""
+    assert runner.set_label("eval/eval_questions_seed.jsonl") == "agent"
+    assert runner.set_label("kb/eval/eval_questions_seed.jsonl") == "user"
+    assert runner.set_label(Path("kb/eval/eval_questions_seed.jsonl")) == "user"
+
+
+def test_report_records_which_question_set_produced_it(tmp_path):
+    report = runner.run(_write_set(tmp_path, [_question()]), llm=runner.RecordingLLM(),
+                        judge=LocalRubricJudge(), mode_label="offline",
+                        label="agent")
+    assert report["label"] == "agent"
+    assert report["set"].endswith("set.jsonl")
+
+
+def test_compare_reports_two_rates_and_admits_the_missing_user_set(tmp_path, capsys):
+    """الخلاصة تُطبع دائمًا: معدّل الوكلاء، وحالة أسئلة صاحبة المشروع."""
+    from app.eval import compare
+
+    agent_set = _write_set(tmp_path, [_question()])
+    code = compare.main(["--agent-set", str(agent_set),
+                         "--user-set", str(tmp_path / "kb" / "missing.jsonl"),
+                         "--reports-dir", str(tmp_path / "reports")])
+
+    out = capsys.readouterr()
+    assert "مجموعتان منفصلتان" in out.out
+    assert "أسئلة الوكلاء (eval/)" in out.out
+    assert "لم تُقَس" in out.out
+    assert "لا يُخترع محتواها" in out.err
+    assert code == 0

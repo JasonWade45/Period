@@ -93,6 +93,16 @@ class SourceChunk(BaseModel):
     reviewer: str = ""            # من راجع المقطع (للمُوثَّق فقط)
     drafted_at: str = ""          # تاريخ كتابة المسودة (لغير المُوثَّق)
     derived_from: list[str] = Field(default_factory=list)  # المراجع التي استُخلصت منها
+    # أُزيل نص المقطع بانتظار تأكيد الترخيص: يبقى السجل للمراجعة، ولا يُسترجَع
+    # أبدًا حتى لو فُعِّل تضمين المسودات (النص المُزال مكانه ملاحظة لا معلومة).
+    text_removed: bool = False
+    # إسناد لم يُتحقق منه (اسم جهة نُسب إليها نص بلا مراجعة موثوقة).
+    attribution_unverified: bool = False
+    # من كتب المقطع: "ai_draft" لمحتوى حزمة kb/ المكتوب بالذكاء الاصطناعي.
+    authored_by: str = ""
+    # ملاحظة الترخيص الإلزامية للمحتوى المكتوب آليًا: تمنع تقديم المراجع
+    # كأنها منقولة حرفيًا من المصدر.
+    license_note: str = ""
 
 
 class ConditionStatus(BaseModel):

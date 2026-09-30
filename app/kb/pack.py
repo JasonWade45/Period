@@ -1,0 +1,294 @@
+"""حزمة `kb/` كما وصلت من صاحبة المشروع: قراءة صارمة بثوابت غير قابلة للتفاوض.
+
+الحزمة أربعة ملفات:
+
+    kb/knowledge/knowledge_seed.jsonl      مقاطع معرفة مكتوبة آليًا (بذرة)
+    kb/eval/eval_questions_seed.jsonl      أسئلة تقييم (مجموعة صاحبة المشروع)
+    kb/knowledge/glossary_ar.csv           قاموس المصطلحات (مصدر الحقيقة)
+    kb/knowledge/sources_registry.json     سجل المصادر وحالة الاعتماد
+
+هذا الملف لا «يقرأ ملفات» فقط، بل **يفرض ثوابت** على أي محتوى يمرّ منه، حتى لو
+قال ملف الاستيراد عكسها:
+
+1. كل مقطع بذرة: `status="draft_unreviewed"`، `authored_by="ai_draft"`،
+   `reviewed_by=null`، `reviewed_at=null`، وملاحظة ترخيص إلزامية. أي ادّعاء
+   بمراجعة سابقة في الملف يُتجاهَل ويُبلَّغ عنه — لا يُصدَّق أبدًا.
+2. كل سؤال تقييم: `status="needs_physician_review"`.
+3. كل مصدر في السجل: `approved_for_ingest=false`. القيمة لا تُقلب هنا مطلقًا:
+   الاعتماد قرار بشري يُكتب في الملف نفسه بعد مراجعة الرخصة، وأي `true` قادم من
+   مسار آلي يُسجَّل كتحذير ويُبقى على `false` في الذاكرة.
+
+غياب ملف = حزمة ناقصة، وهذا يُبلَّغ عنه صراحة (لا محتوى مُخمَّن، ولا «إعادة بناء»
+لنص لم يصل).
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from ..config import settings
+from .schemas import IngestRecord
+
+# --------------------------------------------------------------------- الثوابت
+SEED_STATUS = "draft_unreviewed"
+SEED_AUTHORED_BY = "ai_draft"
+SEED_REVIEWED_BY: None = None
+SEED_REVIEWED_AT: None = None
+SEED_LICENSE_NOTE = (
+    "AI-written summary; verify against source_refs_to_verify; "
+    "never present refs as verbatim source"
+)
+EVAL_SEED_STATUS = "needs_physician_review"
+REGISTRY_APPROVED_FOR_INGEST = False
+
+SEED_FILE = "knowledge/knowledge_seed.jsonl"
+EVAL_FILE = "eval/eval_questions_seed.jsonl"
+GLOSSARY_FILE = "knowledge/glossary_ar.csv"
+REGISTRY_FILE = "knowledge/sources_registry.json"
+
+PACK_FILES = (SEED_FILE, EVAL_FILE, GLOSSARY_FILE, REGISTRY_FILE)
+
+
+class PackError(ValueError):
+    """ملف حزمة ناقص أو غير صالح — رسالة صريحة بدل تخمين محتوى."""
+
+
+def kb_root(root: Path | str | None = None) -> Path:
+    """جذر الحزمة. الافتراضي `kb/` في جذر المستودع (قابل للضبط للاختبارات)."""
+    if root is not None:
+        return Path(root)
+    return Path(getattr(settings, "kb_dir", "kb"))
+
+
+def _path(name: str, root: Path | str | None = None) -> Path:
+    return kb_root(root) / name
+
+
+def pack_report(root: Path | str | None = None) -> dict[str, Any]:
+    """حالة الملفات الأربعة: موجود/غائب — بلا أي افتراض عن المحتوى."""
+    base = kb_root(root)
+    files = {}
+    for name in PACK_FILES:
+        path = base / name
+        files[name] = {"path": str(path), "exists": path.exists(),
+                       "size_bytes": path.stat().st_size if path.exists() else 0}
+    return {"kb_root": str(base), "complete": all(f["exists"] for f in files.values()),
+            "files": files}
+
+
+# ------------------------------------------------------------------ بذرة المعرفة
+@dataclass
+class SeedLoad:
+    """نتيجة قراءة البذرة: مقاطع جاهزة للاستيراد + ما رُفض وما أُعيد ضبطه."""
+
+    records: list[IngestRecord] = field(default_factory=list)
+    # ادّعاءات مراجعة/حالة وردت في الملف وأُلغيت: (المعرّف، الحقل، القيمة المدَّعاة)
+    ignored_claims: list[tuple[str, str, str]] = field(default_factory=list)
+    invalid: list[tuple[str, str]] = field(default_factory=list)
+
+    @property
+    def license_note(self) -> str:
+        return SEED_LICENSE_NOTE
+
+
+def load_knowledge_seed(path: Path | str | None = None,
+                        *, root: Path | str | None = None) -> SeedLoad:
+    """يقرأ مقاطع البذرة ويثبّت عليها ثوابت المراجعة.
+
+    الحقول المسموح بقراءتها من الملف: المحتوى والإسناد (`id`, `source_id`,
+    `title`, `topic`, `language`, `content`, `source_refs_to_verify`). أما
+    الحالة والمراجعة والكاتب فتُضبط هنا، وأي محاولة لتثبيتها في الملف تُسجَّل في
+    `ignored_claims` لأنها ادّعاء مراجعة غير موثوق.
+    """
+    target = Path(path) if path is not None else _path(SEED_FILE, root)
+    if not target.exists():
+        raise PackError(
+            f"ملف البذرة غير موجود: {target}. لم يُخمَّن أي محتوى بديل.")
+
+    out = SeedLoad()
+    for lineno, line in enumerate(target.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            raw = json.loads(line)
+        except json.JSONDecodeError as exc:
+            out.invalid.append((f"سطر {lineno}", f"JSON غير صالح: {exc}"))
+            continue
+        if not isinstance(raw, dict):
+            out.invalid.append((f"سطر {lineno}", "السجل ليس كائنًا"))
+            continue
+
+        allowed_values = {"status": {SEED_STATUS}, "authored_by": {SEED_AUTHORED_BY},
+                          "reviewed_by": {"", None}, "reviewed_at": {"", None}}
+        for claimed in ("status", "reviewed_by", "reviewed_at", "authored_by"):
+            value = raw.get(claimed)
+            if value in (None, ""):
+                continue
+            if claimed in allowed_values and value not in allowed_values[claimed]:
+                out.ignored_claims.append(
+                    (str(raw.get("id", f"سطر {lineno}")), claimed, repr(value))
+                )
+        try:
+            record = IngestRecord(**{k: v for k, v in raw.items()
+                                     if k in IngestRecord.model_fields})
+        except Exception as exc:  # noqa: BLE001
+            out.invalid.append((str(raw.get("id", f"سطر {lineno}")),
+                                str(exc).splitlines()[0]))
+            continue
+        # الثوابت الإلزامية: تُثبَّت هنا ولا تُقرأ من الملف
+        out.records.append(record.model_copy(update={
+            "authored_by": SEED_AUTHORED_BY, "license_note": SEED_LICENSE_NOTE}))
+    return out
+
+
+# ------------------------------------------------------------------ أسئلة التقييم
+def load_eval_seed(path: Path | str | None = None,
+                   *, root: Path | str | None = None) -> list[dict[str, Any]]:
+    """يقرأ أسئلة التقييم ويضع على كل سجل `status="needs_physician_review"`.
+
+    المجموعة تبقى **منفصلة** عن مجموعة الوكلاء: لا دمج، ولا إعادة ترقيم، ولا
+    استبدال. تُكتب تقاريرها في ملف تقرير خاص بها.
+    """
+    target = Path(path) if path is not None else _path(EVAL_FILE, root)
+    if not target.exists():
+        raise PackError(f"ملف أسئلة التقييم غير موجود: {target}.")
+
+    items: list[dict[str, Any]] = []
+    for lineno, line in enumerate(target.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            raw = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise PackError(f"{target.name} سطر {lineno}: JSON غير صالح — {exc}") from exc
+        if not isinstance(raw, dict):
+            raise PackError(f"{target.name} سطر {lineno}: السجل ليس كائنًا")
+        if not str(raw.get("question", "")).strip():
+            raise PackError(f"{target.name} سطر {lineno}: لا يوجد حقل question")
+        record = dict(raw)
+        record["status"] = EVAL_SEED_STATUS      # ثابت: لا يُقبل ما في الملف
+        items.append(record)
+    return items
+
+
+# ------------------------------------------------------------------ سجل المصادر
+@dataclass
+class RegistryLoad:
+    sources: list[dict[str, Any]] = field(default_factory=list)
+    rejected_auto_approvals: list[str] = field(default_factory=list)
+
+
+def load_sources_registry(path: Path | str | None = None,
+                          *, root: Path | str | None = None) -> RegistryLoad:
+    """يقرأ سجل المصادر ويُبقي كل `approved_for_ingest` على `false`.
+
+    هذا هو موضع البوابة: حتى لو جاء في الملف `true`، لا يمرّ إلى الاستيراد من
+    هذا المسار. رفضُ القيمة يُسجَّل باسم المصدر ليظهر في التقرير بدل أن يمرّ صامتًا.
+    """
+    target = Path(path) if path is not None else _path(REGISTRY_FILE, root)
+    if not target.exists():
+        raise PackError(f"سجل المصادر غير موجود: {target}.")
+
+    raw = json.loads(target.read_text(encoding="utf-8"))
+    items = raw.get("sources", raw) if isinstance(raw, dict) else raw
+    if not isinstance(items, list):
+        raise PackError(f"{target.name}: الجذر يجب أن يكون قائمة مصادر أو {{sources: [...]}}")
+
+    out = RegistryLoad()
+    for item in items:
+        if not isinstance(item, dict):
+            raise PackError(f"{target.name}: مصدر ليس كائنًا — {item!r}")
+        source = dict(item)
+        if bool(source.get("approved_for_ingest")):
+            out.rejected_auto_approvals.append(str(source.get("id", "?")))
+        source["approved_for_ingest"] = REGISTRY_APPROVED_FOR_INGEST
+        out.sources.append(source)
+    return out
+
+
+# ----------------------------------------------------------------------- القاموس
+def load_glossary(path: Path | str | None = None,
+                  *, root: Path | str | None = None) -> list[dict[str, str]]:
+    """يقرأ قاموس المصطلحات (مصدر الحقيقة للمصطلحات الطبية)."""
+    target = Path(path) if path is not None else _path(GLOSSARY_FILE, root)
+    if not target.exists():
+        raise PackError(f"قاموس المصطلحات غير موجود: {target}.")
+    with target.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    return [{k: (v or "") for k, v in row.items()} for row in rows]
+
+
+# -------------------------------------------------------------------------- CLI
+def _cmd_check(args: argparse.Namespace) -> int:
+    report = pack_report(args.root)
+    print(f"جذر الحزمة: {report['kb_root']}")
+    for name, info in report["files"].items():
+        mark = "موجود" if info["exists"] else "غائب"
+        print(f"  [{mark}] {name}  ({info['size_bytes']} بايت)")
+    if not report["complete"]:
+        print("\nالحزمة ناقصة: لا يُنشأ أي محتوى بالنيابة عن صاحبة المشروع. "
+              "أعيدي لصق الملفات الناقصة كما هي.")
+        return 1
+
+    seed = load_knowledge_seed(root=args.root)
+    registry = load_sources_registry(root=args.root)
+    questions = load_eval_seed(root=args.root)
+    glossary = load_glossary(root=args.root)
+    print(f"\nمقاطع البذرة: {len(seed.records)} (كلها {SEED_STATUS}، "
+          f"authored_by={SEED_AUTHORED_BY})")
+    print(f"  ادّعاءات مراجعة أُلغيت: {len(seed.ignored_claims)}")
+    print(f"  سجلات غير صالحة: {len(seed.invalid)}")
+    print(f"أسئلة التقييم: {len(questions)} (كلها {EVAL_SEED_STATUS})")
+    print(f"مصادر السجل: {len(registry.sources)} | "
+          f"محاولات اعتماد آلي رُفضت: {len(registry.rejected_auto_approvals)}")
+    print(f"مصطلحات القاموس: {len(glossary)}")
+    print("\nلا شيء ممّا سبق قابل للاستشهاد: البذرة مسودات، والاعتماد بشري.")
+    return 0
+
+
+def _cmd_ingest(args: argparse.Namespace) -> int:
+    """يستورد البذرة كمسودات. يُرفض ما لم يكن مصدره معتمدًا في السجل."""
+    from .ingest import ingest_records
+    from .postgres import build_store
+    from .schemas import KbSource
+
+    seed = load_knowledge_seed(root=args.root)
+    registry = load_sources_registry(root=args.root)
+
+    store = build_store(backend=args.backend, sqlite_path=args.db)
+    sources = {s["id"]: KbSource(**{k: v for k, v in s.items()
+                                    if k in KbSource.model_fields})
+               for s in registry.sources if s.get("id")}
+    for source in sources.values():
+        store.upsert_source(source)
+
+    # البوابة: لا يمرّ مقطع إلا من مصدر اعتمده إنسان في السجل (approved_for_ingest).
+    approved = {sid: s for sid, s in sources.items() if s.approved_for_ingest}
+    report = ingest_records(store, seed.records, approved)
+    print(f"البذرة: {len(seed.records)} مقطعًا")
+    print(f"  {report.summary()}")
+    print(f"  ادّعاءات مراجعة أُلغيت: {len(seed.ignored_claims)}")
+    if report.skipped_unapproved_source:
+        print("  لم يُستورد أي مقطع: لا مصدر بـ approved_for_ingest=true في السجل.")
+        print("  هذا هو السلوك المقصود (بوابة الرخصة)، وليس عطلًا.")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="حزمة المعرفة kb/ — فحص واستيراد")
+    parser.add_argument("command", choices=["check", "ingest"])
+    parser.add_argument("--root", default=None, help="جذر الحزمة (افتراضي kb/)")
+    parser.add_argument("--db", default=None, help="مسار قاعدة معرفة SQLite للاستيراد")
+    parser.add_argument("--backend", choices=["sqlite", "postgres"], default=None,
+                        help="مصدر البيانات؛ الافتراضي من KB_BACKEND")
+    args = parser.parse_args(argv)
+    return _cmd_check(args) if args.command == "check" else _cmd_ingest(args)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())

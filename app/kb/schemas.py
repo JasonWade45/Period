@@ -70,6 +70,11 @@ class KbChunk(BaseModel):
     status: ChunkStatus = ChunkStatus.DRAFT_UNREVIEWED
     reviewed_by: str = ""
     reviewed_at: str = ""
+    # من كتب المقطع. "ai_draft" لمحتوى حزمة kb/ المكتوب بالذكاء الاصطناعي:
+    # لا يحمل اسم طبيب، ولا يُقدَّم كمراجَع حتى لو ادّعى ملف الاستيراد ذلك.
+    authored_by: str = ""
+    # ملاحظة الترخيص الإلزامية للمحتوى المكتوب آليًا (تحذير استخدام لا نص طبي).
+    license_note: str = ""
     content_version: int = 1
     source_refs_to_verify: list[dict[str, Any]] = Field(default_factory=list)
     content_hash: str = ""
@@ -103,6 +108,10 @@ class IngestRecord(BaseModel):
     topic: str = ""
     language: str = "ar"
     source_refs_to_verify: list[Any] = Field(default_factory=list)
+    # تُملأ إلزاميًا عند قراءة حزمة kb/ (كاتب آلي + ملاحظة ترخيص)، ولا تُقرأ
+    # من الملف إن جاءت فيه.
+    authored_by: str = ""
+    license_note: str = ""
 
     @field_validator("content")
     @classmethod

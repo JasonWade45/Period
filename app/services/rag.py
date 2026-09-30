@@ -19,7 +19,12 @@ from ..schemas import SourceChunk
 log = logging.getLogger("cyclecare.rag")
 
 VERIFIED, DRAFT = "verified", "draft"
-STATUSES = {VERIFIED, DRAFT}
+# مسودة أنشأها الذكاء الاصطناعي ولم يراجعها إنسان بعد (حزمة kb/).
+# تُعامَل كمسودة تمامًا: لا تُستشهد بها، وترتيبها أدنى من مسودة بشرية عند الترقية.
+DRAFT_UNREVIEWED = "draft_unreviewed"
+DRAFTS = {DRAFT, DRAFT_UNREVIEWED}
+# الترتيب: كل ما ليس verified يحتاج مراجعة بشرية صريحة قبل الاستشهاد.
+STATUSES = {VERIFIED, DRAFT, DRAFT_UNREVIEWED}
 
 _AR_DIACRITICS = re.compile(r"[ً-ْٰـ]")
 
@@ -94,7 +99,7 @@ def load_chunks(paths: list[Path]) -> list[SourceChunk]:
                         f"{where} ({chunk.id}): مقطع مُتحقَّق بلا reviewer — اجعليه draft "
                         "حتى يُراجَع فعليًا"
                     )
-            else:
+            else:  # draft / draft_unreviewed
                 if not _valid_iso_date(chunk.drafted_at):
                     raise KnowledgeError(f"{where} ({chunk.id}): مسودة بلا drafted_at صالح")
                 if not chunk.derived_from:
@@ -136,12 +141,15 @@ class KeywordRag(RagRetriever):
         if drafts_path is not None:
             paths.append(Path(drafts_path))
         self.chunks: list[SourceChunk] = load_chunks(paths)
+        # مقطع أُزيل نصه بانتظار تأكيد الترخيص لا يُسترجَع أبدًا — ولا حتى في
+        # وضع تضمين المسودات: مكان النص ملاحظة إدارية لا معلومة صحية.
         self.retrievable: list[SourceChunk] = [
-            c for c in self.chunks if include_drafts or c.status == VERIFIED
+            c for c in self.chunks
+            if not c.text_removed and (include_drafts or c.status == VERIFIED)
         ]
         self._kw_tokens = [_tokens(" ".join(c.keywords)) for c in self.retrievable]
         self._text_tokens = [_tokens(c.text) for c in self.retrievable]
-        if not include_drafts and any(c.status == DRAFT for c in self.chunks):
+        if not include_drafts and self.draft_chunks:
             log.info(
                 "المعرفة: %d مقطعًا مُتحقَّقًا متاحًا للاستشهاد، و%d مسودة محجوبة "
                 "(تُرقّى بـ tools/review_sources.py)",
@@ -150,7 +158,18 @@ class KeywordRag(RagRetriever):
 
     @property
     def draft_chunks(self) -> list[SourceChunk]:
-        return [c for c in self.chunks if c.status == DRAFT]
+        """كل ما ليس مُتحقَّقًا: مسودات بشرية ومسودات كتبها الذكاء الاصطناعي."""
+        return [c for c in self.chunks if c.status in DRAFTS]
+
+    @property
+    def ai_draft_chunks(self) -> list[SourceChunk]:
+        """مقاطع حزمة kb/ المكتوبة آليًا (authored_by="ai_draft") وحدها."""
+        return [c for c in self.draft_chunks if c.authored_by == "ai_draft"]
+
+    @property
+    def text_removed_chunks(self) -> list[SourceChunk]:
+        """مقاطع أُزيل نصها بانتظار الترخيص — تُعرض في المراجعة لا في الاسترجاع."""
+        return [c for c in self.chunks if c.text_removed]
 
     def is_citable(self, chunk_id: str) -> bool:
         return any(c.id == chunk_id for c in self.retrievable)

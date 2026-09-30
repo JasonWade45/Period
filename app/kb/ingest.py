@@ -93,6 +93,8 @@ def ingest_records(store: KbStore, records: list[IngestRecord],
             id=record.id, source_id=record.source_id, title=record.title,
             topic=record.topic, language=record.language or source.language,
             content=record.content,
+            authored_by=record.authored_by,
+            license_note=record.license_note,
             source_refs_to_verify=[r if isinstance(r, dict) else {"ref": r}
                                    for r in record.source_refs_to_verify],
         )

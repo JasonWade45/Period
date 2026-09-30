@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
                           CHECK (status IN ('draft_unreviewed', 'physician_reviewed',
                                             'approved', 'retired')),
     reviewed_by           TEXT        NOT NULL DEFAULT '',
+    authored_by           TEXT        NOT NULL DEFAULT '',
+    license_note          TEXT        NOT NULL DEFAULT '',
     reviewed_at           DATE,
     content_version       INTEGER     NOT NULL DEFAULT 1,
     source_refs_to_verify JSONB       NOT NULL DEFAULT '[]'::jsonb,

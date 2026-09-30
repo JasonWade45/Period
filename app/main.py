@@ -273,6 +273,52 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
     sources = _rag.retrieve(req.message, settings.rag_top_k)
     allowed_ids = {c.id for c in sources}
 
+    # 3ب) لا مصدر معتمد ⇒ لا استدعاء للموديل. القاعدة نفسها في /api/v1/ai: بلا
+    #     مصدر لا إجابة من معرفة عامة، بل نص صريح «لا أملك مصدرًا موثوقًا».
+    if not sources:
+        from .i18n import get_translator, resolve_locale
+        locale = resolve_locale(req.language_hint)
+        t = get_translator()
+        answer = t.t("answer.no_reliable_source", locale)
+        rule_codes = [f.rule_code for f in findings]
+        if req.mode == "summary":
+            # الملخص عقد مختلف: نفس الحدّ («لا مصدر معتمد») بحقول الملخص.
+            response = SummaryResponse(
+                overview=answer,
+                what_this_does_not_mean=t.t("answer.does_not_mean", locale),
+                questions_for_doctor=[t.t("answer.ask_doctor_default", locale)],
+                sources_used=[],
+                prompt_version=settings.prompt_version,
+                rule_codes=rule_codes,
+            )
+        else:
+            response = ChatResponse(
+                answer=answer,
+                sources_used=[],
+                needs_doctor=max_severity(findings).at_least(Severity.MEDICAL_REVIEW),
+                emergency=False,
+                crisis=False,
+                missing_info=[],
+                prompt_version=settings.prompt_version,
+                rule_codes=rule_codes,
+            )
+        _write_audit(AuditEntry(
+            user_id=key_fingerprint(req.user_key or ""),
+            mode=req.mode,
+            prompt_version=settings.prompt_version,
+            findings=findings,
+            sources_ids=[],
+            used_model=False,
+            emergency=False,
+            crisis=False,
+            needs_doctor=bool(getattr(response, "needs_doctor", False)),
+            llm_error="no approved sources retrieved",
+            latency_ms=int((time.monotonic() - started) * 1000),
+            request_excerpt="",
+            response=json.loads(response.model_dump_json()),
+        ))
+        return response
+
     # 4) بناء الـ prompt
     system = _prompt_builder.build(
         mode=req.mode,
@@ -395,6 +441,7 @@ def health() -> dict[str, Any]:
         "chunks_loaded": len(_rag.chunks),
         "chunks_citable": len(_rag.retrievable),
         "drafts_pending_review": len(_rag.draft_chunks),
+        "chunks_text_removed": len(_rag.text_removed_chunks),
         "drafts_included": settings.knowledge_include_drafts,
         "emergency_number_is_default": settings.emergency_number_is_default,
         "emergency_number_verified": info.verified,

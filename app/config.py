@@ -75,6 +75,8 @@ class Settings:
                                          str(APP_DIR / "data" / "sources_draft.json")))
     knowledge_include_drafts: bool = _env("KNOWLEDGE_INCLUDE_DRAFTS", "0") in ("1", "true", "True")
     rules_glossary_path: Path = Path(_env("RULES_GLOSSARY_PATH", str(APP_DIR / "data" / "rules_glossary.json")))
+    # جذر حزمة صاحبة المشروع (المعارف/التقييم/القاموس/سجل المصادر)
+    kb_dir: Path = Path(_env("KB_DIR", "kb"))
 
     # Audit
     audit_log_path: Path = Path(_env("AUDIT_LOG_PATH", str(APP_DIR / ".." / "audit" / "responses.jsonl")))

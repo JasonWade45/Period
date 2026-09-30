@@ -21,7 +21,20 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-GLOSSARY_PATH = Path("knowledge/glossary_ar.csv")
+# قاموس صاحبة المشروع يصل في حزمة kb/؛ ونسخة المستودع الحالية بديل مؤقت حتى
+# تصل الحزمة. الأولوية دائمًا لملف الحزمة لأنه مصدر الحقيقة المعلن.
+GLOSSARY_PATHS = (Path("kb/knowledge/glossary_ar.csv"),
+                  Path("knowledge/glossary_ar.csv"))
+
+
+def resolve_glossary_path() -> Path:
+    for candidate in GLOSSARY_PATHS:
+        if candidate.exists():
+            return candidate
+    return GLOSSARY_PATHS[0]
+
+
+GLOSSARY_PATH = resolve_glossary_path()
 REQUIRED_COLUMNS = ("term_en", "preferred_ar", "not_preferred_ar", "notes", "needs_review")
 
 # نصوص يخضع لها التدقيق: ما يراه المستخدم فعليًا.
@@ -48,7 +61,8 @@ class Issue:
         return f"{icon} [{self.where}] {self.message}"
 
 
-def load_glossary(path: Path = GLOSSARY_PATH) -> tuple[list[GlossaryTerm], list[Issue]]:
+def load_glossary(path: Path | None = None) -> tuple[list[GlossaryTerm], list[Issue]]:
+    path = Path(path) if path is not None else resolve_glossary_path()
     issues: list[Issue] = []
     if not path.exists():
         return [], [Issue("error", str(path), "ملف المصطلحات غير موجود")]
@@ -155,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report", default=None, help="كتابة قائمة needs_review")
     args = parser.parse_args(argv)
 
-    terms, issues = load_glossary(Path(args.path))
+    terms, issues = load_glossary(Path(args.path) if args.path else None)
     issues += scan_files(terms, Path(args.root))
 
     pending = needs_review_terms(terms)

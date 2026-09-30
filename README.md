@@ -59,7 +59,7 @@ python tools/review_sources.py promote draft-pcos-diagnosis \
     --reviewer "د. فلانة — أخصائية نسا وتوليد" --date 2026-10-05
 ```
 
-Promotion requires a named reviewer; it moves the chunk into `sources.json` as verified. `KNOWLEDGE_INCLUDE_DRAFTS=1` sends drafts to the model for internal evaluation only — it logs a loud warning, and `/health` reports `drafts_included`.
+Promotion requires a named reviewer; it moves the chunk into `sources.json` as verified. (All six chunks that used to be `verified` were demoted and had their text removed pending licence confirmation — `sources.json` is intentionally empty right now, so every answer path that needs a source says so instead of guessing.) `KNOWLEDGE_INCLUDE_DRAFTS=1` sends drafts to the model for internal evaluation only — it logs a loud warning, and `/health` reports `drafts_included`.
 
 ### The medical draft is explicitly *not* live knowledge
 
@@ -127,7 +127,7 @@ Open <http://127.0.0.1:8113/> for the app, <http://127.0.0.1:8113/docs> for the 
 | `CRISIS_LINE` | *(empty)* | Local crisis/support line; empty replies say it is unavailable rather than inventing one. |
 | `PROMPT_VERSION` | `v1.1` | Echoed in every response and audit entry. |
 | `PROMPT_PATH` | `app/prompts/system_prompt_v1.1.md` | |
-| `SOURCES_PATH` | `app/data/sources.json` | Curated medical chunks (NHS, ACOG, WHO). |
+| `SOURCES_PATH` | `app/data/sources.json` | المقاطع القابلة للاستشهاد في المسار القديم. **فارغ عن قصد حاليًا:** المقاطع الستة نُسبت إلى NHS/ACOG/WHO بلا مراجعة موثوقة، فأُزيل نصها ونُقلت إلى `sources_draft.json` بانتظار تأكيد الترخيص. النتيجة المطلوبة: صفر مقاطع قابلة للاستشهاد، والمساعد يقول «لا أملك مصدرًا موثوقًا». |
 | `RULES_GLOSSARY_PATH` | `app/data/rules_glossary.json` | Plain-language meaning per rule code. |
 | `AUDIT_LOG_PATH` | `audit/responses.jsonl` | Gitignored. |
 | `RAG_TOP_K` | `5` | |
@@ -307,6 +307,59 @@ python -m app.kb.ingest --path knowledge/knowledge_seed.example.jsonl \
 لمقارنة النموذجين: `python -m app.eval.run --set ...` مع كل نموذج وسجّلي
 `retrievable_chunks` ونتيجة الفئات.
 
+### حالة الحزمة الآن (2026-09-30): لم تصل بعد
+
+الملفات الأربعة **غير موجودة** في المستودع ولا في أي مسار رفع — تحقّق آلي، لا
+افتراض. محاولتا تسليم سابقتان لم تحملا محتوى («في `/home/user/uploads`» ثم
+«ملصقة أدناه»). لذلك:
+
+```bash
+$ python -m app.kb.pack check
+  [غائب] knowledge/knowledge_seed.jsonl
+  [غائب] eval/eval_questions_seed.jsonl
+  [غائب] knowledge/glossary_ar.csv
+  [غائب] knowledge/sources_registry.json
+الحزمة ناقصة: لا يُنشأ أي محتوى بالنيابة عن صاحبة المشروع.
+```
+
+- **لا يُخترع المحتوى.** الملفات تُبنى كما هي لحظة وصول نصّها في المحادثة.
+- تقرير أسئلة صاحبة المشروع يقول صراحةً «لم تُقَس — الملف غير موجود» بدل رقم
+  مُخترع، وتقرير الوكلاء (26 سؤالًا) يعمل كما هو.
+- الكود جاهز: لا يلزم أي تعديل بعد وصول الحزمة، فقط `pack check` ثم `pack ingest`
+  ثم `eval.compare`.
+- القاموس المؤقت الحالي `knowledge/glossary_ar.csv` (25 مصطلحًا) بديل عن قاموس
+  الحزمة؛ عند وصول `kb/knowledge/glossary_ar.csv` تُعطى الأولوية له تلقائيًا في
+  `tools/check_glossary.py`.
+
+### حزمة `kb/` — الملفات الأربعة التي تصل من صاحبة المشروع
+
+الحزمة تُقرأ من مسارات ثابتة، ولا يُنشئ المستودع محتواها بالنيابة عنها:
+
+| الملف | الدور |
+| --- | --- |
+| `kb/knowledge/knowledge_seed.jsonl` | مقاطع معرفة مكتوبة آليًا (بذرة) |
+| `kb/eval/eval_questions_seed.jsonl` | أسئلة تقييم صاحبة المشروع (تُقاس منفصلة) |
+| `kb/knowledge/glossary_ar.csv` | قاموس المصطلحات — مصدر الحقيقة للّغة |
+| `kb/knowledge/sources_registry.json` | سجل المصادر وحالة الاعتماد |
+
+```bash
+python -m app.kb.pack check          # ما وصل وما لم يصل، وعدد المقاطع/الأسئلة
+python -m app.kb.pack ingest --db data/kb.db
+```
+
+**الثوابت المفروضة على أي محتوى يمرّ من الحزمة** (`app/kb/pack.py`) — تُثبَّت في
+الكود ولا تُقرأ من الملف：
+
+- كل مقطع بذرة: `status="draft_unreviewed"`، `authored_by="ai_draft"`،
+  `reviewed_by=null`، `reviewed_at=null`، وملاحظة ترخيص إلزامية:
+  *AI-written summary; verify against source_refs_to_verify; never present refs
+  as verbatim source*. أي ادّعاء مراجعة داخل الملف **يُلغى ويُبلَّغ عنه**.
+- كل سؤال تقييم: `status="needs_physician_review"`.
+- كل مصدر في السجل: `approved_for_ingest=false`. هذا المسار **لا يقلب الحقل إلى
+  `true` أبدًا**؛ لو جاء `true` في الملف يُسجَّل ويُبقى `false` في الذاكرة،
+  فيبقى الاستيراد موقوفًا حتى يُراجَع الترخيص بشريًا. (اختبارات:
+  `tests/test_kb_pack.py`.)
+
 ### الاسترجاع
 
 `app/kb/retrieval.py` — استرجاع هجين: متجهات (أفضل 20) + كلمات مفتاحية (أفضل 20)
@@ -327,6 +380,10 @@ python -m app.kb.review show kb-cycle-length-01          # مع قائمة تح�
 python -m app.kb.review set-status kb-cycle-length-01 physician_reviewed \
     --reviewer "د. فلانة — أخصائية نسا وتوليد" --date 2026-10-05
 ```
+
+`/health` يعرض حالة المعرفة بأرقام صريحة: `chunks_loaded`, `chunks_citable`,
+`drafts_pending_review`, و`chunks_text_removed` (مقاطع أُزيل نصها بانتظار
+الترخيص — لا تُسترجع أبدًا ولو فُعِّل تضمين المسودات).
 
 ## واجهة /api/v1/ai
 
@@ -350,10 +407,21 @@ python -m app.kb.review set-status kb-cycle-length-01 physician_reviewed \
 ## التقييم (Eval)
 
 ```bash
+python -m app.eval.compare                    # تقريران: أسئلة الوكلاء + أسئلة صاحبة المشروع
 python -m app.eval.run --set eval/eval_questions_seed.jsonl           # بلا شبكة
 python -m app.eval.run --live --judge auto                            # بموديل حقيقي
 python -m app.eval.run --kb-db data/kb.db --allow-draft               # قاعدة معرفة مسوَّرة
 ```
+
+**مجموعتان منفصلتان لا تُدمجان** (البريف يطلب تقريرين منفصلين):
+
+| المجموعة | الملف | التسمية في التقرير |
+| --- | --- | --- |
+| أسئلة الوكلاء (26) | `eval/eval_questions_seed.jsonl` | `report-agent-*.json` |
+| أسئلة صاحبة المشروع (25) | `kb/eval/eval_questions_seed.jsonl` | `report-user-*.json` |
+
+التسمية تُشتق من المسار، و`--label` لا يستطيع تسمية أسئلة `kb/` بـ`agent`
+(يرفض الخلط). الملفان يُكتبان منفصلين ولا يُعاد ترقيم أسئلة صاحبة المشروع.
 
 كل سؤال يمرّ بخط الأنابيب الكامل، ثم تُطبَّق **فحوص حتمية** (لا تتأثر بموديل):
 لا عبارات تشخيص، لا جرعات، الطوارئ لا تصل إلى الموديل (عدّاد نداءات = 0)،

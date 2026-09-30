@@ -22,14 +22,46 @@ REAL_DRAFTS = Path(settings.draft_sources_path)
 
 # --------------------------------------------------------------- سلامة الملفات
 
-def test_shipped_sources_have_full_provenance():
-    """كل مقطع مُتحقَّق يجب أن يحمل مصدرًا وقسمًا ومراجعًا وتاريخ مراجعة."""
+def test_shipped_verified_file_is_empty_until_a_physician_signs_off():
+    """`sources.json` لا يحتوي أي مقطع مُتحقَّق حتى تُراجَع المسودات طبيًا.
+
+    قرار مقصود: المقاطع الستة التي كانت هنا نسبت نفسها إلى NHS/ACOG/WHO بلا
+    مراجعة موثوقة، فأُزيل نصها ونُقلت إلى المسودات بانتظار تأكيد الترخيص.
+    الأثر المطلوب: صفر مقاطع قابلة للاستشهاد ⇒ المساعد يقول «لا أملك مصدرًا
+    موثوقًا» بدل الإجابة من معرفة عامة.
+    """
+    assert load_chunks([REAL_SOURCES]) == []
+    # مع تضمين المسودات (وضع تجريبي داخلي) لا يظهر أي مقطع مُتحقَّق ولا أي
+    # مقطع أُزيل نصه — يبقى 38 مسودة تثقيفية غير مُراجَعة فقط.
+    rag = KeywordRag(REAL_SOURCES, drafts_path=REAL_DRAFTS, include_drafts=True)
+    assert all(c.status == DRAFT for c in rag.retrievable)
+    assert all(not c.text_removed for c in rag.retrievable)
+    assert len(rag.retrievable) == 38
+
+
+def test_any_future_verified_chunk_must_carry_full_provenance():
+    """الفحص نفسه يبقى على أي مقطع يضيفه إنسان لاحقًا بعد المراجعة."""
     for chunk in load_chunks([REAL_SOURCES]):
         assert chunk.status == VERIFIED
         assert chunk.source_name.strip()
         assert chunk.section.strip()
         assert chunk.reviewed_at
         assert chunk.reviewer.strip(), f"{chunk.id} بلا مراجع مُسجَّل"
+
+
+def test_text_removed_chunks_are_never_retrievable_even_with_drafts_on():
+    """مقطع أُزيل نصه بانتظار الترخيص لا يُسترجع ولو فُعِّل تضمين المسودات."""
+    rag = KeywordRag(REAL_SOURCES, drafts_path=REAL_DRAFTS, include_drafts=True)
+    removed = rag.text_removed_chunks
+    assert len(removed) == 6
+    for chunk in removed:
+        assert chunk.text_removed is True
+        assert chunk.attribution_unverified is True
+        assert rag.is_citable(chunk.id) is False
+        assert chunk not in rag.retrievable
+    # البحث لا يُرجع أي مقطع أُزيل نصه مهما كان الاستعلام
+    for query in ("طول الدورة", "نزيف غزير", "PMS", "تكيس"):
+        assert all(not c.text_removed for c in rag.retrieve(query, top_k=50))
 
 
 def test_shipped_drafts_are_declared_drafts_with_origin():
@@ -73,9 +105,16 @@ def test_drafts_load_only_when_explicitly_enabled():
     assert any(c.status == DRAFT for c in hits), "التفعيل الصريح لم يُدرج المسودات"
 
 
-def test_verified_chunks_are_still_retrievable():
-    rag = KeywordRag(REAL_SOURCES, drafts_path=REAL_DRAFTS, include_drafts=False)
-    assert rag.retrieve("طول الدورة الشهرية", top_k=5)
+def test_no_verified_chunks_means_the_assistant_says_so():
+    """معيار القبول: بلا مصدر معتمد يُقال ذلك صراحةً ولا يُستدعى الموديل."""
+    from app.i18n import get_translator
+    from app.schemas import ChatRequest, UserContext
+
+    response = main._run_pipeline(
+        ChatRequest(message="إيه طول الدورة الشهرية؟", user_context=UserContext()))
+
+    assert response.answer == get_translator().t("answer.no_reliable_source", "ar")
+    assert response.sources_used == []
 
 
 # -------------------------------------------------------- رفض الإسناد الناقص

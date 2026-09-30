@@ -130,11 +130,33 @@ class QuestionOutcome:
     llm_calls: int = 0
     notes: str = ""
     traps: list[str] = field(default_factory=list)
+    # القرار الذي أعلنه خط الأنابيب: ok | no_source | fallback | emergency_filter
+    decision: str = ""
 
     @property
     def is_gating(self) -> bool:
         """اختبار «مصيدة» أو طوارئ/أزمة: فشله يوقف البناء (exit غير صفري)."""
         return self.category in EMERGENCY_CATEGORIES or bool(self.traps)
+
+
+QUESTION_KEYS = ("question", "prompt", "q", "text", "user_message")
+
+
+def normalize_question(item: dict[str, Any], lineno: int) -> dict[str, Any]:
+    """يقبل صيغة صاحبة المشروع كما هي: لا نفرض مخططًا لم نره بعد.
+
+    المطلوب فعليًا سؤالٌ غير فارغ. الباقي اختياري: `id` يُولَّد إن غاب،
+    و`category` تصير `general` (تُقاس ولا توقف البناء)، و`traps` تبقى فارغة
+    فلا يُرفع سؤال صاحبة المشروع إلى «بوّابة» بالغلط.
+    """
+    normalized = dict(item)
+    text = next((str(item[k]) for k in QUESTION_KEYS
+                 if isinstance(item.get(k), str) and item[k].strip()), "")
+    normalized["question"] = text
+    normalized.setdefault("id", f"user-{lineno:03d}")
+    normalized.setdefault("category", "general")
+    normalized.setdefault("language", "ar")
+    return normalized
 
 
 def load_questions(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
@@ -148,10 +170,15 @@ def load_questions(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
         except json.JSONDecodeError as exc:
             invalid.append(f"سطر {lineno}: JSON غير صالح ({exc.msg})")
             continue
-        if not item.get("id") or not item.get("category"):
-            invalid.append(f"سطر {lineno}: لا id أو لا category")
+        if not isinstance(item, dict):
+            invalid.append(f"سطر {lineno}: السجل ليس كائنًا")
             continue
-        questions.append(item)
+        normalized = normalize_question(item, lineno)
+        # سؤال الملخص يقيس المخرجات من سياق المستخدمة، فلا نص له بالضرورة.
+        if not normalized["question"].strip() and normalized.get("expect") != "summary":
+            invalid.append(f"سطر {lineno}: لا يوجد نص سؤال")
+            continue
+        questions.append(normalized)
     return questions, invalid
 
 
@@ -261,6 +288,7 @@ def evaluate_question(pipeline: AiPipeline, question: dict[str, Any]) -> Questio
         expect=str(question.get("expect") or ""), passed=not failures, checks=checks,
         failures=failures, answer_excerpt=text[:200], llm_calls=calls,
         traps=[str(t) for t in question.get("traps", []) or []],
+        decision=decision,
     )
 
 
@@ -275,9 +303,21 @@ def _response_text(payload: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def set_label(set_path: Path | str) -> str:
+    """مَن صاحب مجموعة الأسئلة: صاحبة المشروع (kb/) أم الوكلاء (eval/)؟
+
+    الفصل مقصود: مجموعتا التقييم تُقاسان وتُقرآن منفصلتين — لا دمج ولا إعادة
+    ترقيم ولا استبدال. التسمية تُشتق من المسار حتى لا يعتمد الفصل على انتباه
+    من يشغّل الأمر.
+    """
+    path = Path(set_path)
+    parts = [p.lower() for p in path.parts]
+    return "user" if "kb" in parts else "agent"
+
+
 def run(set_path: Path, *, llm: Any, judge: Any, mode_label: str,
         kb_db: str | None = None, allow_draft: bool | None = None,
-        report_path: Path | None = None) -> dict[str, Any]:
+        report_path: Path | None = None, label: str | None = None) -> dict[str, Any]:
     started = time.monotonic()
     questions, invalid = load_questions(set_path)
     pipeline = build_pipeline(llm=llm, kb_db=kb_db, allow_draft=allow_draft)
@@ -308,6 +348,11 @@ def run(set_path: Path, *, llm: Any, judge: Any, mode_label: str,
         bucket["pass_rate"] = round(bucket["passed"] / bucket["total"], 3) \
             if bucket["total"] else 0.0
 
+    decisions: dict[str, int] = {}
+    for outcome in outcomes:
+        key = outcome.decision or "unknown"
+        decisions[key] = decisions.get(key, 0) + 1
+
     failures = [o for o in outcomes if not o.passed]
     # البوابة: فشل أي اختبار مصيدة أو طوارئ/أزمة يوقف البناء. فشل تعليمي/لغوي
     # يظهر في التقرير ولا يوقف، لأن غياب مصدر معتمد ليس عيبًا في الكود.
@@ -318,6 +363,7 @@ def run(set_path: Path, *, llm: Any, judge: Any, mode_label: str,
         "run_id": uuid.uuid4().hex[:12],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "mode": mode_label,
+        "label": label or set_label(set_path),
         "set": str(set_path),
         "prompt_version": settings.prompt_version,
         "kb": {
@@ -334,12 +380,14 @@ def run(set_path: Path, *, llm: Any, judge: Any, mode_label: str,
                    "pass_rate": round((len(outcomes) - len(failures)) / len(outcomes), 3)
                    if outcomes else 0.0},
         "by_category": by_category,
+        "decisions": decisions,
         "gating_failed": gating_failed,
         "gating_failures": [o.question_id for o in gating_failures],
         "invalid_set_lines": invalid,
         "results": [
             {"id": o.question_id, "category": o.category, "expect": o.expect,
-             "passed": o.passed, "checks": o.checks, "failures": o.failures,
+             "passed": o.passed, "decision": o.decision,
+             "checks": o.checks, "failures": o.failures,
              "judge": o.judge, "llm_calls": o.llm_calls,
              "answer_excerpt": o.answer_excerpt}
             for o in outcomes
@@ -366,12 +414,18 @@ def _last_payload(pipeline: AiPipeline, question: dict[str, Any]) -> dict[str, A
 
 
 def print_report(report: dict[str, Any]) -> None:
+    owner = {"user": "أسئلة صاحبة المشروع (kb/)", "agent": "أسئلة الوكلاء (eval/)"}
+    label = report.get("label", "agent")
     print(f"تشغيل {report['run_id']} — الوضع: {report['mode']} | "
           f"المصادر القابلة للاسترجاع: {report['kb']['retrievable_chunks']}")
+    print(f"مجموعة الأسئلة: {owner.get(label, label)} — {report['set']}")
     print(f"الحكم: {report['judge']['name']} "
           f"(متحقَّق محليًا: {report['judge']['verified_locally']})")
     print(f"الإجمالي: {report['totals']['passed']}/{report['totals']['questions']} "
           f"({report['totals']['pass_rate']})")
+    if report.get("decisions"):
+        print("القرارات: " + " | ".join(f"{k}={v}" for k, v in
+                                        sorted(report["decisions"].items())))
     print("\nحسب الفئة:")
     for category, bucket in sorted(report["by_category"].items()):
         print(f"  {category:<22} {bucket['passed']}/{bucket['total']}  "
@@ -403,11 +457,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--invalid-json", action="store_true",
                         help="محاكاة مخرجات غير صالحة (اختبار مسار الإعادة)")
     parser.add_argument("--report", default=None, help="مسار تقرير JSON")
+    parser.add_argument("--label", choices=["user", "agent"], default=None,
+                        help="صاحب مجموعة الأسئلة؛ يُشتق من المسار إن لم يُحدَّد")
     args = parser.parse_args(argv)
 
     set_path = Path(args.set_path)
     if not set_path.exists():
         print(f"خطأ: ملف الأسئلة غير موجود — {set_path}", file=sys.stderr)
+        return 2
+
+    label = args.label or set_label(set_path)
+    if args.label and args.label != set_label(set_path):
+        # حماية من الخلط: أسئلة kb/ لا تُكتب في تقرير الوكلاء والعكس
+        print(f"خطأ: المسار {set_path} يخصّ «{set_label(set_path)}» "
+              f"ولا يطابق --label {args.label}", file=sys.stderr)
         return 2
 
     if args.live:
@@ -428,10 +491,11 @@ def main(argv: Optional[list[str]] = None) -> int:
             else LocalRubricJudge()
 
     report_path = Path(args.report) if args.report else \
-        Path("eval/reports") / f"report-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.json"
+        Path("eval/reports") / \
+        f"report-{label}-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.json"
     report = run(set_path, llm=llm, judge=judge, mode_label=mode_label,
                  kb_db=args.kb_db, allow_draft=args.allow_draft,
-                 report_path=report_path)
+                 report_path=report_path, label=label)
     print_report(report)
     print(f"\nالتقرير: {report_path}")
     return 1 if report["gating_failed"] else 0

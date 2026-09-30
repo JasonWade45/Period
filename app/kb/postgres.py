@@ -108,7 +108,10 @@ class PostgresKbStore:
             id=data["id"], source_id=data["source_id"], title=data["title"],
             topic=data["topic"], language=data["language"], content=data["content"],
             status=ChunkStatus(data["status"]), reviewed_by=data["reviewed_by"] or "",
-            reviewed_at=reviewed_at or "", content_version=data["content_version"],
+            reviewed_at=reviewed_at or "",
+            authored_by=data.get("authored_by") or "",
+            license_note=data.get("license_note") or "",
+            content_version=data["content_version"],
             source_refs_to_verify=list(refs), content_hash=data["content_hash"] or "",
         )
 
@@ -202,12 +205,14 @@ class PostgresKbStore:
                     """
                     INSERT INTO kb_chunks
                         (id, source_id, title, topic, language, content, status,
-                         reviewed_by, reviewed_at, content_version,
+                         reviewed_by, reviewed_at, authored_by, license_note,
+                         content_version,
                          source_refs_to_verify, content_hash, search_text, updated_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,'',NULL,1,%s::jsonb,%s,%s,%s)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,'',NULL,%s,%s,1,%s::jsonb,%s,%s,%s)
                     """,
                     (chunk.id, chunk.source_id, chunk.title, chunk.topic, chunk.language,
                      chunk.content, ChunkStatus.DRAFT_UNREVIEWED.value,
+                     chunk.authored_by, chunk.license_note,
                      json.dumps(chunk.source_refs_to_verify, ensure_ascii=False),
                      new_hash, search_text, _now()),
                 )
@@ -224,12 +229,14 @@ class PostgresKbStore:
                 UPDATE kb_chunks SET
                     source_id=%s, title=%s, topic=%s, language=%s, content=%s,
                     status=%s, reviewed_by='', reviewed_at=NULL,
+                    authored_by=%s, license_note=%s,
                     content_version=%s, source_refs_to_verify=%s::jsonb,
                     content_hash=%s, search_text=%s, embedding=NULL, updated_at=%s
                 WHERE id=%s
                 """,
                 (chunk.source_id, chunk.title, chunk.topic, chunk.language, chunk.content,
-                 ChunkStatus.DRAFT_UNREVIEWED.value, old_version + 1,
+                 ChunkStatus.DRAFT_UNREVIEWED.value, chunk.authored_by, chunk.license_note,
+                 old_version + 1,
                  json.dumps(chunk.source_refs_to_verify, ensure_ascii=False),
                  new_hash, search_text, _now(), chunk.id),
             )

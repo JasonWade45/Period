@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
     status                 TEXT NOT NULL,
     reviewed_by            TEXT NOT NULL DEFAULT '',
     reviewed_at            TEXT NOT NULL DEFAULT '',
+    authored_by            TEXT NOT NULL DEFAULT '',
+    license_note           TEXT NOT NULL DEFAULT '',
     content_version        INTEGER NOT NULL DEFAULT 1,
     source_refs_to_verify  TEXT NOT NULL DEFAULT '[]',
     content_hash           TEXT NOT NULL DEFAULT '',
@@ -115,6 +117,16 @@ class SqliteKbStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
+            self._migrate(conn)
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """ترحيل خفيف لقواعد قائمة: أعمدة أُضيفت بعد أول إنشاء للجدول."""
+        existing = {row["name"] for row in conn.execute("PRAGMA table_info(kb_chunks)")}
+        for column in ("authored_by", "license_note"):
+            if column not in existing:
+                conn.execute(
+                    f"ALTER TABLE kb_chunks ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -170,7 +182,10 @@ class SqliteKbStore:
             id=row["id"], source_id=row["source_id"], title=row["title"], topic=row["topic"],
             language=row["language"], content=row["content"],
             status=ChunkStatus(row["status"]), reviewed_by=row["reviewed_by"],
-            reviewed_at=row["reviewed_at"], content_version=row["content_version"],
+            reviewed_at=row["reviewed_at"],
+            authored_by=row["authored_by"] if "authored_by" in row.keys() else "",
+            license_note=row["license_note"] if "license_note" in row.keys() else "",
+            content_version=row["content_version"],
             source_refs_to_verify=json.loads(row["source_refs_to_verify"] or "[]"),
             content_hash=row["content_hash"],
         )
@@ -237,11 +252,13 @@ class SqliteKbStore:
             with self._connect() as conn:
                 conn.execute(
                     "INSERT INTO kb_chunks (id, source_id, title, topic, language, content,"
-                    " status, reviewed_by, reviewed_at, content_version, source_refs_to_verify,"
+                    " status, reviewed_by, reviewed_at, authored_by, license_note,"
+                    " content_version, source_refs_to_verify,"
                     " content_hash, search_text, updated_at)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (chunk.id, chunk.source_id, chunk.title, chunk.topic, chunk.language,
-                     chunk.content, chunk.status.value, "", "", 1,
+                     chunk.content, chunk.status.value, "", "",
+                     chunk.authored_by, chunk.license_note, 1,
                      json.dumps(chunk.source_refs_to_verify, ensure_ascii=False),
                      new_hash, chunk.search_text, _now()),
                 )
@@ -258,11 +275,12 @@ class SqliteKbStore:
         with self._connect() as conn:
             conn.execute(
                 "UPDATE kb_chunks SET source_id=?, title=?, topic=?, language=?, content=?,"
-                " status=?, reviewed_by='', reviewed_at='', content_version=?,"
-                " source_refs_to_verify=?, content_hash=?, search_text=?, updated_at=?"
-                " WHERE id=?",
+                " status=?, reviewed_by='', reviewed_at='', authored_by=?, license_note=?,"
+                " content_version=?, source_refs_to_verify=?, content_hash=?, search_text=?,"
+                " updated_at=? WHERE id=?",
                 (chunk.source_id, chunk.title, chunk.topic, chunk.language, chunk.content,
-                 ChunkStatus.DRAFT_UNREVIEWED.value, existing.content_version + 1,
+                 ChunkStatus.DRAFT_UNREVIEWED.value, chunk.authored_by, chunk.license_note,
+                 existing.content_version + 1,
                  json.dumps(chunk.source_refs_to_verify, ensure_ascii=False),
                  new_hash, chunk.search_text, _now(), chunk.id),
             )
