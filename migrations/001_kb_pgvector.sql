@@ -1,10 +1,8 @@
 -- 001_kb_pgvector.sql
 -- قاعدة المعرفة: pgvector + جداول المصادر والمقاطع + الفهارس.
 --
--- ملاحظة عن هذه البيئة: PostgreSQL وامتداد pgvector غير مثبّتين هنا، ومستودعات
--- الحزم محجوبة، فلا يمكن تشغيل هذا الملف للتحقق منه. الملف مكتوب ليكون مرجعًا
--- قابلاً للمراجعة، والاختبارات المحلية تعمل على تنفيذ SQLite المطابق
--- (app/kb/store.py) بنفس الأعمدة والحالات والقواعد.
+-- حالة التحقق: طُبّق وجُرّب على PostgreSQL 16 + pgvector (tests/test_postgres_store.py،
+-- ويشمل تطبيقه مرتين بلا خطأ). تنفيذ SQLite المطابق في app/kb/store.py.
 --
 -- التشغيل:
 --   psql "$DATABASE_URL" -f migrations/001_kb_pgvector.sql
@@ -100,11 +98,9 @@ CREATE OR REPLACE VIEW kb_retrievable AS
 --   LIMIT 20;
 --
 -- بحث كلمي:
---   SELECT id, ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
---   FROM kb_chunks
---   WHERE status = ANY($2) AND tsv @@ plainto_tsquery('simple', $1)
---   ORDER BY score DESC
---   LIMIT 20;
+--   الدرجة = نسبة كلمات الاستعلام الموجودة (OR وليس AND) — الاستعلام الكامل في
+--   PostgresKbStore.keyword_search. لا تستبدليه بـ plainto_tsquery(...) على السؤال
+--   كله: يشترط وجود كل الكلمات فيعيد صفرًا لأي سؤال طبيعي.
 --
 -- تحذير: تغيير نموذج التضمين يغيّر فضاء المتجهات. يجب إعادة تضمين كل المقاطع
 -- (ingest --reembed) وإلا صار البحث يقارن متجهات من فضاءين مختلفين.

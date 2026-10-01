@@ -1,0 +1,4 @@
+pytest>=8.0
+# اختبارات PostgreSQL+pgvector على قاعدة حقيقية: pytest -m postgres
+pgserver>=0.1.4
+psycopg[binary]>=3.2

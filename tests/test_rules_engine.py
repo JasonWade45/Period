@@ -1,10 +1,15 @@
 from datetime import date, timedelta
 
 from app.schemas import CycleStat, UserContext
-from app.services.rules_engine import compute_findings, max_severity
+from app.services.rules_engine import compute_findings as _compute_findings, max_severity
 from app.schemas import Severity
 
 TODAY = date(2026, 9, 30)
+
+
+def compute_findings(ctx):
+    """التاريخ المرجعي ثابت = TODAY حتى لا تعتمد الاختبارات على ساعة الجهاز."""
+    return _compute_findings(ctx, today=TODAY)
 
 
 def _days_ago(n: int) -> str:

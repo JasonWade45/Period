@@ -1,10 +1,10 @@
 """تخزين قاعدة المعرفة على PostgreSQL + pgvector (للنشر فقط).
 
-⚠️ حالة التحقق: هذا الملف **لم يُشغَّل في بيئة التطوير** لأن PostgreSQL وpgvector
-غير مثبّتين هنا ومستودعات الحزم محجوبة. كُتب ليطابق `SqliteKbStore` سلوكًا
-(نفس قواعد الحالة، نفس عتبات الاسترجاع، نفس دلالات الإرجاع) وليكون مرجعًا
-قابلاً للمراجعة. قبل أول نشر يجب تشغيله مرة واحدة مع psycopg متاحًا وتنفيذ
-`pytest -m postgres` بعد ضبط `DATABASE_URL`.
+حالة التحقق: يُختبر على PostgreSQL 16 + pgvector حقيقيين في
+`tests/test_postgres_store.py` (`pytest -m postgres`، عبر الحزمة `pgserver` أو
+`TEST_DATABASE_URL`). لم يُجرَّب بعد على حجم إنتاجي ولا بنموذج التضمين الحقيقي.
+يطابق `SqliteKbStore` سلوكًا (قواعد الحالة، عتبات الاسترجاع، دلالات الإرجاع،
+ودرجة البحث الكلمي = نسبة كلمات الاستعلام الموجودة).
 
 التنفيذ يعتمد psycopg 3 (وليس SQLAlchemy) لسببين: الاستعلامات هنا SQL صريح
 قابل للنسخ إلى psql للمراجعة، وتجنّب طبقة ORM يسهل فيها إخفاء `<=>`.
@@ -16,7 +16,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 from ..config import settings
-from ..services.arabic import normalize_for_search
+from ..services.arabic import normalize_for_search, search_tokens
 from .embedding import EMBEDDING_DIM, to_pgvector_literal
 from .schemas import (
     ChunkStatus,
@@ -165,21 +165,35 @@ class PostgresKbStore:
 
     def keyword_search(self, query: str, limit: int, statuses: list[ChunkStatus],
                        language: str | None) -> list[tuple[str, float]]:
-        """بحث كلمي على `tsv` (فهرس GIN) بنفس النص المُطبَّع المستخدَم عند الكتابة."""
-        normalized = normalize_for_search(query)
-        if not normalized:
+        """بحث كلمي على `tsv` (فهرس GIN) بنفس دلالات `SqliteKbStore`.
+
+        الدرجة = نسبة كلمات الاستعلام الموجودة في المقطع (0..1)، فتصلح لعتبة
+        الصلة نفسها. الشرط OR لا AND: `plainto_tsquery` يشترط وجود كل الكلمات،
+        وسؤال طبيعي («طول الدورة الطبيعي؟») لا يطابق مقطعًا ينقصه كلمة واحدة،
+        فيعود البحث بلا نتائج رغم وجود مقطع مناسب. التطبيع بايثوني (نفس
+        `search_tokens`) فالتقطيع متطابق في التنفيذين.
+        """
+        tokens = sorted(set(search_tokens(query)))
+        if not tokens:
             return []
         sql = """
-            SELECT id, ts_rank(tsv, plainto_tsquery('simple', %s)) AS score
-            FROM kb_chunks
-            WHERE status = ANY(%s)
-              AND (%s::text IS NULL OR language = %s)
-              AND tsv @@ plainto_tsquery('simple', %s)
-            ORDER BY score DESC
+            SELECT id, score FROM (
+                SELECT id,
+                       (SELECT count(*) FROM unnest(%s::text[]) AS q(tok)
+                         WHERE tsv @@ plainto_tsquery('simple', q.tok))::float
+                       / %s AS score
+                FROM kb_chunks
+                WHERE status = ANY(%s)
+                  AND (%s::text IS NULL OR language = %s)
+                  AND tsv @@ to_tsquery('simple', (
+                        SELECT string_agg(quote_literal(t), ' | ') FROM unnest(%s::text[]) AS t))
+            ) ranked
+            WHERE score > 0
+            ORDER BY score DESC, id
             LIMIT %s
         """
-        params = (normalized, [s.value for s in statuses], language, language,
-                  normalized, limit)
+        params = (tokens, len(tokens), [s.value for s in statuses], language, language,
+                  tokens, limit)
         with _connect(self.dsn) as conn, conn.cursor() as cur:
             cur.execute(sql, params)
             return [(row[0], float(row[1])) for row in cur.fetchall()]

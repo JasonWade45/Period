@@ -27,7 +27,7 @@ POST /v1/chat
    ├─ 3. Retrieval (keyword RAG over app/data/sources.json)
    │      The retrieved chunk ids become the only ids the model may cite.
    │
-   ├─ 4. Prompt build (app/prompts/system_prompt_v1.1.md + variables)
+   ├─ 4. Prompt build (app/prompts/system_prompt_v1.2.md + variables)
    │
    ├─ 5. Model call (Groq) → validator
    │      JSON shape, required fields, source-id allowlist, banned
@@ -77,7 +77,7 @@ Two deterministic thresholds were extracted from it into the rules engine, marke
 |---|---|---|
 | Pre-model filter | `app/services/emergency_filter.py` | Emergency/crisis messages never reach the model; fixed replies include the configured numbers verbatim. |
 | Rules engine | `app/services/rules_engine.py` | Severity comes from recorded data only, with `evidence` numbers attached. |
-| Prompt contract | `app/prompts/system_prompt_v1.1.md` | No diagnosis, no negation of a diagnosis, no dosing, no reassurance, education only from supplied sources. |
+| Prompt contract | `app/prompts/system_prompt_v1.2.md` | No diagnosis, no negation of a diagnosis, no dosing, no reassurance, education only from supplied sources. |
 | Validator | `app/services/validator.py` | Rejects bad JSON, unknown `sources_used` ids, and banned attribution/dosage phrasing. Text is normalised first (diacritics, alef/ya/ta-marbuta variants) so dialect spellings cannot slip past a pattern; 20 known bypass phrasings are covered by regression tests. |
 | Fallback | `app/main.py` | Any model or validation failure degrades to a safe answer — never a 5xx. |
 | Post-model check | `app/services/emergency_filter.py` | If the model reports emergency/crisis (a phrasing the lexical filter missed), the number is forced into the answer text, not just the boolean flag. |
@@ -125,8 +125,8 @@ Open <http://127.0.0.1:8113/> for the app, <http://127.0.0.1:8113/docs> for the 
 | `API_KEY` | *(empty)* | Empty = open (local development only). When set, `/v1/*` requires `X-API-Key`. Emergency and crisis messages are still accepted with a wrong key on purpose. |
 | `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_SECONDS` | `30` / `60` | Per device key. Never applied to emergency/crisis messages. In-memory: with multiple workers the effective limit multiplies. |
 | `CRISIS_LINE` | *(empty)* | Local crisis/support line; empty replies say it is unavailable rather than inventing one. |
-| `PROMPT_VERSION` | `v1.1` | Echoed in every response and audit entry. |
-| `PROMPT_PATH` | `app/prompts/system_prompt_v1.1.md` | |
+| `PROMPT_VERSION` | `v1.2` | Echoed in every response and audit entry. |
+| `PROMPT_PATH` | `app/prompts/system_prompt_v1.2.md` | |
 | `SOURCES_PATH` | `app/data/sources.json` | المقاطع القابلة للاستشهاد في المسار القديم. **فارغ عن قصد حاليًا:** المقاطع الستة نُسبت إلى NHS/ACOG/WHO بلا مراجعة موثوقة، فأُزيل نصها ونُقلت إلى `sources_draft.json` بانتظار تأكيد الترخيص. النتيجة المطلوبة: صفر مقاطع قابلة للاستشهاد، والمساعد يقول «لا أملك مصدرًا موثوقًا». |
 | `RULES_GLOSSARY_PATH` | `app/data/rules_glossary.json` | Plain-language meaning per rule code. |
 | `AUDIT_LOG_PATH` | `audit/responses.jsonl` | Gitignored. |
@@ -247,17 +247,18 @@ These are known gaps, not features:
 9. **Keyword RAG.** Matching is lexical, so paraphrased questions retrieve nothing. Replace with embeddings while keeping the source-id allowlist.
 10. **Audit log privacy.** `request_excerpt` stores up to 300 characters of user text in plaintext JSONL — sensitive health data. Define retention, access control, and encryption before production.
 11. **Conversation state.** Each request is independent; there is no multi-turn memory.
-12. **PostgreSQL/pgvector path is written but not executed here.** `app/kb/postgres.py`
-    and `migrations/001_kb_pgvector.sql` could not be run in this environment
-    (no PostgreSQL, no package mirrors, Hugging Face and api.groq.com blocked).
-    They match the SQLite implementation's semantics and are written for review,
-    but they must be exercised once (`pytest -m postgres` after setting
-    `DATABASE_URL`) before any deployment. The same applies to the embedding
-    benchmark between bge-m3 and multilingual-e5-large.
-13. **Arabic PDF depends on the font you supply.** IBM Plex Sans Arabic and
-    Noto Sans Arabic are not bundled (licence), and ReportLab has no native
-    Arabic shaping. A system font is used as a fallback so the smoke test can
-    run; ship a proper Arabic font and re-check the rendering visually.
+12. **PostgreSQL/pgvector path: tested against a real server, not yet in production.**
+    `app/kb/postgres.py` and `migrations/001_kb_pgvector.sql` are exercised by
+    `tests/test_postgres_store.py` (22 tests on PostgreSQL 16 + pgvector via the
+    `pgserver` package, or any server via `TEST_DATABASE_URL`):
+    `pip install -r requirements-dev.txt && pytest -m postgres`. Running it found and
+    fixed a real divergence (the keyword search required *every* query word, so a
+    natural question matched nothing). It is still untested at production scale and
+    with the real embedding model. The bge-m3 vs multilingual-e5-large benchmark has
+    not been run (Hugging Face is unreachable from the dev sandbox).
+13. **Arabic PDF font.** IBM Plex Sans Arabic Regular (OFL-1.1) is bundled in
+    `assets/fonts/` and found automatically. ReportLab has no native Arabic
+    shaping (reshaper + bidi are used), so check the rendering visually before release.
 14. **Arabic strings still inside `frontend/app.js`.** The chrome, suggestions,
     emergency overlay and language switching now come from `locales/`, but ~19
     content strings remain in JS. `tools/check_rtl.py` reports the count as a
