@@ -36,6 +36,12 @@ class Issue:
         return f"{'✗' if self.level == 'error' else '!'} [{self.where}] {self.message}"
 
 
+# صفحات مستقلة بتصميمها المخصّص، جاؤت كما هي بطلب صاحبة المشروع: مثبّتة
+# dir="rtl" lang="ar" داخل الملف نفسه، ولا تستعمل منظومة i18n.js/rtl.css
+# المشتركة مع واجهة التطبيق. شروط الاتجاه أعلاه ما تزال مطبقة عليها.
+STANDALONE_PAGES = {"profile.html"}
+
+
 def check_html(path: Path) -> list[Issue]:
     issues: list[Issue] = []
     text = path.read_text(encoding="utf-8")
@@ -58,10 +64,11 @@ def check_html(path: Path) -> list[Issue]:
                     "warning", f"{path}:{lineno}",
                     "سطر يحتوي رقمًا/طوارئ بلا عزل اتجاهي (قد ينقلبه BiDi)"))
 
-    if "i18n.js" not in text:
-        issues.append(Issue("error", str(path), "لا تحميل لملف التعريب i18n.js"))
-    if "rtl.css" not in text:
-        issues.append(Issue("error", str(path), "لا تحميل لملف قواعد RTL"))
+    if path.name not in STANDALONE_PAGES:
+        if "i18n.js" not in text:
+            issues.append(Issue("error", str(path), "لا تحميل لملف التعريب i18n.js"))
+        if "rtl.css" not in text:
+            issues.append(Issue("error", str(path), "لا تحميل لملف قواعد RTL"))
     return issues
 
 

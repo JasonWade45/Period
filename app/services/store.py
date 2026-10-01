@@ -17,6 +17,9 @@
   بمعرّفها (`user_key`) عبر DELETE /v1/data وDELETE /v1/account.
 - `user_key` معرّف جهاز تُنشئه الواجهة عشوائيًا وتخزّنه محليًا. **ليس مصادقة**،
   الغرض منه عزل صفوف المستخدمات عن بعضها فقط.
+- `accounts`/`sessions`: حسابات حقيقية (بريد + بصمة كلمة مرور PBKDF2) مع جلسات
+  بكوكي httpOnly. الحساب المُوثَّق يتحوّل إلى `user_key` ثابت عبر
+  `services.auth.effective_user_key` — نفس الجداول القديمة بلا تغيير بنيوي.
 - لا نخزّن نص الرسائل هنا؛ سجل التدقيق منفصل (audit/) وله اعتباراته الخاصة.
 
 التزامن: اتصال واحد لكل عملية + WAL و busy_timeout لتفادي أخطاء القفل عند
@@ -25,6 +28,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -71,10 +75,26 @@ CREATE TABLE IF NOT EXISTS consents (
     user_key    TEXT    NOT NULL,
     consent_key TEXT    NOT NULL,                -- نشاط معالجة مسمى ( ConsentKey )
     granted     INTEGER NOT NULL,                -- 1 نعم / 0 لا
-    version     TEXT,                            -- إصدار النص الذي وُافق عليه
+    version     TEXT,                            -- إصدار النص الذي وافق عليه
     decided_at  TEXT    NOT NULL,
     PRIMARY KEY (user_key, consent_key)
 );
+
+CREATE TABLE IF NOT EXISTS accounts (
+    id            TEXT PRIMARY KEY,
+    email         TEXT NOT NULL UNIQUE,          -- lowercase دائمًا
+    password_hash TEXT NOT NULL,                 -- pbkdf2_sha256$iter$salt$digest
+    created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,                 -- بصمة SHA-256 من رمز الكوكي
+    account_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_account ON sessions(account_id);
 """
 
 SEVERITY_MIN, SEVERITY_MAX = 1, 5
@@ -191,6 +211,9 @@ class Store:
         try:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA busy_timeout=10000")
+            # حذف حساب يسقط جلساته تلقائيًا (ON DELETE CASCADE) — SQLite تُغلقه
+            # افتراضيًا، ولا أثر لها على الجداول القديمة (بلا مفاتيح أجنبية).
+            conn.execute("PRAGMA foreign_keys=ON")
             yield conn
             conn.commit()
         finally:
@@ -410,3 +433,102 @@ class Store:
             "health_profile_deleted": profile,
             "consents_deleted": consents,
         }
+
+    # ------------------------------------------------------ accounts/sessions
+    def create_account(self, email: str, password_hash: str) -> dict:
+        """حساب جديد بمعرّف عشوائي — التكرار على البريد يُرفض بـStoreError."""
+        account_id = secrets.token_hex(12)
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    "INSERT INTO accounts (id, email, password_hash, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (account_id, email, password_hash, _now()),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise StoreError("البريد الإلكتروني مسجَّل بالفعل") from exc
+        return {"id": account_id, "email": email}
+
+    def get_account_by_email(self, email: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, email, password_hash, created_at FROM accounts WHERE email = ?",
+                (email,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_account(self, account_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, email, created_at FROM accounts WHERE id = ?",
+                (account_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def create_session(self, token_hash: str, account_id: str, expires_at: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO sessions (token_hash, account_id, created_at, expires_at) "
+                "VALUES (?, ?, ?, ?)",
+                (token_hash, account_id, _now(), expires_at),
+            )
+
+    def account_for_session(self, token_hash: str) -> str | None:
+        """معرّف الحساب إن كانت الجلسة سليمة — والمنتهية تُمسح هنا (تنظيف ذاتي)."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT account_id, expires_at FROM sessions WHERE token_hash = ?",
+                (token_hash,),
+            ).fetchone()
+            if row is None:
+                return None
+            if row["expires_at"] <= _now():
+                conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+                return None
+            return row["account_id"]
+
+    def delete_session(self, token_hash: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+
+    def delete_account(self, account_id: str) -> None:
+        """حذف الحساب وجلساته (.CASCADE) — بيانات التطبيق تُحذف عبر delete_all."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM sessions WHERE account_id = ?", (account_id,))
+            conn.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+
+    def migrate_device_data(self, device_key: str, account_id: str) -> dict:
+        """ينقل بيانات معرّف الجهاز القديم إلى الحساب الجديد عند التسجيل.
+
+        نقل لا نسخ: ما كان للجهاز يصبح للحساب (وفضل التعارض لصالح الحساب
+        عبر UPDATE OR IGNORE ثم مسح ما تبقّى). تُعدّ الصفوف المنقولة.
+        """
+        empty = {"cycles": 0, "symptoms": 0, "profile": 0, "consents": 0}
+        if not device_key or device_key == account_id:
+            return empty
+        with self._connect() as conn:
+            cycles = conn.execute(
+                "UPDATE OR IGNORE bleeding_logs SET user_key = ? WHERE user_key = ?",
+                (account_id, device_key),
+            ).rowcount
+            conn.execute("DELETE FROM bleeding_logs WHERE user_key = ?", (device_key,))
+            symptoms = conn.execute(
+                "UPDATE OR IGNORE symptom_logs SET user_key = ? WHERE user_key = ?",
+                (account_id, device_key),
+            ).rowcount
+            conn.execute("DELETE FROM symptom_logs WHERE user_key = ?", (device_key,))
+            profile = conn.execute(
+                "UPDATE OR IGNORE health_profile SET user_key = ? WHERE user_key = ?",
+                (account_id, device_key),
+            ).rowcount
+            conn.execute("DELETE FROM health_profile WHERE user_key = ?", (device_key,))
+            moved = conn.execute(
+                "INSERT OR IGNORE INTO consents "
+                "(user_key, consent_key, granted, version, decided_at) "
+                "SELECT ?, consent_key, granted, version, decided_at "
+                "FROM consents WHERE user_key = ?",
+                (account_id, device_key),
+            ).rowcount
+            conn.execute("DELETE FROM consents WHERE user_key = ?", (device_key,))
+        return {"cycles": cycles, "symptoms": symptoms,
+                "profile": profile, "consents": moved}

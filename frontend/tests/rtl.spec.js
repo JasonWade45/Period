@@ -9,8 +9,9 @@
  * لذلك كُتب الاختبار جاهزًا للتشغيل في CI، وأُضيف له فحص ساكن
  * (`tools/check_rtl.py`) يغطي ما يمكن التحقق منه بلا متصفح.
  *
- * يغطي: صفحة الهبوط، استمارة التسجيل (7 خطوات)، دخول التطبيق، اتجاه الصفحة،
- * موضع الفقاعات، عزل رقم الطوارئ، وعدم انعكاس الأيقونات غير الاتجاهية.
+ * يغطي: صفحة الهبوط، شاشة الحساب (إنشاء/دخول)، استمارة البروفايل (6 أقسام)،
+ * الداشبورد، دخول التطبيق، اتجاه الصفحة، موضع الفقاعات، عزل رقم الطوارئ،
+ * وعدم انعكاس الأيقونات غير الاتجاهية.
  *
  * ملاحظة: تغيّر محتوى الصفحة يستدعي تحديث اللقطات القاعدية:
  *   npx playwright test frontend/tests/rtl.spec.js --update-snapshots
@@ -30,7 +31,6 @@ test("العربية افتراضيًا واتجاه الصفحة RTL", async ({
 
 test("صفحة الهبوط مرئية والتطبيق مخفي", async ({ page }) => {
   await expect(page.locator("#landing")).toBeVisible();
-  await expect(page.locator("#signup")).toBeHidden();
   await expect(page.locator("#app")).toBeHidden();
   await expect(page).toHaveScreenshot("landing-ar.png", { fullPage: true });
 });
@@ -43,47 +43,62 @@ test("زر اللغة في الهبوط يبدّل الاتجاه", async ({ pag
   await expect(page).toHaveScreenshot("landing-en.png", { fullPage: true });
 });
 
-test("التسجيل: 7 خطوات ثم دخول التطبيق", async ({ page }) => {
+test("زر الدخول يفتح شاشة الحساب في وضع تسجيل الدخول", async ({ page }) => {
+  await page.click(".landing-login");
+  await expect(page.locator("#auth")).toBeVisible();
+  await expect(page.locator("#landing")).toBeHidden();
+  await expect(page.locator("#a-submit")).toHaveText("دخول");
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+});
+
+test("التسجيل: حساب + استمارة البروفايل (6 أقسام) + داشبورد ثم التطبيق", async ({ page }) => {
   await page.click("#cta-start");
-  await expect(page.locator("#signup")).toBeVisible();
-  await expect(page.locator("#signup-progress-text")).toContainText("1");
-  await expect(page.locator('#signup .step[data-step="0"]')).toBeVisible();
+  await expect(page.locator("#auth")).toBeVisible();
+  await expect(page.locator("#a-submit")).toHaveText("إنشاء الحساب");
 
-  // خطوة 1: عمر غير صالح يمنع المتابعة
-  await page.fill("#s-age", "5");
-  await page.on("dialog", (d) => d.accept());
-  await page.click("#signup-next");
-  await expect(page.locator('#signup .step[data-step="0"]')).toBeVisible();
+  const email = `rtl-${Date.now()}@example.com`;
+  await page.fill("#a-email", email);
+  await page.fill("#a-password", "secret-pass-123");
+  await page.click("#a-submit");
+  await page.waitForURL("**/profile.html");
 
-  // تعبئة صحيحة والمرور على كل الخطوات
-  await page.fill("#s-age", "27");
-  await page.click("#signup-next");
-  await page.fill("#s-cycles", "12");
-  await page.click("#signup-next");
-  await page.fill("#s-avg", "28");
-  await page.click("#signup-next");
-  await page.click("#signup-next");                     // تاريخ آخر دورة اختياري
-  await page.waitForTimeout(300);                       // بلدة البلد من /v1/meta
-  await page.click("#signup-next");                     // بلد + احتمال حمل
-  await page.click("#signup-next");                     // خطوة اختيارية
-  await expect(page.locator('#signup .step[data-step="6"]')).toBeVisible();
+  await expect(page.locator("#stage h1")).toHaveText("أساسيات");
+  await expect(page.locator("#cnt")).toContainText("القسم 1 من 6");
 
-  await page.click("#signup-next");                     // «يلا نبدأ»
-  await expect(page.locator("#app")).toBeVisible();
-  await expect(page.locator("#signup")).toBeHidden();
+  // إجابة واحدة: سنة الميلاد (يُحسب العمر منها عند الإنهاء)
+  await page.selectOption("#stage select", "2000");
 
-  // الحفظ محلي: التسجيل وإجابات العمر
+  for (let i = 0; i < 5; i++) {
+    await page.click("#foot .go:not(.ghost)");   // «التالي» عبر الأقسام
+  }
+  await expect(page.locator("#stage h1")).toHaveText("أعراضك والتنبيهات");
+  await page.click("#foot .go:not(.ghost)");     // «خلّصت»
+  await expect(page.locator(".done")).toBeVisible();
+
+  // الحفظ محلي: التسجيل + العمر المحسوب
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("cyclecare_context_v1") || "{}"));
   expect(saved.registered).toBe(true);
-  expect(saved.age).toBe(27);
-  expect(saved.cycles_recorded).toBe(12);
-  expect(saved.avg_cycle_days).toBe(28);
+  expect(saved.age).toBe(new Date().getFullYear() - 2000);
 
-  // إعادة التحميل تذهب مباشرة للتطبيق
+  // جلسة الحساب سارية على الخادم
+  const me = await page.evaluate(() => fetch("/v1/auth/me").then((r) => r.json()));
+  expect(me.authenticated).toBe(true);
+  expect(me.email).toBe(email);
+
+  await page.click("#foot .go:not(.ghost)");     // «افتحي التطبيق»
+  await expect(page.locator("#dashboard")).toBeVisible();   // الداشبورد أولًا
+  await expect(page.locator("#dash-cycles-list")).toBeVisible();
+
+  await page.click('[data-i18n="dash.to_chat"]');           // ثم المحادثة
+  await expect(page.locator("#app")).toBeVisible();
+  await expect(page.locator("#dashboard")).toBeHidden();
+  await expect(page.locator("#dash-btn")).toBeVisible();     // زر الداشبورد في الهيدر
+
+  // إعادة التحميل تذهب للتطبيق (والعلامة أُزيلت — لا داشبورد تلقائيًا)
   await page.reload({ waitUntil: "networkidle" });
   await expect(page.locator("#app")).toBeVisible();
-  await expect(page.locator("#landing")).toBeHidden();
+  await expect(page.locator("#dashboard")).toBeHidden();
 });
 
 test("لقطة كاملة لواجهة المحادثة العربية", async ({ page }) => {

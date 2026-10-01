@@ -20,6 +20,7 @@ from ..config import settings
 from ..i18n import get_translator, resolve_locale
 from ..schemas import AiChatRequest, AiChatResponse, AiSummaryResponse, UserContext
 from ..services.ai_pipeline import AiPipeline, PipelineDeps, resolve_request_language
+from ..services.auth import account_for_request
 from ..services.emergency_filter import run_filter
 from ..services.rules_engine import compute_all_findings
 from ..services.security import check_api_key
@@ -35,6 +36,16 @@ def _pipeline(request: Request) -> AiPipeline:
     if pipeline is None:
         raise HTTPException(status_code=503, detail="AI pipeline is not configured")
     return pipeline
+
+
+def _with_session_identity(request: Request, req: AiChatRequest) -> AiChatRequest:
+    """كوكي الجلسة يتغلّب على `user_key` المُرسل في الطلب.
+
+    حساب مُوثَّق يستخدم هويته في السياق والتدقيق وتحديد المعدّل مهما أرسل
+    العميل (لا انتحال حساب آخر). بلا كوكي يبقى مفتاح الجهاز كما هو.
+    """
+    account = account_for_request(request)
+    return req.model_copy(update={"user_key": account}) if account else req
 
 
 def _effective_context(request: Request, req: AiChatRequest):
@@ -156,6 +167,7 @@ def ai_chat(req: AiChatRequest, request: Request,
     if not req.message.strip():
         raise _error(request, "empty_message", status.HTTP_422_UNPROCESSABLE_ENTITY)
 
+    req = _with_session_identity(request, req)
     req = _apply_profile(request, req)
     _authenticate(request, req, x_api_key)
 
@@ -176,6 +188,7 @@ def ai_summary(req: AiChatRequest, request: Request,
                x_api_key: Optional[str] = Header(default=None)) -> AiSummaryResponse:
     """ملخّص الدورات المسجّلة. رسالة الملخص (إن جاءت) تمرّ بفلتر الطوارئ، ونتائج
     محرك القواعد تمرّ به أيضًا — ثم المصادقة والحدّ بمنطق واحد."""
+    req = _with_session_identity(request, req)
     req = _apply_profile(request, req)
     _authenticate(request, req, x_api_key)
 

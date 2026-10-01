@@ -8,16 +8,15 @@ const state = {
   loading: false,
   tab: "cycles",
   messages: [], // {role, text?, data?}
-  view: "landing",   // landing | signup | app
-  signupStep: 0,
+  view: "landing",   // landing | auth | app | dashboard — الاستمارة صفحة مستقلة profile.html
+  authed: false,     // جلسة حساب سارية (تتحقق منها /v1/auth/me)
 };
-
-const SIGNUP_STEPS = 7;
 
 /* ---------------- مفاتيح التخزين المحلي ---------------- */
 
 const SETTINGS_KEY = "cyclecare_context_v1";   // بيانات شخصية (تبقى في المتصفح)
 const DEVICE_KEY = "cyclecare_device_v1";      // معرّف جهاز لعزل البيانات على الخادم
+const AFTER_PROFILE_KEY = "cc_show_dashboard_v1"; // افتحي الداشبورد بعد إتمام الاستمارة
 
 function deviceKey() {
   let key = localStorage.getItem(DEVICE_KEY);
@@ -100,170 +99,191 @@ function isRegistered() {
 
 function showView(view) {
   state.view = view;
-  document.getElementById("landing").hidden = view !== "landing";
-  document.getElementById("signup").hidden = view !== "signup";
-  document.getElementById("app").hidden = view !== "app";
+  ["landing", "auth", "app", "dashboard"].forEach((id) => {
+    document.getElementById(id).hidden = view !== id;
+  });
 }
 
-/* التهيئة قبل أول رسم: مسجّلة ⇒ تطبيق مباشرة، وإلا صفحة الهبوط */
+/* التهيئة قبل أول رسم: مسجّلة ⇒ تطبيق مباشرة، وإلا صفحة الهبوط.
+ * بعد إتمام الاستمارة (علامة AFTER_PROFILE) نفتح الداشبورد أولًا قبل المحادثة. */
 function initView() {
+  const afterProfile = localStorage.getItem(AFTER_PROFILE_KEY);
   showView(isRegistered() ? "app" : "landing");
+  if (afterProfile && isRegistered()) {
+    localStorage.removeItem(AFTER_PROFILE_KEY);
+    showDashboard();
+  }
+  checkSession();
 }
 
 function enterApp() {
   showView("app");
 }
 
-function closeSignup() {
-  showView(isRegistered() ? "app" : "landing");
-}
-
-/* البدء: تعبئة الاستمارة من الملف الحاظ (إن وجد) والانتقال لأول سؤال */
+/* «سجّلي الآن»: أول خطوة إنشاء الحساب، ثم الاستمارة profile.html */
 function startSignup() {
-  const s = loadSettings();
-  state.signupStep = 0;
-  document.getElementById("s-age").value = s.age ?? "";
-  document.getElementById("s-cycles").value = s.cycles_recorded ?? "";
-  document.getElementById("s-avg").value = s.avg_cycle_days ?? "";
-  document.getElementById("s-last").value = "";
-  document.getElementById("s-country").value = s.country_code ?? "";
-  document.getElementById("s-pregnancy").value = s.pregnancy_status ?? "";
-  document.getElementById("s-contraception").value = s.contraception ?? "";
-  document.getElementById("s-conditions").value =
-    (s.conditions || []).map((c) => `${c.name} | ${c.status}`).join("\n");
-  showView("signup");
-  renderSignupStep();
-  loadSignupCountries();
+  showAuth("register");
 }
 
-function renderSignupStep() {
-  const step = state.signupStep;
-  document.querySelectorAll("#signup .step").forEach((el) => {
-    el.hidden = Number(el.dataset.step) !== step;
-  });
-  document.getElementById("signup-progress-text").textContent = window.i18n
-    ? window.i18n.t("signup.progress", {
-        current: window.i18n.toDigits(step + 1),
-        total: window.i18n.toDigits(SIGNUP_STEPS),
-      })
-    : i18nText("signup.progress", "الخطوة 1 من 7");
-  document.getElementById("signup-progress-bar").style.inlineSize =
-    `${((step + 1) / SIGNUP_STEPS) * 100}%`;
-  document.getElementById("signup-next").textContent =
-    step === SIGNUP_STEPS - 1
-      ? i18nText("signup.btn_start", "يلا نبدأ")
-      : i18nText("signup.btn_next", "التالي");
+/* ---------------- الحسابات: إنشاء ودخول ---------------- */
+
+const authState = { mode: "register" };
+
+function showAuth(mode) {
+  authState.mode = mode === "login" ? "login" : "register";
+  document.getElementById("auth-error").hidden = true;
+  document.getElementById("a-email").value = "";
+  document.getElementById("a-password").value = "";
+  renderAuthTexts();
+  showView("auth");
 }
 
-function signupNext() {
-  if (!validateSignupStep()) return;
-  if (state.signupStep < SIGNUP_STEPS - 1) {
-    state.signupStep += 1;
-    renderSignupStep();
-    const field = document.querySelector(
-      "#signup .step:not([hidden]) input, #signup .step:not([hidden]) select");
-    if (field) field.focus();
-    return;
+function switchAuthMode() {
+  authState.mode = authState.mode === "login" ? "register" : "login";
+  document.getElementById("auth-error").hidden = true;
+  renderAuthTexts();
+}
+
+/* نصوص تتغيّر مع وضع النموذج — بلا data-i18n حتى لا تعيد تغيير اللغة كتابتها */
+function renderAuthTexts() {
+  const login = authState.mode === "login";
+  document.getElementById("a-password").autocomplete = login ? "current-password" : "new-password";
+  document.getElementById("auth-title").textContent =
+    i18nText(login ? "auth.title_login" : "auth.title_reg",
+             login ? "تسجيل الدخول" : "أنشئي حسابكِ");
+  document.getElementById("auth-badge").textContent =
+    i18nText(login ? "auth.badge_login" : "auth.badge_reg",
+             login ? "أهلاً بعودتكِ" : "حسابكِ يحفظ دورتكِ وأعراضكِ");
+  document.getElementById("a-submit").textContent =
+    i18nText(login ? "auth.submit_login" : "auth.submit_register",
+             login ? "دخول" : "إنشاء الحساب");
+  document.getElementById("auth-switch").textContent =
+    i18nText(login ? "auth.switch_register" : "auth.switch_login",
+             login ? "جديدة هنا؟ أنشئي حسابًا" : "عندك حساب بالفعل؟ دخول");
+}
+
+function authError(message) {
+  const box = document.getElementById("auth-error");
+  box.textContent = message;
+  box.hidden = !message;
+}
+
+async function handleAuth(event) {
+  event.preventDefault();
+  const email = document.getElementById("a-email").value.trim();
+  const password = document.getElementById("a-password").value;
+  authError("");
+  try {
+    if (authState.mode === "register") {
+      /* التسجيل ينقل بيانات الجهاز القديم إلى الحساب على الخادم */
+      await api("/v1/auth/register", "POST", { email, password, device_key: deviceKey() });
+      localStorage.setItem(AFTER_PROFILE_KEY, "1");
+      location.href = "/profile.html";
+    } else {
+      await api("/v1/auth/login", "POST", { email, password });
+      afterAuthenticated();
+    }
+  } catch (e) {
+    authError(e.message || i18nText("auth.error_generic", "تعذّر إتمام العملية — حاولي مرة أخرى."));
   }
-  finishSignup();
+  return false;
 }
 
-function signupBack() {
-  if (state.signupStep > 0) {
-    state.signupStep -= 1;
-    renderSignupStep();
-    return;
+/* بعد دخول ناجح: لو الملف المحلي ناقص أكمليه أولًا، وإلا الداشبورد مباشرة */
+function afterAuthenticated() {
+  state.authed = true;
+  updateAuthUi();
+  if (isRegistered()) {
+    showDashboard();
+  } else {
+    localStorage.setItem(AFTER_PROFILE_KEY, "1");
+    location.href = "/profile.html";
   }
+}
+
+async function checkSession() {
+  try {
+    const me = await api("/v1/auth/me");
+    state.authed = !!me.authenticated;
+  } catch {
+    state.authed = false;
+  }
+  updateAuthUi();
+}
+
+function updateAuthUi() {
+  const dash = document.getElementById("dash-btn");
+  if (dash) dash.hidden = !state.authed;
+  const out = document.getElementById("dash-logout");
+  if (out) out.hidden = !state.authed;
+}
+
+async function authLogout() {
+  try {
+    await api("/v1/auth/logout", "POST");
+  } catch {
+    /* جلسة منتهية أصلًا — الكوكي يُمسح في أي حالة */
+  }
+  state.authed = false;
+  updateAuthUi();
   showView("landing");
 }
 
-function signupNum(id) {
-  const raw = document.getElementById(id).value;
-  return raw === "" ? null : Number(raw);
+/* ---------------- الداشبورد: دوراتي وأعراضي ---------------- */
+
+function showDashboard() {
+  showView("dashboard");
+  renderDashboard();
 }
 
-/* تحقّق من خطوة حالية — الحقول كلها اختيارية، لكن ما يُكتب يجب أن يكون صالحًا */
-function validateSignupStep() {
-  const step = state.signupStep;
-  const bad = (key, fallback) => { alert(i18nText(key, fallback)); return false; };
-  if (step === 0) {
-    const age = signupNum("s-age");
-    if (age !== null && (!Number.isFinite(age) || age < 10 || age > 60)) {
-      return bad("signup.err_age", "لو كتبتِ عمرًا فليكن بين 10 و60، أو اتركيه فاضيًا.");
-    }
-  } else if (step === 1) {
-    const cycles = signupNum("s-cycles");
-    if (cycles !== null && (!Number.isFinite(cycles) || cycles < 0 || cycles > 200)) {
-      return bad("signup.err_cycles", "اختاري رقمًا من 0 لـ 200، أو اتركيه فاضيًا.");
-    }
-  } else if (step === 2) {
-    const avg = signupNum("s-avg");
-    if (avg !== null && (!Number.isFinite(avg) || avg < 15 || avg > 60)) {
-      return bad("signup.err_avg", "اختاري رقمًا من 15 لـ 60 يومًا، أو اتركيه فاضيًا.");
-    }
-  } else if (step === 3) {
-    const date = document.getElementById("s-last").value;
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return bad("signup.err_last", "اختاري تاريخًا صحيحًا أو اتركي الحقل فاضيًا.");
-    }
-  }
-  return true;
-}
-
-/* الحفظ: ملف محلي (registered) + حقن تاريخ آخر دورة في التتبّع إن وُجد */
-async function finishSignup() {
-  const conditions = document.getElementById("s-conditions").value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [name, status] = line.split("|").map((x) => (x || "").trim());
-      return { name, status: status || "مشخّصة" };
-    })
-    .filter((c) => c.name);
-
-  const profile = {
-    ...loadSettings(),
-    registered: true,
-    age: signupNum("s-age"),
-    cycles_recorded: signupNum("s-cycles") ?? 0,   // UserContext يتطلب رقمًا لا null
-    avg_cycle_days: signupNum("s-avg"),
-    country_code: document.getElementById("s-country").value || null,
-    pregnancy_status: document.getElementById("s-pregnancy").value || null,
-    contraception: document.getElementById("s-contraception").value.trim() || null,
-    conditions,
-    updated_at: new Date().toISOString(),
-  };
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(profile));
-  fillSettingsForm(profile);
-
-  const lastStart = document.getElementById("s-last").value;
-  if (lastStart) {
-    try {
-      await api(`/v1/cycles?user_key=${encodeURIComponent(deviceKey())}`, "POST",
-                { start_date: lastStart, bleeding_days: null });
-    } catch {
-      /* التتبّع اختياري — لا نمنع الدخول لو تعذّر التسجيل */
-    }
-  }
-  showView("app");
-}
-
-/* بلدة الاستمارة: نفس مصدر /v1/meta مع حفظ الاختيار السابق */
-async function loadSignupCountries() {
-  const select = document.getElementById("s-country");
-  if (select.options.length > 1) return;             // معبّأة مسبقًا
+async function renderDashboard() {
+  const cyclesList = document.getElementById("dash-cycles-list");
+  const symptomsList = document.getElementById("dash-symptoms-list");
+  const loading = `<li class="muted">${i18nText("dash.loading", "جارٍ التحميل…")}</li>`;
+  cyclesList.innerHTML = loading;
+  symptomsList.innerHTML = loading;
   try {
-    const meta = await api("/v1/meta", "GET");
-    const saved = loadSettings().country_code;
-    select.innerHTML = `<option value="">${i18nText("ui.country_none", "غير محدد")}</option>` +
-      (meta.countries || []).map((c) =>
-        `<option value="${c.code}"${c.code === saved ? " selected" : ""}>`
-        + `${c.name_ar} — ${c.emergency}</option>`
-      ).join("");
-    if (!saved && meta.default_country) select.value = meta.default_country;
-  } catch {
-    select.innerHTML = `<option value="">${i18nText("ui.country_unavailable", "غير متاح")}</option>`;
+    const key = encodeURIComponent(deviceKey());
+    const cycles = await api(`/v1/cycles?user_key=${key}`);
+    const symptoms = await api(`/v1/symptoms?user_key=${key}`);
+
+    document.getElementById("dash-cycles-count").textContent = cycles.length
+      ? `${cycles.length} ${i18nText("dash.record", "سجل")}` : "";
+    document.getElementById("dash-symptoms-count").textContent = symptoms.length
+      ? `${symptoms.length} ${i18nText("dash.record", "سجل")}` : "";
+
+    if (!cycles.length) {
+      cyclesList.innerHTML =
+        `<li class="muted">${i18nText("dash.empty_cycles", "لا توجد دورات مسجّلة بعد.")}</li>`;
+    } else {
+      cyclesList.innerHTML = "";
+      cycles.forEach((c) => {
+        const li = document.createElement("li");
+        const days = c.bleeding_days ? ` · ${c.bleeding_days}` : "";
+        li.innerHTML = `<span>${fmtDate(c.start_date)}${days}</span>`;
+        cyclesList.appendChild(li);
+      });
+    }
+
+    if (!symptoms.length) {
+      symptomsList.innerHTML =
+        `<li class="muted">${i18nText("dash.empty_symptoms", "لا توجد أعراض مسجّلة بعد.")}</li>`;
+    } else {
+      symptomsList.innerHTML = "";
+      symptoms.forEach((s) => {
+        const li = document.createElement("li");
+        const sev = s.severity ? ` · ${s.severity}/5` : "";
+        const note = s.note ? ` · ${s.note}` : "";
+        const span = document.createElement("span");
+        span.textContent = `${fmtDate(s.log_date)} — ${s.symptom}${sev}${note}`;
+        li.appendChild(span);
+        symptomsList.appendChild(li);
+      });
+    }
+  } catch (e) {
+    const failed = `${i18nText("dash.failed", "تعذّر التحميل")}: ${e.message}`;
+    cyclesList.innerHTML = `<li class="muted">${failed}</li>`;
+    symptomsList.innerHTML = `<li class="muted">${failed}</li>`;
   }
 }
 
@@ -457,8 +477,11 @@ async function api(path, method = "GET", body = null) {
   const resp = await fetch(`${API}${path}`, opts);
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    const detail = typeof err.detail === "string" ? err.detail : `HTTP ${resp.status}`;
-    throw new Error(detail);
+    let detail = err.detail;
+    // ردّ الأخطاء المُترجمة يأتي {code, message} — نعرض الرسالة لا الكائن
+    if (detail && typeof detail === "object") detail = detail.message || detail.code;
+    const message = typeof detail === "string" ? detail : `HTTP ${resp.status}`;
+    throw new Error(message);
   }
   return resp.json();
 }
@@ -747,6 +770,7 @@ async function initI18n() {
   }
   await window.i18n.load();
   renderSuggestions();
+  renderAuthTexts();
 }
 
 /* نص من ملف الموارد. الاحتياطي يمنع ظهور مفتاح خام لو نادى كودٌ الترجمة قبل
@@ -767,7 +791,8 @@ function toggleLanguage() {
   const next = supported[(index + 1) % supported.length];
   window.i18n.setLocale(next).then(() => {
     renderSuggestions();
-    if (!document.getElementById("signup").hidden) renderSignupStep();
+    renderAuthTexts();
+    if (state.view === "dashboard") renderDashboard();
   });
 }
 
@@ -806,16 +831,13 @@ initI18n().then(loadCountries);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 document.getElementById("c-date").value = todayIso();
 document.getElementById("s-date").value = todayIso();
-document.getElementById("s-last").max = todayIso();   // لا «آخر دورة» في المستقبل
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     const tracker = document.getElementById("tracker");
     const settings = document.getElementById("settings");
-    const signup = document.getElementById("signup");
     if (!tracker.hidden) tracker.hidden = true;
     else if (!settings.hidden) settings.hidden = true;
-    else if (!signup.hidden) closeSignup();
     else closeOverlay();
   }
 });

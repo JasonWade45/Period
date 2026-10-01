@@ -111,6 +111,7 @@ Open <http://127.0.0.1:8113/> for the app, <http://127.0.0.1:8113/docs> for the 
 - **Symptom journal** — date, symptom, a 1–5 severity you assign yourself, and a note. Three or more severe entries within 90 days raise a `REPEATED_SEVERE_SYMPTOMS` finding.
 - **Medical insights** (`GET /v1/insights`) — findings plus plain-language explanations, computed locally. Works with no internet and no API key.
 - **Chat and summaries** — educational answers grounded in the supplied sources, with the safety layers above.
+- **Accounts and dashboard** — register with email + password (`POST /v1/auth/register` moves existing device-key data to the new account), log in/out via an httpOnly session cookie, and land on a dashboard of your cycles and symptoms. On every `/v1` endpoint the session identity overrides the client-supplied `user_key`, so a signed-in account cannot be impersonated (`POST /v1/auth/login|logout`, `GET /v1/auth/me`).
 - **Country-aware emergency numbers** — chosen per user, with verification status shown.
 
 ## Configuration

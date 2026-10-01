@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CycleCare – بروفايلك</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#F6F2F7;--card:#fff;--ink:#2A1B33;--mute:#6E5F77;--line:#E3D9E7;--acc:#B4245D;--acc-ink:#fff;--ok:#3F7A67;--soft:#F0E4EE;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1B1222;--card:#271A30;--ink:#F3EAF5;--mute:#B4A5BC;--line:#3B2B47;--acc:#E0578C;--acc-ink:#1B1222;--ok:#7CC1A9;--soft:#33223F}}
+:root[data-theme="dark"]{--bg:#1B1222;--card:#271A30;--ink:#F3EAF5;--mute:#B4A5BC;--line:#3B2B47;--acc:#E0578C;--acc-ink:#1B1222;--ok:#7CC1A9;--soft:#33223F}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Arabic",Tahoma,Arial,sans-serif;line-height:1.7;min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:24px 12px}
+.phone{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:32px;padding:22px 20px 24px;box-shadow:0 20px 50px -30px var(--acc)}
+@media(max-width:440px){body{padding:0}.phone{border:0;border-radius:0;min-height:100vh}}
+.bar{display:flex;gap:5px;margin-bottom:6px}
+.bar i{flex:1;height:6px;border-radius:3px;background:var(--line)}
+.bar i.on{background:var(--acc)}
+.cnt{font-size:12.5px;color:var(--mute);margin:0 0 16px}
+h1{font-size:23px;line-height:1.35;margin:0 0 4px}
+.sub{color:var(--mute);font-size:14px;margin:0 0 6px}
+.q{padding:16px 0;border-top:1px solid var(--line)}
+.q:first-of-type{border-top:0}
+.q label,.q .t{display:block;font-weight:600;font-size:15px;margin-bottom:8px}
+.q .later{font-weight:400;font-size:12px;color:var(--acc);margin-inline-start:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:14px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.seg{display:grid;grid-template-columns:1.3fr 1fr .8fr;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;padding:9px 4px;border:0;background:var(--card);color:var(--ink);cursor:pointer}
+.seg button+button{border-inline-start:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--ok);color:#fff}
+input[type=number],input[type=date],input[type=month],input[type=text],input[type=time],select{width:100%;font:inherit;padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.unk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--mute);margin-top:6px}
+.skip{font:inherit;font-size:12.5px;background:none;border:0;color:var(--mute);text-decoration:underline;cursor:pointer;padding:6px 0 0}
+.q.sk .chips,.q.sk .seg,.q.sk input,.q.sk select,.q.sk .row3,.q.sk .unk{opacity:.35;pointer-events:none}
+.note{background:var(--soft);border-radius:14px;padding:11px 14px;font-size:13px;color:var(--mute);margin-top:8px}
+.foot{display:flex;gap:10px;margin-top:20px}
+.go{flex:1;font:inherit;font-weight:600;font-size:16px;padding:14px;border:0;border-radius:14px;background:var(--acc);color:var(--acc-ink);cursor:pointer}
+.go.ghost{flex:.5;background:none;border:1px solid var(--line);color:var(--ink)}
+.done{text-align:center;padding:20px 0}
+.done .ok{width:68px;height:68px;border-radius:50%;background:var(--ok);color:#fff;font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+</style>
+</head>
+<body>
+<main class="phone">
+<div class="bar" id="bar" aria-hidden="true"></div>
+<p class="cnt" id="cnt"></p>
+<div id="stage"></div>
+<div class="foot" id="foot"></div>
+</main>
+
+<script>
+(function(){
+var $=function(s){return document.querySelector(s)};
+var SYM=['صداع','صداع نصفي','انتفاخ','غثيان','إسهال','إمساك','تعب وإرهاق','تقلب مزاج','عصبية','قلق','صعوبة في النوم','حب شباب','حساسية الثدي','ألم أسفل البطن','ألم أسفل الظهر','إفرازات غير معتادة'];
+var CON=['ولا واحدة','حبوب مركّبة','حبوب بروجستين','لولب نحاس','لولب هرموني','غرسة','حقن','لاصقة','تانية'];
+var S=[
+['أساسيات','نبدأ بالبسيط.',[
+ ['q1','سنة ميلادك؟','year'],
+ ['q2','أنتِ حامل دلوقتي؟','single',['نعم','لا','مش متأكدة']],
+ ['q3','بترضّعي رضاعة طبيعية؟','single',['آه','لا']],
+ ['q4','ولدتي في آخر سنة؟','single',['آه','لا']],
+ ['q5','إيه هدفك من التطبيق؟','multi',['أتابع دورتي','أفهم أعراضي','أجهز لدكتورة','أحاول أحمل','أتجنب الحمل'],'التطبيق مش وسيلة منع حمل.']]],
+['تاريخ دورتك','بتخلّي التوقعات أدق من أول يوم.',[
+ ['q6','أول دورة جاتلك في أي سن؟','num',[8,20],1],
+ ['q7','أول يوم في آخر دورة؟','date'],
+ ['q8','الدورة بتيجي كل كام يوم عادةً؟','num',[10,90],1],
+ ['q9','النزيف بيستمر كام يوم؟','num',[1,14]],
+ ['q10','انتظام دورتك؟','single',['منتظمة غالبًا','بتتأخر وتتقدم','متباعدة جدًا','مش عارفة']],
+ ['q11','الدورة غابت 3 شهور أو أكتر قبل كده؟','single',['آه','لا','كنت حامل']],
+ ['q12','بداية آخر ٣ دورات لو فاكراهم','dates3']]],
+['النزيف والألم','اللي بيحصل معاكي في العادة.',[
+ ['q13','كمية النزيف المعتادة؟','single',['خفيف','متوسط','غزير','غزير جدًا']],
+ ['q14','في أغزر يوم بتغيّري المنتج كل؟','single',['كل ساعة أو ساعتين','كل ٢–٤ ساعات','أقل من كده']],
+ ['q15','بيحصل تسريب على الهدوم أو السرير؟','single',['أبدًا','أحيانًا','كتير']],
+ ['q16','بتنزل جلطات؟','single',['لا','صغيرة','كبيرة']],
+ ['q17','الألم المعتاد؟','single',['مفيش','خفيف','متوسط','شديد']],
+ ['q18','الألم بيعطّلك عن الشغل أو الدراسة؟','single',['أبدًا','أحيانًا','كل دورة']],
+ ['q19','بتاخدي مسكّن في الدورة؟','single',['آه','لا'],'مش بنسأل عن النوع أو الجرعة.'],
+ ['q20','بيحصل نزيف بين الدورات؟','single',['لا','أحيانًا','كتير']]]],
+['صحتك','اختاري «مشخّص» بس لو دكتور قالك كده.',[
+ ['q21','تكيّس المبايض','tri'],['q22','بطانة الرحم المهاجرة','tri'],['q23','مشاكل الغدة الدرقية','tri'],
+ ['q24','أنيميا أو نقص حديد','tri'],['q25','اضطراب تجلط أو نزيف شديد في العيلة','tri'],['q26','سكر أو مقاومة أنسولين','tri'],
+ ['q27','أدوية بتاخديها بانتظام (اختياري)','text'],
+ ['q28','وسيلة منع الحمل؟','single',CON],
+ ['q29','من إمتى بدأتيها أو غيّرتيها؟','month'],
+ ['q30','عملتي عمليات في الحوض أو الرحم؟','single',['آه','لا']]]],
+['نمط حياتك','حاجات بتأثر على الدورة.',[
+ ['q31','النوم بالليل؟','single',['أقل من ٦ ساعات','٦–٨ ساعات','أكتر من ٨']],
+ ['q32','الضغط في آخر شهرين؟','single',['خفيف','متوسط','شديد']],
+ ['q33','الرياضة؟','single',['ولا حاجة','خفيفة','منتظمة','مكثفة']],
+ ['q34','تغيّر وزن غير مقصود في آخر ٦ شهور؟','single',['لا','زيادة','نقص']],
+ ['q35','بتحاولي تقلّلي الأكل أو بتحرمي نفسك من أكل كتير؟','single',['لا','أحيانًا','كتير'],'ED'],
+ ['q36','التدخين؟','single',['لا','سجائر','شيشة','فيب']]]],
+['أعراضك والتنبيهات','آخر قسم.',[
+ ['q37','أعراض بتحصل كل دورة تقريبًا؟','multi',SYM],
+ ['q40','الأعراض النفسية قبل الدورة بتأثر على شغلك أو علاقاتك؟','single',['أبدًا','أحيانًا','بشدة'],'لو بتأثر بشدة، يستحق نقاش مع دكتورة. ده مش تشخيص.'],
+ ['q41','عايزة أنهي تذكيرات؟','multi',['توقع الدورة','تسجيل يومي','ملخص أسبوعي','تنبيهات طبية']],
+ ['q41t','في أنهي ساعة؟','time'],
+ ['q42','الإشعارات على شاشة القفل تبقى عامة من غير تفاصيل؟','single',['آه','لا']]]]
+];
+var A={},K={},step=0;
+var total=S.reduce(function(n,s){return n+s[2].length},0);
+function ans(){return Object.keys(A).filter(function(k){return A[k]!==undefined&&A[k]!==''&&!(Array.isArray(A[k])&&!A[k].length)}).length}
+function mk(){var h='';S.forEach(function(_,i){h+='<i class="'+(i<=step?'on':'')+'"></i>'});$('#bar').innerHTML=h}
+function chip(g,id,multi,opts){opts.forEach(function(o){var b=document.createElement('button');b.className='chip';b.textContent=o;
+ var cur=A[id];b.setAttribute('aria-pressed',multi?(cur||[]).indexOf(o)>-1:cur===o);
+ b.onclick=function(){if(multi){var a=A[id]||[],i=a.indexOf(o);i>-1?a.splice(i,1):a.push(o);A[id]=a;b.setAttribute('aria-pressed',i<0)}
+  else{A[id]=A[id]===o?undefined:o;g.querySelectorAll('.chip').forEach(function(x){x.setAttribute('aria-pressed',x===b&&A[id]===o)})}
+  note(id);cnt()};g.appendChild(b)})}
+function note(id){var n=$('#n-'+id);if(!n)return;if(id==='q35')n.style.display=(A[id]==='أحيانًا'||A[id]==='كتير')?'block':'none';
+ else if(id==='q40')n.style.display=A[id]==='بشدة'?'block':'none'}
+function cnt(){$('#cnt').textContent='القسم '+(step+1)+' من '+S.length+' · '+ans()+' إجابة'}
+function render(){
+ var s=S[step],st=$('#stage');st.innerHTML='<h1>'+s[0]+'</h1><p class="sub">'+s[1]+'</p>';mk();cnt();
+ s[2].forEach(function(q){var id=q[0],t=q[2],d=document.createElement('div');d.className='q'+(K[id]?' sk':'');
+  var lab=document.createElement('div');lab.className='t';lab.textContent=q[1];d.appendChild(lab);var c;
+  if(t==='single'||t==='multi'){c=document.createElement('div');c.className='chips';chip(c,id,t==='multi',q[3])}
+  else if(t==='tri'){c=document.createElement('div');c.className='seg';['مشخّص من دكتور','مش متأكدة','لأ'].forEach(function(o){var b=document.createElement('button');b.textContent=o;b.setAttribute('aria-pressed',A[id]===o);
+   b.onclick=function(){A[id]=o;c.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',x===b)});cnt()};c.appendChild(b)})}
+  else if(t==='year'){c=document.createElement('select');var y=new Date().getFullYear(),h='<option value="">اختاري</option>';for(var i=y-12;i>=y-60;i--)h+='<option'+(A[id]==i?' selected':'')+'>'+i+'</option>';c.innerHTML=h;c.onchange=function(){A[id]=c.value;cnt()}}
+  else if(t==='num'){c=document.createElement('div');var inp=document.createElement('input');inp.type='number';inp.min=q[3][0];inp.max=q[3][1];inp.value=A[id]||'';inp.setAttribute('aria-label',q[1]);inp.oninput=function(){A[id]=inp.value;cnt()};c.appendChild(inp);
+   if(q[4]){var u=document.createElement('label');u.className='unk';u.innerHTML='<input type="checkbox"> مش عارفة';u.querySelector('input').onchange=function(e){if(e.target.checked){A[id]='مش عارفة';inp.value=''}else A[id]='';cnt()};c.appendChild(u)}}
+  else if(t==='dates3'){c=document.createElement('div');c.className='row3';for(var j=0;j<3;j++)(function(j){var i2=document.createElement('input');i2.type='date';i2.setAttribute('aria-label','دورة '+(j+1));i2.onchange=function(){var a=A[id]||[];a[j]=i2.value;A[id]=a.filter(Boolean);cnt()};c.appendChild(i2)})(j)}
+  else{c=document.createElement('input');c.type=t==='text'?'text':t;c.value=A[id]||'';c.setAttribute('aria-label',q[1]);c.oninput=c.onchange=function(){A[id]=c.value;cnt()}}
+  d.appendChild(c);
+  if(q[4]==='ED'||(typeof q[4]==='string'&&q[4]!=='ED')||(typeof q[3]==='string')){var tx=q[4]==='ED'?'لو الأكل بقى مصدر ضغط عليكي، كلمي دكتورة أو أخصائية تغذية. مش هنطلب منك أي أرقام.':(typeof q[4]==='string'?q[4]:q[3]);
+   var n=document.createElement('div');n.className='note';n.id='n-'+id;n.textContent=tx;if(id==='q35'||id==='q40')n.style.display='none';d.appendChild(n);note(id)}
+  var sk=document.createElement('button');sk.className='skip';sk.textContent=K[id]?'أجاوب على السؤال ده':'أفضّل ما أجاوبش';
+  sk.onclick=function(){K[id]=!K[id];if(K[id])delete A[id];render2(s)};d.appendChild(sk);st.appendChild(d)});
+ var f=$('#foot');f.innerHTML='';
+ if(step>0){var p=document.createElement('button');p.className='go ghost';p.textContent='رجوع';p.onclick=function(){step--;render()};f.appendChild(p)}
+ var nx=document.createElement('button');nx.className='go';nx.textContent=step<S.length-1?'التالي':'خلّصت';nx.onclick=function(){if(step<S.length-1){step++;render();window.scrollTo(0,0)}else fin()};f.appendChild(nx)}
+function render2(){var y=window.scrollY;render();window.scrollTo(0,y)}
+function fin(){mk();$('#stage').innerHTML='<div class="done"><div class="ok">✓</div><h1>تمام، عرفنا عنك كفاية نبدأ</h1><p class="sub">جاوبتي على '+ans()+' من '+total+' سؤال. تقدري تعدّلي أي إجابة من الإعدادات.</p></div><div class="note">هنسألك بعدين، وبهدوء، داخل التطبيق: عن أي نزيف أو ألم بعد الجماع، وألم أثناء الجماع أو عند التبول والتبرز في أيام الدورة.</div><div class="note">إجاباتك بتخلّي الشرح والتوقعات أنسب ليكي، ومش بتتحول لتشخيص أبدًا.</div>';
+ $('#cnt').textContent='';$('#foot').innerHTML=''}
+render();
+
+/* ===== ربط بالتطبيق (أُضيف عند دمج الاستمارة في المشروع — الأصل ما فوق هذا السطر) =====
+   يحفظ الإجابات في نفس مخزن التطبيق القديم (cyclecare_context_v1)، يعلّم
+   registered ليفتح التطبيق، ويحقن أول يوم في آخر دورة في التتبّع كما كانت
+   استمارة التسجيل القديمة تفعل. لا شيء يُرسل لخادم إلا ذلك التاريخ. */
+function profileDone(){
+ var s={};try{s=JSON.parse(localStorage.getItem('cyclecare_context_v1'))||{}}catch(e){}
+ var year=A.q1?Number(A.q1):0;
+ var avg=A.q8?Number(A.q8):NaN;
+ var preg=A.q2==='نعم'?'مؤكد':A.q2==='لا'?'لا':A.q2==='مش متأكدة'?'غير مؤكد':(s.pregnancy_status||null);
+ var conds=[];
+ [['q21','تكيّس المبايض'],['q22','بطانة الرحم المهاجرة'],['q23','مشاكل الغدة الدرقية'],
+  ['q24','أنيميا أو نقص حديد'],['q25','اضطراب تجلط أو نزيف شديد في العيلة'],
+  ['q26','سكر أو مقاومة أنسولين']].forEach(function(p){
+  var v=A[p[0]];
+  if(v==='مشخّص من دكتور')conds.push({name:p[1],status:'مشخّصة'});
+  else if(v==='مش متأكدة')conds.push({name:p[1],status:'غير متأكدة'});});
+ s.registered=true;
+ s.cycles_recorded=(typeof s.cycles_recorded==='number')?s.cycles_recorded:0;
+ if(year>=1960&&year<=new Date().getFullYear()-10)s.age=new Date().getFullYear()-year;
+ if(!isNaN(avg))s.avg_cycle_days=avg;
+ if(preg)s.pregnancy_status=preg;
+ if(A.q28&&A.q28!=='ولا واحدة')s.contraception=A.q28;
+ if(conds.length)s.conditions=conds;
+ s.profile_answers=A;
+ s.profile_skipped=K;
+ s.updated_at=new Date().toISOString();
+ localStorage.setItem('cyclecare_context_v1',JSON.stringify(s));
+ if(A.q7){
+  var dk=localStorage.getItem('cyclecare_device_v1');
+  if(!dk){dk=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random();
+   localStorage.setItem('cyclecare_device_v1',dk);}
+  fetch('/v1/cycles?user_key='+encodeURIComponent(dk),{method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({start_date:A.q7,bleeding_days:null})}).catch(function(){});}
+ var go=document.createElement('button');go.className='go';go.textContent='افتحي التطبيق';
+ go.onclick=function(){location.href='/'};
+ $('#foot').appendChild(go);
+}
+var _fin=fin;
+fin=function(){_fin();profileDone()};
+})();
+</script>
+</body>
+</html>

@@ -25,6 +25,8 @@ from .schemas import (
     UserContext,
 )
 from .routers.ai import router as ai_router
+from .routers.auth import router as auth_router
+from .services.auth import effective_user_key
 from .services import audit
 from .services.ai_pipeline import AiPipeline, PipelineDeps
 from .services.emergency_numbers import EmergencyNumbers
@@ -240,12 +242,12 @@ def meta() -> dict[str, Any]:
 # ------------------------------------------------------- تتبّع الدورات والأعراض
 
 @app.get("/v1/cycles", response_model=list[CycleOut], dependencies=[Depends(api_key_header)])
-def list_cycles(user_key: str) -> list[dict]:
+def list_cycles(user_key: str = Depends(effective_user_key)) -> list[dict]:
     return _store.list_bleeding_logs(user_key)
 
 
 @app.post("/v1/cycles", response_model=CycleOut, dependencies=[Depends(api_key_header)])
-def add_cycle(cycle: CycleIn, user_key: str) -> dict:
+def add_cycle(cycle: CycleIn, user_key: str = Depends(effective_user_key)) -> dict:
     try:
         return _store.add_bleeding_log(user_key, cycle.start_date, cycle.bleeding_days)
     except StoreError as exc:
@@ -253,19 +255,19 @@ def add_cycle(cycle: CycleIn, user_key: str) -> dict:
 
 
 @app.delete("/v1/cycles/{cycle_id}", dependencies=[Depends(api_key_header)])
-def delete_cycle(cycle_id: int, user_key: str) -> dict:
+def delete_cycle(cycle_id: int, user_key: str = Depends(effective_user_key)) -> dict:
     if not _store.delete_bleeding_log(user_key, cycle_id):
         raise HTTPException(status_code=404, detail="سجل النزيف غير موجود")
     return {"deleted": cycle_id}
 
 
 @app.get("/v1/symptoms", response_model=list[SymptomOut], dependencies=[Depends(api_key_header)])
-def list_symptoms(user_key: str, since_days: int | None = None) -> list[dict]:
+def list_symptoms(user_key: str = Depends(effective_user_key), since_days: int | None = None) -> list[dict]:
     return _store.list_symptom_logs(user_key, since_days=since_days)
 
 
 @app.post("/v1/symptoms", response_model=SymptomOut, dependencies=[Depends(api_key_header)])
-def add_symptom(symptom: SymptomIn, user_key: str) -> dict:
+def add_symptom(symptom: SymptomIn, user_key: str = Depends(effective_user_key)) -> dict:
     try:
         return _store.add_symptom_log(user_key, symptom.log_date, symptom.symptom,
                                       symptom.severity, symptom.note)
@@ -274,7 +276,7 @@ def add_symptom(symptom: SymptomIn, user_key: str) -> dict:
 
 
 @app.delete("/v1/symptoms/{symptom_id}", dependencies=[Depends(api_key_header)])
-def delete_symptom(symptom_id: int, user_key: str) -> dict:
+def delete_symptom(symptom_id: int, user_key: str = Depends(effective_user_key)) -> dict:
     if not _store.delete_symptom_log(user_key, symptom_id):
         raise HTTPException(status_code=404, detail="السجل غير موجود")
     return {"deleted": symptom_id}
@@ -287,14 +289,14 @@ _EMPTY_PROFILE: dict[str, Any] = {"conditions": [], "updated_at": ""}
 
 @app.get("/v1/profile", response_model=HealthProfileOut,
          dependencies=[Depends(api_key_header)])
-def get_profile(user_key: str) -> dict:
+def get_profile(user_key: str = Depends(effective_user_key)) -> dict:
     """ملف المستخدم: لغة/بلد/إعدادات عرض + عمر وحالة. غياب = ملف فارغ (200)."""
     return _store.get_health_profile(user_key) or dict(_EMPTY_PROFILE)
 
 
 @app.put("/v1/profile", response_model=HealthProfileOut,
          dependencies=[Depends(api_key_header)])
-def put_profile(profile: HealthProfileIn, user_key: str) -> dict:
+def put_profile(profile: HealthProfileIn, user_key: str = Depends(effective_user_key)) -> dict:
     """استبدال كامل للملف (PUT): ما لا يأتي في الطلب يُمسح — القديم لا يُدمج."""
     try:
         return _store.upsert_health_profile(user_key, profile.model_dump(mode="json"))
@@ -306,12 +308,12 @@ def put_profile(profile: HealthProfileIn, user_key: str) -> dict:
 
 @app.get("/v1/consents", response_model=list[ConsentOut],
          dependencies=[Depends(api_key_header)])
-def list_consents(user_key: str) -> list[dict]:
+def list_consents(user_key: str = Depends(effective_user_key)) -> list[dict]:
     return _store.list_consents(user_key)
 
 
 @app.post("/v1/consents", response_model=ConsentOut, dependencies=[Depends(api_key_header)])
-def set_consent(consent: ConsentIn, user_key: str) -> dict:
+def set_consent(consent: ConsentIn, user_key: str = Depends(effective_user_key)) -> dict:
     """تسجيل موافقة/رفض نشاط واحد — يستبدل قرار سابق لنفس النشاط."""
     try:
         return _store.set_consent(user_key, consent.consent_key.value, consent.granted,
@@ -323,7 +325,7 @@ def set_consent(consent: ConsentIn, user_key: str) -> dict:
 # ---------------------------------------------------------- حق الحذف
 
 @app.delete("/v1/data", dependencies=[Depends(api_key_header)])
-def delete_all_data(user_key: str) -> dict:
+def delete_all_data(user_key: str = Depends(effective_user_key)) -> dict:
     """حذف بيانات التطبيق لهذه المستخدمة من قاعدة البيانات (الدورات، الأعراض، الملف، الموافقات).
 
     سجل التدقيق (audit/) يبقى — لحذفه معًا راجع DELETE /v1/account.
@@ -332,7 +334,7 @@ def delete_all_data(user_key: str) -> dict:
 
 
 @app.delete("/v1/account", dependencies=[Depends(api_key_header)])
-def delete_account(user_key: str) -> dict:
+def delete_account(user_key: str = Depends(effective_user_key)) -> dict:
     """حذف الحساب: كل بيانات التطبيق + سجل التدقيق لهذه البصمة.
 
     التدقيق يخزّن `user_id = key_fingerprint(user_key)` — نعيد حساب البصمة هنا ثم
@@ -345,7 +347,7 @@ def delete_account(user_key: str) -> dict:
 
 
 @app.get("/v1/insights", response_model=InsightsResponse, dependencies=[Depends(api_key_header)])
-def insights(user_key: str) -> InsightsResponse:
+def insights(user_key: str = Depends(effective_user_key)) -> InsightsResponse:
     """«الرؤى الطبية» محليًا بلا موديل: نتائج محرك القواعد + شرحها.
 
     تعمل بالكامل بلا إنترنت وبلا مفتاح — وهذا مقصود: التحليل الأساسي للتتبّع
@@ -377,6 +379,7 @@ _ai_pipeline = _build_ai_pipeline()
 # مسارات الطبقة الجديدة (قاعدة المعرفة + التعريب). تُسجَّل قبل static mount
 # لأن Starlette يطابق بحسب ترتيب التسجيل.
 app.include_router(ai_router)
+app.include_router(auth_router)
 
 # الواجهة تُخدم من نفس التطبيق، لذا لا نحتاج CORS افتراضيًا.
 # فتح "*" كان يسمح لأي موقع باستخدام الـ API (بمفتاح الخادم ودون مصادقة).

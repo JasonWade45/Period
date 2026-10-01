@@ -251,6 +251,28 @@ class ConsentOut(BaseModel):
     decided_at: str = ""
 
 
+class AuthRegisterIn(BaseModel):
+    """إنشاء حساب: بريد + كلمة مرور، مع معرّف الجهاز القديم لنقل بياناته."""
+
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=200)
+    device_key: Optional[str] = Field(default=None, max_length=128)
+
+
+class AuthLoginIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class AuthOut(BaseModel):
+    authenticated: bool = False
+    email: Optional[str] = None
+
+
+class AuthRegisterOut(AuthOut):
+    migrated: dict[str, int] = Field(default_factory=dict)
+
+
 class InsightsResponse(BaseModel):
     """نتائج محرك القواعد بلا موديل — تعمل حتى بلا إنترنت أو مفتاح."""
 

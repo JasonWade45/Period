@@ -36,7 +36,7 @@
       <div class="topbar-actions">
         <button class="icon-btn no-flip" id="lang-btn-landing" onclick="toggleLanguage()"
                 title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
-        <button class="btn-ghost landing-login" onclick="enterApp()"
+        <button class="btn-ghost landing-login" onclick="showAuth('login')"
                 data-i18n="landing.cta_login">عندي حساب — دخول</button>
       </div>
     </header>
@@ -49,7 +49,7 @@
         <div class="hero-cta">
           <button class="btn-primary btn-big" id="cta-start" onclick="startSignup()"
                   data-i18n="landing.cta_start">سجّلي الآن</button>
-          <button class="btn-ghost btn-big" onclick="enterApp()"
+          <button class="btn-ghost btn-big" onclick="showAuth('login')"
                   data-i18n="landing.cta_login">عندي حساب — دخول</button>
         </div>
         <p class="hero-note" data-i18n="landing.note">التسجيل بسيط: كم سؤال يساعدنا نفهمكِ ونجهّز إجابات تناسبكِ، وبياناتكِ تبقى في متصفحك.</p>
@@ -87,100 +87,93 @@
     </main>
   </div>
 
-  <!-- ================= استمارة التسجيل ================= -->
-  <div id="signup" class="signup" hidden>
+  <!-- ================= إنشاء حساب / تسجيل الدخول ================= -->
+  <div id="auth" hidden class="landing auth-page">
     <header class="topbar">
       <div class="brand">
         <span class="logo">C</span>
         <div>
-          <h1 data-i18n="signup.title">استمارة التسجيل</h1>
-          <p data-i18n="signup.subtitle">كم سؤال بسيط عشان نفهمكِ ونجهّز إجابات تناسبكِ</p>
+          <h1>CycleCare</h1>
+          <p data-i18n="app.tagline">مساعد تثقيفي لصحة الدورة الشهرية</p>
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="icon-btn no-flip" id="lang-btn-signup" onclick="toggleLanguage()"
+        <button class="icon-btn no-flip" id="lang-btn-auth" onclick="toggleLanguage()"
                 title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
-        <button class="icon-btn no-flip" onclick="closeSignup()"
-                title="إغلاق" data-i18n-attr="title" data-i18n="signup.btn_close">✕</button>
+        <button class="btn-ghost" onclick="showView('landing')" data-i18n="auth.back">رجوع</button>
       </div>
     </header>
 
-    <main class="signup-main">
-      <div class="signup-card">
-        <div class="progress">
-          <div class="progress-text" id="signup-progress-text">الخطوة 1 من 7</div>
-          <div class="progress-track"><div class="progress-bar" id="signup-progress-bar"></div></div>
+    <main class="landing-main">
+      <section class="hero">
+        <span class="hero-badge" id="auth-badge">حسابكِ يحفظ دورتكِ وأعراضكِ</span>
+        <h2 class="hero-title" id="auth-title">أنشئي حسابكِ</h2>
+
+        <form id="auth-form" class="auth-card" onsubmit="return handleAuth(event)">
+          <label class="auth-field">
+            <span data-i18n="auth.email">البريد الإلكتروني</span>
+            <input type="email" id="a-email" name="email" autocomplete="email"
+                   required placeholder="name@example.com">
+          </label>
+          <label class="auth-field">
+            <span data-i18n="auth.password">كلمة المرور</span>
+            <input type="password" id="a-password" name="password" required minlength="8"
+                   autocomplete="new-password" placeholder="٨ أحرف على الأقل"
+                   data-i18n-attr="placeholder" data-i18n="auth.password_ph">
+          </label>
+          <p class="auth-error" id="auth-error" hidden></p>
+          <button type="submit" class="btn-primary btn-big" id="a-submit">إنشاء الحساب</button>
+        </form>
+
+        <div class="hero-cta">
+          <button class="btn-ghost" id="auth-switch" onclick="switchAuthMode()">عندك حساب بالفعل؟ دخول</button>
         </div>
-
-        <section class="step" data-step="0">
-          <h2 data-i18n="signup.q_age">عمرك كام سنة؟</h2>
-          <p class="step-hint" data-i18n="signup.q_age_hint">يساعدنا في تخصيص المعلومات المناسبة لعمرك.</p>
-          <input type="number" id="s-age" min="10" max="60" inputmode="numeric"
-                 placeholder="مثال: 27" data-i18n-attr="placeholder" data-i18n="signup.ph_age">
-        </section>
-
-        <section class="step" data-step="1" hidden>
-          <h2 data-i18n="signup.q_cycles">سجّلتِ كام دورة لحد دلوقتي؟</h2>
-          <p class="step-hint" data-i18n="signup.q_cycles_hint">تقدير تقريبي يكفي — تقدرين تراجعيه بعدين من زر «بياناتي».</p>
-          <input type="number" id="s-cycles" min="0" max="200" inputmode="numeric"
-                 placeholder="مثال: 12" data-i18n-attr="placeholder" data-i18n="signup.ph_cycles">
-        </section>
-
-        <section class="step" data-step="2" hidden>
-          <h2 data-i18n="signup.q_avg">متوسط طول دورتك كام يوم؟</h2>
-          <p class="step-hint" data-i18n="signup.q_avg_hint">من أول يوم نزيف لآخر يوم قبل الدورة الجاية. الأشيع 21–35 يومًا.</p>
-          <input type="number" id="s-avg" min="15" max="60" inputmode="numeric"
-                 placeholder="مثال: 28" data-i18n-attr="placeholder" data-i18n="signup.ph_avg">
-        </section>
-
-        <section class="step" data-step="3" hidden>
-          <h2 data-i18n="signup.q_last">تاريخ أول يوم آخر دورة</h2>
-          <p class="step-hint" data-i18n="signup.q_last_hint">يُسجَّل مباشرة في التتبّع عشان نحسبلك موعد الدورة الجاية — تقدرين تتجاوزي السؤال.</p>
-          <input type="date" id="s-last" max="">
-        </section>
-
-        <section class="step" data-step="4" hidden>
-          <h2 data-i18n="signup.q_country">إيه بلدك؟</h2>
-          <p class="step-hint" data-i18n="signup.q_country_hint">لتحديد رقم الطوارئ المناسب لبلدك.</p>
-          <select id="s-country"></select>
-          <h3 class="step-sub" data-i18n="signup.q_pregnancy">احتمال حمل؟</h3>
-          <select id="s-pregnancy">
-            <option value="">غير محدد</option>
-            <option value="غير مؤكد">احتمال حمل</option>
-            <option value="مؤكد">حمل مؤكد</option>
-            <option value="لا">لا</option>
-          </select>
-        </section>
-
-        <section class="step" data-step="5" hidden>
-          <h2 data-i18n="signup.opt_title">سؤالين اختياريين</h2>
-          <p class="step-hint" data-i18n="signup.opt_hint">تقدرين تعدّيهم — ينفع تضيفيهم بعدين من «بياناتي».</p>
-          <label class="step-label" data-i18n="signup.q_contraception">وسيلة منع الحمل (لو موجودة)</label>
-          <input type="text" id="s-contraception"
-                 placeholder="مثال: حبوب، لولب…" data-i18n-attr="placeholder" data-i18n="signup.ph_contraception">
-          <label class="step-label" data-i18n="signup.q_conditions">أمراض مشخّصة (لو موجودة)</label>
-          <textarea id="s-conditions" rows="3"
-                    placeholder="كل سطر: اسم الحالة | مشخّصة أو غير متأكدة"
-                    data-i18n-attr="placeholder" data-i18n="signup.ph_conditions"></textarea>
-        </section>
-
-        <section class="step" data-step="6" hidden>
-          <div class="done-box">
-            <span class="done-icon" aria-hidden="true">✓</span>
-            <h2 data-i18n="signup.done_title">تمام! جهزنا ملفك</h2>
-            <p class="step-hint" data-i18n="signup.done_body">حفظنا إجاباتك في متصفحك، وتقدرين تعدّليها أي وقت من زر «بياناتي».</p>
-          </div>
-        </section>
-
-        <div class="step-nav">
-          <button class="btn-ghost" id="signup-back" onclick="signupBack()"
-                  data-i18n="signup.btn_back">رجوع</button>
-          <button class="btn-primary" id="signup-next" onclick="signupNext()"
-                  data-i18n="signup.btn_next">التالي</button>
-        </div>
-      </div>
+        <p class="hero-note" data-i18n="auth.note">بياناتكِ مرتبطة بحسابكِ: دوراتكِ وأعراضكِ تُحفظ على خادمك، والتفاصيل الشخصية تبقى في متصفحك.</p>
+      </section>
     </main>
   </div>
+
+  <!-- ================= الداشبورد: دوراتي وأعراضي ================= -->
+  <div id="dashboard" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">C</span>
+        <div>
+          <h1>CycleCare</h1>
+          <p data-i18n="app.tagline">مساعد تثقيفي لصحة الدورة الشهرية</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn no-flip" onclick="toggleLanguage()"
+                title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
+        <button class="btn-primary" onclick="enterApp()" data-i18n="dash.to_chat">ابدئي المحادثة</button>
+        <button class="btn-ghost" id="dash-logout" onclick="authLogout()" data-i18n="dash.logout">تسجيل الخروج</button>
+      </div>
+    </header>
+
+    <main class="dash-main">
+      <h2 class="dash-title" data-i18n="dash.title">دشبوردي</h2>
+      <div class="dash-grid">
+        <section class="dash-card">
+          <div class="list-head">
+            <h3 data-i18n="dash.cycles_title">دوراتي</h3>
+            <span class="muted" id="dash-cycles-count"></span>
+          </div>
+          <ul class="record-list" id="dash-cycles-list"></ul>
+        </section>
+        <section class="dash-card">
+          <div class="list-head">
+            <h3 data-i18n="dash.symptoms_title">أعراضي</h3>
+            <span class="muted" id="dash-symptoms-count"></span>
+          </div>
+          <ul class="record-list" id="dash-symptoms-list"></ul>
+        </section>
+      </div>
+      <p class="muted dash-note" data-i18n="dash.add_hint">لإضافة دورة أو عرض جديد افتحي المحادثة واضغطي زر 📖.</p>
+    </main>
+  </div>
+
+  <!-- استمارة التسجيل صارت صفحة مستقلة: profile.html (تُفتح بعد إنشاء الحساب) -->
 
   <!-- ================= التطبيق (المحادثة) ================= -->
   <div id="app" hidden>
@@ -199,6 +192,8 @@
         </div>
         <button class="icon-btn no-flip" id="lang-btn" onclick="toggleLanguage()"
                 title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
+        <button class="icon-btn no-flip" id="dash-btn" hidden onclick="showDashboard()"
+                title="دشبوردي" data-i18n-attr="title" data-i18n="dash.title">📊</button>
         <button class="icon-btn no-flip" id="tracker-btn" onclick="toggleTracker()" title="دوراتي وأعراضي">📖</button>
         <button class="icon-btn no-flip" id="settings-btn" onclick="toggleSettings()" title="بياناتي">⚙</button>
       </div>
