@@ -32,7 +32,7 @@ from app.services.validator import CHAT_FIELDS, SUMMARY_FIELDS  # noqa: E402
 # المتغيّرات التي يملأها PromptBuilder.build فعليًا
 REQUIRED_VARIABLES = {
     "MODE", "USER_CONTEXT", "FINDINGS", "SOURCES", "RULE_GLOSSARY",
-    "CURRENT_DATE", "EMERGENCY_NUMBER", "CRISIS_LINE",
+    "CURRENT_DATE", "EMERGENCY_NUMBER", "CRISIS_LINE", "USER_NAME",
 }
 
 # أنماط ممنوعة في البرومبت: وصف دواء موجّه، أو وعود تشخيصية

@@ -66,6 +66,26 @@ def _effective_context(request: Request, req: AiChatRequest):
     return merged, symptoms
 
 
+def _with_profile_name(request: Request, req: AiChatRequest) -> AiChatRequest:
+    """الاسم: ما أرسلته الواجهة، وإلا المحفوظ على الخادم لهذا الجهاز.
+
+    إن وصل اسم جديد مع `user_key` حُفظ، فيعرفها المساعد في أي طلب لاحق (وفي أي
+    واجهة أخرى بنفس المفتاح) دون أن تُعيد كتابته.
+    """
+    store = getattr(request.app.state, "store", None)
+    if store is None or not req.user_key:
+        return req
+    try:
+        if req.user_name:
+            if store.get_profile(req.user_key).get("display_name") != req.user_name:
+                store.set_profile(req.user_key, req.user_name)
+            return req
+        saved = store.get_profile(req.user_key).get("display_name", "")
+    except StoreError:
+        return req
+    return req.model_copy(update={"user_name": saved}) if saved else req
+
+
 def _error(request: Request, code: str, status_code: int) -> HTTPException:
     """خطأ بكود مستقر + نص مترجم من ملف الموارد (لا نص إنجليزي مكتوب هنا)."""
     locale = resolve_locale(request.headers.get("accept-language"))
@@ -111,6 +131,7 @@ def ai_chat(req: AiChatRequest, request: Request,
     if req.language is None:
         req = req.model_copy(update={"language": language})
 
+    req = _with_profile_name(request, req)
     pipeline = _pipeline(request)
     return pipeline.chat(req, accept_language=request.headers.get("accept-language"),
                          context=context, symptoms=symptoms)
@@ -132,6 +153,7 @@ def ai_summary(req: AiChatRequest, request: Request,
         raise exc
 
     context, symptoms = _effective_context(request, req)
+    req = _with_profile_name(request, req)
     pipeline = _pipeline(request)
     return pipeline.summary(req, accept_language=request.headers.get("accept-language"),
                             context=context, symptoms=symptoms)
@@ -157,6 +179,10 @@ def ai_health(request: Request) -> dict[str, Any]:
         "retrievable_chunks": len(chunks),
         "producible_statuses": [s.value for s in statuses],
         "kb_allow_draft": settings.kb_allow_draft,
+        "knowledge_mode": "reviewed_and_unreviewed" if settings.kb_allow_draft else "reviewed_only",
+        "unreviewed_chunks": sum(1 for c in chunks if c.status.value != "approved"),
+        "llm_configured": pipeline.deps.llm is not None,
+        "extractive_fallback": pipeline.deps.extractive_fallback,
         "embedding_model": settings.kb_embedding_model,
         "embedding_backend": settings.kb_embedding_backend,
         "prompt_version": settings.prompt_version,

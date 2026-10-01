@@ -65,8 +65,8 @@ class Settings:
     crisis_line: str = _env("CRISIS_LINE", "")
 
     # Prompt
-    prompt_version: str = _env("PROMPT_VERSION", "v1.2")
-    prompt_path: Path = Path(_env("PROMPT_PATH", str(APP_DIR / "prompts" / "system_prompt_v1.2.md")))
+    prompt_version: str = _env("PROMPT_VERSION", "v1.3")
+    prompt_path: Path = Path(_env("PROMPT_PATH", str(APP_DIR / "prompts" / "system_prompt_v1.3.md")))
 
     # Data files
     sources_path: Path = Path(_env("SOURCES_PATH", str(APP_DIR / "data" / "sources.json")))
@@ -115,7 +115,11 @@ class Settings:
     unified_emergency_verified: bool = _env("UNIFIED_EMERGENCY_VERIFIED", "0") in ("1", "true", "True")
 
     # ------------------------------------------------------------ قاعدة المعرفة
-    kb_allow_draft: bool = _env("KB_ALLOW_DRAFT", "0") in ("1", "true", "True")
+    # الافتراضي «يعمل من أول تشغيل»: المقالات التثقيفية غير المراجَعة طبيًا مسموحة
+    # للاسترجاع، وتُعرض موسومة «غير مراجَعة». KB_ALLOW_DRAFT=0 = معتمد فقط (صرامة كاملة).
+    kb_allow_draft: bool = _env("KB_ALLOW_DRAFT", "1") in ("1", "true", "True")
+    # تحميل kb/knowledge/knowledge_seed.jsonl كمسودات عند الإقلاع (إعادة التحميل آمنة)
+    kb_autoload_seed: bool = _env("KB_AUTOLOAD_SEED", "1") in ("1", "true", "True")
     # sqlite للتطوير المحلي، postgres للنشر (يتطلب migrations/001_kb_pgvector.sql)
     kb_backend: str = _env("KB_BACKEND", "sqlite")
     kb_db_path: Path = Path(_env("KB_DB_PATH", str(REPO_DIR / "data" / "kb.db")))

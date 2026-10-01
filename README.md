@@ -27,7 +27,7 @@ POST /v1/chat
    ├─ 3. Retrieval (keyword RAG over app/data/sources.json)
    │      The retrieved chunk ids become the only ids the model may cite.
    │
-   ├─ 4. Prompt build (app/prompts/system_prompt_v1.2.md + variables)
+   ├─ 4. Prompt build (app/prompts/system_prompt_v1.3.md + variables)
    │
    ├─ 5. Model call (Groq) → validator
    │      JSON shape, required fields, source-id allowlist, banned
@@ -77,7 +77,7 @@ Two deterministic thresholds were extracted from it into the rules engine, marke
 |---|---|---|
 | Pre-model filter | `app/services/emergency_filter.py` | Emergency/crisis messages never reach the model; fixed replies include the configured numbers verbatim. |
 | Rules engine | `app/services/rules_engine.py` | Severity comes from recorded data only, with `evidence` numbers attached. |
-| Prompt contract | `app/prompts/system_prompt_v1.2.md` | No diagnosis, no negation of a diagnosis, no dosing, no reassurance, education only from supplied sources. |
+| Prompt contract | `app/prompts/system_prompt_v1.3.md` | No diagnosis, no negation of a diagnosis, no dosing, no reassurance, education only from supplied sources. |
 | Validator | `app/services/validator.py` | Rejects bad JSON, unknown `sources_used` ids, and banned attribution/dosage phrasing. Text is normalised first (diacritics, alef/ya/ta-marbuta variants) so dialect spellings cannot slip past a pattern; 20 known bypass phrasings are covered by regression tests. |
 | Fallback | `app/main.py` | Any model or validation failure degrades to a safe answer — never a 5xx. |
 | Post-model check | `app/services/emergency_filter.py` | If the model reports emergency/crisis (a phrasing the lexical filter missed), the number is forced into the answer text, not just the boolean flag. |
@@ -125,8 +125,8 @@ Open <http://127.0.0.1:8113/> for the app, <http://127.0.0.1:8113/docs> for the 
 | `API_KEY` | *(empty)* | Empty = open (local development only). When set, `/v1/*` requires `X-API-Key`. Emergency and crisis messages are still accepted with a wrong key on purpose. |
 | `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_SECONDS` | `30` / `60` | Per device key. Never applied to emergency/crisis messages. In-memory: with multiple workers the effective limit multiplies. |
 | `CRISIS_LINE` | *(empty)* | Local crisis/support line; empty replies say it is unavailable rather than inventing one. |
-| `PROMPT_VERSION` | `v1.2` | Echoed in every response and audit entry. |
-| `PROMPT_PATH` | `app/prompts/system_prompt_v1.2.md` | |
+| `PROMPT_VERSION` | `v1.3` | Echoed in every response and audit entry. |
+| `PROMPT_PATH` | `app/prompts/system_prompt_v1.3.md` | |
 | `SOURCES_PATH` | `app/data/sources.json` | المقاطع القابلة للاستشهاد في المسار القديم. **فارغ عن قصد حاليًا:** المقاطع الستة نُسبت إلى NHS/ACOG/WHO بلا مراجعة موثوقة، فأُزيل نصها ونُقلت إلى `sources_draft.json` بانتظار تأكيد الترخيص. النتيجة المطلوبة: صفر مقاطع قابلة للاستشهاد، والمساعد يقول «لا أملك مصدرًا موثوقًا». |
 | `RULES_GLOSSARY_PATH` | `app/data/rules_glossary.json` | Plain-language meaning per rule code. |
 | `AUDIT_LOG_PATH` | `audit/responses.jsonl` | Gitignored. |
@@ -281,8 +281,12 @@ draft_unreviewed ──▶ physician_reviewed ──▶ approved ──▶ retir
 والانتقال يتطلب اسم مراجع وتاريخًا. لا قفز من مسودة إلى معتمد: مراجعة الطبيبة
 خطوة إلزامية ومسجّلة.
 
-**حالة الاسترجاع في الإنتاج:** `approved` فقط. `KB_ALLOW_DRAFT=1` يضيف المسودات
-لبيئة تجريبية داخلية فقط، و`/api/v1/ai/health` يُظهر الحالات المسموحة فعليًا.
+**حالة الاسترجاع (قرار المنتج 2026-10-01):** لا يُشترط اسم مراجِعة لتشغيل المساعد.
+الافتراضي `KB_ALLOW_DRAFT=1` + `KB_AUTOLOAD_SEED=1`: بذرة المقالات التثقيفية
+(`kb/knowledge/knowledge_seed.jsonl`) تُحمَّل عند الإقلاع كـ`draft_unreviewed` وتُعرَض
+موسومة صراحةً «غير مراجَعة طبيًا» (في النص وفي شارة الواجهة وفي حقل `knowledge_review`)،
+ولا يُنسب لها مراجِع ولا يُقال إن طبيبة راجعتها. من يريد الصرامة الكاملة (المعتمد فقط)
+يضبط `KB_ALLOW_DRAFT=0`. `/api/v1/ai/health` يُظهر الحالات المسموحة فعليًا.
 
 ### الاستيراد
 
@@ -392,6 +396,17 @@ python -m app.kb.review set-status kb-cycle-length-01 physician_reviewed \
 `/health` يعرض حالة المعرفة بأرقام صريحة: `chunks_loaded`, `chunks_citable`,
 `drafts_pending_review`, و`chunks_text_removed` (مقاطع أُزيل نصها بانتظار
 الترخيص — لا تُسترجع أبدًا ولو فُعِّل تضمين المسودات).
+
+## المساعد: استفسارات + ملخصات باسمها (نظام واحد)
+
+- **مسار واحد** `/api/v1/ai/chat|summary` تستعمله الواجهة، والملخص يقرأ دوراتها وأعراضها من الخادم بنفس `user_key`.
+- **باسمها:** `PUT /v1/profile?user_key=…` `{"display_name":"سارة"}` (أو `user_name` في الطلب). الاسم يُنظَّف
+  (سطر واحد، بلا رموز بنيوية، ≤4 كلمات/40 حرفًا) لأنه يدخل البرومبت، ويُحفظ على الخادم فقط ولا يدخل سجل التدقيق.
+- **حارس نوايا قبل الاسترجاع** (`app/services/intent_guard.py`): جرعة/دواء، تشخيص، «هل أنا حامل»، تطمين، تنبؤ، حقن تعليمات
+  ⇒ رد ثابت بلا موديل ولا استرجاع (`decision="guard"`).
+- **بلا `GROQ_API_KEY`:** يعمل بوضع مبسّط — رد استخراجي من نص أفضل مقطعين مسترجَعين (`decision="extractive"`)، وملخص من الأرقام
+  وشرح القواعد (`decision="offline"`)؛ الواجهة تعرض شارة «وضع مبسّط». بمفتاح: توليد عبر البرومبت v1.3 بكل الفلاتر السابقة.
+- الاسترجاع يفهم العامية المصرية (تجريد خفيف للكلمات + مرادفات عامية→فصحى في `app/services/arabic.py`).
 
 ## واجهة /api/v1/ai
 

@@ -22,6 +22,8 @@ from .schemas import (
     CycleStat,
     Finding,
     InsightsResponse,
+    ProfileIn,
+    ProfileOut,
     Severity,
     SummaryResponse,
     SymptomIn,
@@ -49,8 +51,8 @@ async def lifespan(_: FastAPI):
     """تحقّق تشغيلي عند الإقلاع — أخطاء الإعداد تظهر في اللوج لا في وجه المستخدمة."""
     if _llm is None:
         log.warning(
-            "GROQ_API_KEY غير مضبوط: الطلبات غير الطارئة ستُعاد إليها إجابة احتياطية "
-            "حتى يُضبط المفتاح في البيئة أو في ملف .env"
+            "GROQ_API_KEY غير مضبوط: المساعد يعمل بوضع مبسّط (رد من نص المقالات "
+            "المسترجَعة وملخص من الأرقام، بلا توليد) حتى يُضبط المفتاح في البيئة أو .env"
         )
     info = _emergency_info(settings.country_code, _emergency_override(), settings.crisis_line)
     if not info.verified:
@@ -139,6 +141,9 @@ def _build_ai_pipeline() -> AiPipeline | None:
         log.warning("الاسترجاع المتجهي معطّل: بحث كلمي فقط حتى يُضبط نموذج التضمين.")
         embedder = DeterministicLocalEmbedder()
 
+    from .kb.bootstrap import autoload_seed
+    autoload_seed(kb_store, embedder)
+
     deps = PipelineDeps(
         retriever=HybridRetriever(kb_store, embedder),
         prompt_builder=_prompt_builder,
@@ -146,6 +151,7 @@ def _build_ai_pipeline() -> AiPipeline | None:
         numbers=_emergency_numbers,
         store=_store,
         audit_writer=audit.write,
+        rules_glossary=_rules_glossary,
     )
     return AiPipeline(deps)
 
@@ -547,6 +553,21 @@ def delete_symptom(symptom_id: int, user_key: str) -> dict:
     if not _store.delete_symptom(user_key, symptom_id):
         raise HTTPException(status_code=404, detail="السجل غير موجود")
     return {"deleted": symptom_id}
+
+
+@app.get("/v1/profile", response_model=ProfileOut, dependencies=[Depends(api_key_header)])
+def get_profile(user_key: str) -> dict:
+    """الاسم الذي يناديها به المساعد (اختياري). فارغ إن لم تُسجّله."""
+    return _store.get_profile(user_key)
+
+
+@app.put("/v1/profile", response_model=ProfileOut, dependencies=[Depends(api_key_header)])
+def put_profile(profile: ProfileIn, user_key: str) -> dict:
+    """يحفظ الاسم بعد تنظيفه (سطر واحد، بلا رموز بنيوية، حتى 40 حرفًا).
+
+    اسم فارغ أو غير صالح يمسح الاسم المحفوظ. الاسم المنظَّف يُعاد كما سيراه المساعد.
+    """
+    return _store.set_profile(user_key, profile.display_name)
 
 
 @app.delete("/v1/data", dependencies=[Depends(api_key_header)])

@@ -7,6 +7,7 @@ const state = {
   mode: "chat",
   loading: false,
   tab: "cycles",
+  name: "",     // الاسم الذي يناديها به المساعد (محفوظ على الخادم)
   messages: [], // {role, text?, data?}
 };
 
@@ -69,19 +70,47 @@ function readSettingsForm() {
   };
 }
 
-function saveSettings() {
+async function saveSettings() {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(readSettingsForm()));
-  toggleSettings();
+  await saveName(document.getElementById("f-name").value);
+  togglePanel();
 }
 
 function clearSettings() {
   localStorage.removeItem(SETTINGS_KEY);
   fillSettingsForm({});
+  document.getElementById("f-name").value = "";
+  saveName("");
 }
 
-function toggleSettings() {
-  const el = document.getElementById("settings");
-  el.hidden = !el.hidden;
+/* ---------------- الاسم (ملف المستخدمة على الخادم) ---------------- */
+
+const profileUrl = () => `/v1/profile?user_key=${encodeURIComponent(deviceKey())}`;
+
+function applyName(name) {
+  state.name = name || "";
+  document.getElementById("f-name").value = state.name;
+  const title = document.querySelector("#welcome h2");
+  if (title) {
+    title.textContent = state.name
+      ? window.i18n.t("ui.welcome_named", { name: state.name })
+      : window.i18n.t("ui.welcome_title");
+  }
+}
+
+async function loadName() {
+  try {
+    applyName((await api(profileUrl())).display_name);
+  } catch { /* بلا اسم: المساعد يخاطبها بصيغة عامة */ }
+}
+
+async function saveName(raw) {
+  try {
+    /* الخادم هو من ينظّف الاسم؛ نعرض ما أعاده كما سيراه المساعد */
+    applyName((await api(profileUrl(), "PUT", { display_name: raw || "" })).display_name);
+  } catch (e) {
+    alert(`${window.i18n.t("ui.server_error")}: ${e.message}`);
+  }
 }
 
 /* ---------------- البلد ورقم الطوارئ ---------------- */
@@ -136,23 +165,24 @@ function addMessage(role, content) {
 }
 
 function renderRich(container, data) {
-  if (state.mode === "summary" && data.overview !== undefined) {
+  if (data.overview !== undefined) {
     container.classList.add("summary-card");
     const sections = [
-      ["نظرة عامة", data.overview],
-      ["ما الذي تغيّر", data.what_changed],
-      ["الأنماط المرصودة", data.patterns],
-      ["تنبيهات", data.medical_alerts],
-      ["ما لا يعنيه هذا", data.what_this_does_not_mean],
+      ["ui.summary_overview", "نظرة عامة", data.overview],
+      ["ui.summary_changed", "ما الذي تغيّر", data.what_changed],
+      ["ui.summary_patterns", "الأنماط المرصودة", data.patterns],
+      ["ui.summary_alerts", "تنبيهات", data.medical_alerts],
+      ["ui.summary_not_meaning", "ما لا يعنيه هذا", data.what_this_does_not_mean],
     ];
-    sections.forEach(([title, text]) => {
+    sections.forEach(([key, fallback, text]) => {
       if (!text) return;
       const box = document.createElement("div");
       box.className = "summary-section";
       const h = document.createElement("h4");
-      h.textContent = title;
+      h.textContent = i18nText(key, fallback);
       const p = document.createElement("div");
       p.textContent = text;
+      p.style.whiteSpace = "pre-line";
       box.append(h, p);
       container.appendChild(box);
     });
@@ -160,7 +190,7 @@ function renderRich(container, data) {
       const box = document.createElement("div");
       box.className = "summary-section";
       const h = document.createElement("h4");
-      h.textContent = "أسئلة لطبيبتِك";
+      h.textContent = i18nText("ui.summary_doctor_questions", "أسئلة لطبيبتِك");
       const ul = document.createElement("ul");
       data.questions_for_doctor.forEach((q) => {
         const li = document.createElement("li");
@@ -175,6 +205,7 @@ function renderRich(container, data) {
   }
 
   container.textContent = data.answer || "";
+  container.style.whiteSpace = "pre-line";
   appendMeta(container, data);
 }
 
@@ -192,6 +223,13 @@ function appendMeta(container, data) {
   if (data.needs_doctor) {
     add("doctor", i18nText("ui.needs_doctor", "يستحق مراجعة طبية"));
   }
+  /* صراحة دائمة: المقالات غير المراجَعة طبيًا تُعلَن، ولا يُخفى أن الرد بلا موديل */
+  if (data.knowledge_review === "unreviewed") {
+    add("unreviewed", i18nText("ui.badge_unreviewed", "معلومات تثقيفية عامة — غير مراجَعة طبيًا"));
+  }
+  if (data.decision === "extractive" || data.decision === "offline") {
+    add("simple", i18nText("ui.badge_simple_mode", "وضع مبسّط: من غير نموذج لغوي"));
+  }
   const rules = data.rule_codes || [];
   const sources = data.sources_used || [];
   /* العدّ بصيغة الجمع الصحيحة (مصدر واحد/مصدران/3 مصادر…) بدل «المصادر: 3» */
@@ -200,6 +238,8 @@ function appendMeta(container, data) {
       ? window.i18n.tn("units.sources_count", sources.length)
       : String(sources.length));
   }
+  /* عناوين ما اعتُمد عليه فعلًا — تتبّع الرد إلى مقاطع المعرفة */
+  (data.sources || []).forEach((src) => add("source", src.title));
   (data.missing_info || []).forEach((m) => add("missing", m));
   rules.forEach((r) => add("rule", r));
 
@@ -288,18 +328,23 @@ async function send(text) {
 
   try {
     const settings = readSettingsForm();
-    const data = await api("/v1/chat", "POST", {
-      message: text,
-      mode: state.mode,
+    /* مسار واحد للمحادثة والملخص: /api/v1/ai/*. الملخص يقرأ دوراتها وأعراضها من
+     * الخادم بالمعرّف نفسه، فما تسجّله في اللوحة هو ما يلخّصه المساعد. */
+    const summary = state.mode === "summary";
+    const data = await api(summary ? "/api/v1/ai/summary" : "/api/v1/ai/chat", "POST", {
+      message: summary ? "" : text,
       user_key: deviceKey(),
+      user_name: state.name || null,
       country_code: settings.country_code,
       user_context: settings,
+      language: window.i18n ? window.i18n.state.locale : null,
     });
     state.messages.push({ role: "user", text }, { role: "bot", data });
 
-    if (data.emergency) {
-      showOverlay(data);
-      addMessage("bot", data.answer);
+    const emergency = data.emergency || data.decision === "emergency_filter";
+    if (emergency) {
+      showOverlay({ ...data, answer: data.answer || data.overview });
+      addMessage("bot", data.answer || data.overview);
     } else {
       addMessage("bot", data);
     }
@@ -338,17 +383,19 @@ function handleKey(event) {
   }
 }
 
-/* ---------------- لوحة التتبّع ---------------- */
+/* ---------------- اللوحة الموحّدة ---------------- */
 
-function toggleTracker() {
-  const el = document.getElementById("tracker");
+const PANEL_TABS = ["cycles", "symptoms", "insights", "profile"];
+
+function togglePanel() {
+  const el = document.getElementById("panel");
   el.hidden = !el.hidden;
   if (!el.hidden) refreshTracker();
 }
 
-function setTrackerTab(tab) {
+function setPanelTab(tab) {
   state.tab = tab;
-  ["cycles", "symptoms", "insights"].forEach((t) => {
+  PANEL_TABS.forEach((t) => {
     document.getElementById(`tab-${t}`).classList.toggle("active", t === tab);
     document.getElementById(`pane-${t}`).hidden = t !== tab;
   });
@@ -532,9 +579,9 @@ async function refreshInsights() {
 }
 
 function showInsights() {
-  const el = document.getElementById("tracker");
-  el.hidden = false;
-  setTrackerTab("insights");
+  document.getElementById("panel").hidden = false;
+  setPanelTab("insights");
+  refreshTracker();
 }
 
 async function deleteAllData() {
@@ -581,7 +628,7 @@ function toggleLanguage() {
   const supported = (window.__LOCALE_CONFIG__ && window.__LOCALE_CONFIG__.supported) || ["ar", "en"];
   const index = supported.indexOf(current);
   const next = supported[(index + 1) % supported.length];
-  window.i18n.setLocale(next).then(renderSuggestions);
+  window.i18n.setLocale(next).then(() => { renderSuggestions(); applyName(state.name); });
 }
 
 /* الاقتراحات تأتي من ملف الترجمة لا من HTML: تغيير اللغة يغيّرها فورًا */
@@ -613,7 +660,7 @@ function phoneHtml(number, verified) {
 }
 
 fillSettingsForm(loadSettings());
-initI18n().then(loadCountries);
+initI18n().then(loadCountries).then(loadName);
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 document.getElementById("c-date").value = todayIso();
@@ -621,10 +668,8 @@ document.getElementById("s-date").value = todayIso();
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    const tracker = document.getElementById("tracker");
-    const settings = document.getElementById("settings");
-    if (!tracker.hidden) tracker.hidden = true;
-    else if (!settings.hidden) settings.hidden = true;
+    const panel = document.getElementById("panel");
+    if (!panel.hidden) panel.hidden = true;
     else closeOverlay();
   }
 });

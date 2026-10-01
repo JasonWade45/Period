@@ -16,7 +16,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 from ..config import settings
-from ..services.arabic import normalize_for_search, search_tokens
+from ..services.arabic import normalize_for_search, retrieval_tokens
 from .embedding import EMBEDDING_DIM, to_pgvector_literal
 from .schemas import (
     ChunkStatus,
@@ -173,9 +173,11 @@ class PostgresKbStore:
         فيعود البحث بلا نتائج رغم وجود مقطع مناسب. التطبيع بايثوني (نفس
         `search_tokens`) فالتقطيع متطابق في التنفيذين.
         """
-        tokens = sorted(set(search_tokens(query)))
+        base = retrieval_tokens(query)
+        tokens = sorted(set(retrieval_tokens(query, expand=True)))
         if not tokens:
             return []
+        denominator = max(1, len(base))
         sql = """
             SELECT id, score FROM (
                 SELECT id,
@@ -192,11 +194,11 @@ class PostgresKbStore:
             ORDER BY score DESC, id
             LIMIT %s
         """
-        params = (tokens, len(tokens), [s.value for s in statuses], language, language,
+        params = (tokens, denominator, [s.value for s in statuses], language, language,
                   tokens, limit)
         with _connect(self.dsn) as conn, conn.cursor() as cur:
             cur.execute(sql, params)
-            return [(row[0], float(row[1])) for row in cur.fetchall()]
+            return [(row[0], min(1.0, float(row[1]))) for row in cur.fetchall()]
 
     # ------------------------------------------------------------------ كتابة
     def upsert_chunk(self, chunk: KbChunk) -> str:
@@ -207,8 +209,9 @@ class PostgresKbStore:
         المُحسوب من النص المُطبَّع (تشكيل/أرقام عربية/همزات لا تُعدّ تغييرًا).
         """
         new_hash = chunk.compute_hash()
-        search_text = chunk.search_text or normalize_for_search(
-            f"{chunk.title} {chunk.topic} {chunk.content}")
+        # نص الفهرس الكلمي = رموز مُجرَّدة (نفس دالة السؤال)، فيتطابق التقطيع
+        search_text = " ".join(retrieval_tokens(
+            f"{chunk.title} {chunk.topic} {chunk.content}"))
         with _connect(self.dsn) as conn, conn.cursor() as cur:
             cur.execute("SELECT content_hash, content_version, status FROM kb_chunks"
                         " WHERE id = %s FOR UPDATE", (chunk.id,))
@@ -234,6 +237,11 @@ class PostgresKbStore:
 
             old_hash, old_version, _old_status = existing
             if old_hash == new_hash:
+                # الفهرس الكلمي فقط يُحدَّث (مشتق من النص؛ تغيّرت دالة التجريد في
+                # الكود). لا يمسّ الحالة ولا الإصدار ولا المراجعة.
+                cur.execute("UPDATE kb_chunks SET search_text=%s WHERE id=%s"
+                            " AND search_text IS DISTINCT FROM %s",
+                            (search_text, chunk.id, search_text))
                 return "unchanged"
 
             # المحتوى تغيّر: يُعاد للمراجعة، الإصدار يزيد، والمتجه القديم يُمسح

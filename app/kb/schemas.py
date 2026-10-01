@@ -154,5 +154,7 @@ class RetrievedChunk(BaseModel):
     language: str
     content: str
     score: float = 0.0
+    # حالة المقطع وقت الاسترجاع: تفرّق «مراجَع» عن «مقال تثقيفي عام» في الرد والواجهة
+    status: str = ""
     vector_rank: Optional[int] = None
     keyword_rank: Optional[int] = None

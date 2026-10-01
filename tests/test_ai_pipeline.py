@@ -41,7 +41,8 @@ def kb_store(tmp_path) -> SqliteKbStore:
     return SqliteKbStore(tmp_path / "kb.db")
 
 
-def _pipeline(store: SqliteKbStore, llm=None, *, allow_draft: bool = False) -> AiPipeline:
+def _pipeline(store: SqliteKbStore, llm=None, *, allow_draft: bool = False,
+              extractive: bool = False) -> AiPipeline:
     return AiPipeline(PipelineDeps(
         retriever=HybridRetriever(store, DeterministicLocalEmbedder(dim=64),
                                   allow_draft=allow_draft, min_similarity=0.0,
@@ -49,6 +50,7 @@ def _pipeline(store: SqliteKbStore, llm=None, *, allow_draft: bool = False) -> A
         prompt_builder=PromptBuilder(settings.prompt_path, settings.prompt_version),
         llm=llm if llm is not None else RecordingLLM(),
         numbers=EmergencyNumbers(),
+        extractive_fallback=extractive,
     ))
 
 
@@ -258,9 +260,13 @@ def test_arabic_indic_digits_are_normalised_before_emergency_filter(kb_store):
 # =================================================================== الملخّص
 
 def test_summary_without_sources_returns_safe_summary(kb_store):
-    pipeline = _pipeline(kb_store, RecordingLLM())
+    """بلا مقاطع معرفة: ملخّص من بياناتها (offline) لا «لا مصدر»، وبلا نداء للموديل."""
+    llm = RecordingLLM()
+    pipeline = _pipeline(kb_store, llm)
     response = pipeline.summary(_request(""))
-    assert response.decision == "no_source"
+    assert response.decision == "offline"
+    assert llm.calls == []
+    assert response.knowledge_review == "none"
     assert response.overview
     assert response.what_this_does_not_mean
     assert 1 <= len(response.questions_for_doctor) <= 5

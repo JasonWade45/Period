@@ -39,6 +39,13 @@ CREATE TABLE IF NOT EXISTS symptoms (
     created_at TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_symptoms_user ON symptoms (user_key, log_date);
+
+-- الملف الشخصي: الاسم الذي يناديها به المساعد. بيانات اختيارية، تُحذف مع كل شيء.
+CREATE TABLE IF NOT EXISTS profiles (
+    user_key     TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL DEFAULT '',
+    updated_at   TEXT NOT NULL
+);
 """
 
 SEVERITY_MIN, SEVERITY_MAX = 1, 5
@@ -198,9 +205,33 @@ class Store:
             "last_cycles": [{"start_date": d, "length_days": l} for d, l in last[:6]],
         }
 
+    # ----------------------------------------------------------------- profile
+    def get_profile(self, user_key: str) -> dict:
+        """الملف الشخصي (الاسم فقط). فارغ إن لم تُسجَّل."""
+        from .profile import clean_display_name
+        with self._connect() as conn:
+            row = conn.execute("SELECT display_name FROM profiles WHERE user_key = ?",
+                               (user_key,)).fetchone()
+        return {"display_name": clean_display_name(row["display_name"]) if row else ""}
+
+    def set_profile(self, user_key: str, display_name: str) -> dict:
+        from .profile import clean_display_name
+        name = clean_display_name(display_name)
+        with self._connect() as conn:
+            if not name:
+                conn.execute("DELETE FROM profiles WHERE user_key = ?", (user_key,))
+            else:
+                conn.execute(
+                    "INSERT INTO profiles (user_key, display_name, updated_at) VALUES (?, ?, ?)"
+                    " ON CONFLICT(user_key) DO UPDATE SET display_name = excluded.display_name,"
+                    " updated_at = excluded.updated_at",
+                    (user_key, name, _now()))
+        return {"display_name": name}
+
     def delete_all(self, user_key: str) -> dict:
         """حذف كل بيانات مستخدمة (حق الوصول والحذف)."""
         with self._connect() as conn:
             cycles = conn.execute("DELETE FROM cycles WHERE user_key = ?", (user_key,)).rowcount
             symptoms = conn.execute("DELETE FROM symptoms WHERE user_key = ?", (user_key,)).rowcount
+            conn.execute("DELETE FROM profiles WHERE user_key = ?", (user_key,))
         return {"cycles_deleted": cycles, "symptoms_deleted": symptoms}

@@ -1,6 +1,16 @@
 """تهيئة مشتركة: عزل قاعدة البيانات وتحديد المعدّل بين الاختبارات."""
 from __future__ import annotations
 
+import os
+import tempfile
+
+# قبل أي استيراد للتطبيق (الإعدادات تُقرأ عند الاستيراد): الاختبارات تحافظ على
+# السلوك الصارم الأصلي (معتمد فقط، بلا تحميل بذرة) وبقاعدة معرفة مؤقتة، ما لم
+# يختبر اختبارٌ التشغيل الافتراضي صراحةً. هكذا لا تُكتب data/kb.db أثناء الاختبارات.
+os.environ.setdefault("KB_ALLOW_DRAFT", "0")
+os.environ.setdefault("KB_AUTOLOAD_SEED", "0")
+os.environ.setdefault("KB_DB_PATH", os.path.join(tempfile.mkdtemp(prefix="kbtest-"), "kb.db"))
+
 import pytest
 
 import app.main as main

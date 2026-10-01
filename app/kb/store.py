@@ -331,10 +331,12 @@ class SqliteKbStore:
         مقابل `tsv`/`ts_rank` في PostgreSQL. الدرجة هنا متجانسة (0..1) حتى
         تصلح لعتبة الصلة.
         """
-        from ..services.arabic import search_tokens
-        tokens = set(search_tokens(query))
+        from ..services.arabic import retrieval_tokens
+        base = retrieval_tokens(query)
+        tokens = set(retrieval_tokens(query, expand=True))
         if not tokens:
             return []
+        denominator = max(1, len(base))
 
         placeholders = ",".join("?" for _ in statuses)
         query_sql = f"SELECT id, search_text FROM kb_chunks WHERE status IN ({placeholders})"
@@ -347,12 +349,12 @@ class SqliteKbStore:
         with self._connect() as conn:
             rows = conn.execute(query_sql, params).fetchall()
         for row in rows:
-            row_tokens = set((row["search_text"] or "").split())
+            row_tokens = set(retrieval_tokens(row["search_text"] or ""))
             overlap = tokens & row_tokens
             if not overlap:
                 continue
-            scored.append((row["id"], len(overlap) / len(tokens)))
-        scored.sort(key=lambda x: x[1], reverse=True)
+            scored.append((row["id"], min(1.0, len(overlap) / denominator)))
+        scored.sort(key=lambda x: (-x[1], x[0]))
         return scored[:limit]
 
     # -------------------------------------------------------------- للفهرسة فقط

@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from ..schemas import Finding, SourceChunk, UserContext
+from .profile import clean_display_name
 
 _VAR_PATTERN = re.compile(r"\{\{\s*([A-Z_]+)\s*\}\}")
 
@@ -40,6 +41,7 @@ class PromptBuilder:
         current_date: str,
         emergency_number: str,
         crisis_line: str,
+        user_name: str = "",
     ) -> str:
         if mode not in ALLOWED_MODES:
             mode = "chat"
@@ -68,4 +70,6 @@ class PromptBuilder:
             "CURRENT_DATE": current_date,
             "EMERGENCY_NUMBER": emergency_number,
             "CRISIS_LINE": crisis_line or "غير متوفر حاليًا في بلدكِ",
+            # الاسم يُنظَّف هنا أيضًا (دفاع في العمق: الباني قد يُستدعى من مسار آخر)
+            "USER_NAME": clean_display_name(user_name) or "المستخدمة",
         })

@@ -479,3 +479,7 @@ body {
   .tracker .settings-body { width: 100%; }
   .tabs { flex-wrap: wrap; }
 }
+
+/* شارات الصراحة: نفس مظهر باقي الشارات في المحادثة والملخص */
+.badge.unreviewed { background: #fff6e0; border-color: #f3e0ac; color: #7a5a00; font-weight: 600; }
+.badge.simple { background: var(--violet-soft); border-color: #d8ceff; color: var(--violet); }

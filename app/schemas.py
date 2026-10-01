@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Severity(str, Enum):
@@ -193,6 +193,14 @@ class SymptomOut(BaseModel):
     note: Optional[str] = None
 
 
+class ProfileIn(BaseModel):
+    display_name: str = ""
+
+
+class ProfileOut(BaseModel):
+    display_name: str = ""
+
+
 class InsightsResponse(BaseModel):
     """نتائج محرك القواعد بلا موديل — تعمل حتى بلا إنترنت أو مفتاح."""
 
@@ -231,7 +239,10 @@ class AuditEntry(BaseModel):
 class AiChatRequest(BaseModel):
     """طلب /api/v1/ai/chat — الرسالة نص، وكل قراءة الصحة تُبنى من محرك القواعد."""
 
-    message: str
+    message: str = ""
+    # الاسم الذي يناديها به المساعد. يُنظَّف عند الاستقبال (انظر services/profile.py)
+    # لأنه يدخل البرومبت. إن غاب يُقرأ من ملفها المحفوظ على الخادم.
+    user_name: Optional[str] = None
     user_context: UserContext = Field(default_factory=UserContext)
     user_key: Optional[str] = None
     country_code: Optional[str] = None
@@ -240,6 +251,12 @@ class AiChatRequest(BaseModel):
     # إعدادات العرض — تُستخدم للأرقام والتواريخ في الردود الثابتة فقط
     digits_style: Optional[str] = None      # western | arabic_indic
     timezone: Optional[str] = None
+
+    @field_validator("user_name", mode="before")
+    @classmethod
+    def _clean_user_name(cls, value: Any) -> Optional[str]:
+        from .services.profile import clean_display_name
+        return clean_display_name(value) if value is not None else None
 
 
 class EmergencyPayload(BaseModel):
@@ -251,6 +268,14 @@ class EmergencyPayload(BaseModel):
     country_code: Optional[str] = None
     crisis_line: str = ""
     instruction: str = ""                   # سطر واحد موجّه (نص المورد)
+
+
+class SourceRef(BaseModel):
+    """مقطع استُشهد به، بعنوان مقروء للعرض (لا معرّف خام فقط)."""
+
+    id: str
+    title: str = ""
+    reviewed: bool = False        # False = مقال تثقيفي عام لم تراجعه طبيبة
 
 
 class RetrievalMeta(BaseModel):
@@ -277,6 +302,11 @@ class AiChatResponse(BaseModel):
     decision: str = ""
     emergency_payload: Optional[EmergencyPayload] = None
     retrieval: RetrievalMeta = Field(default_factory=RetrievalMeta)
+    # none = لا مصدر | reviewed = كل ما استُشهد به مراجَع | unreviewed = فيه مقال غير مراجَع
+    knowledge_review: str = "none"
+    sources: list[SourceRef] = Field(default_factory=list)
+    # اسم المستخدمة كما يراه المساعد (منظَّف)، لتحيّة الواجهة
+    user_name: str = ""
 
 
 class AiSummaryResponse(BaseModel):
@@ -293,3 +323,6 @@ class AiSummaryResponse(BaseModel):
     rule_codes: list[str] = Field(default_factory=list)
     decision: str = ""
     retrieval: RetrievalMeta = Field(default_factory=RetrievalMeta)
+    knowledge_review: str = "none"
+    sources: list[SourceRef] = Field(default_factory=list)
+    user_name: str = ""

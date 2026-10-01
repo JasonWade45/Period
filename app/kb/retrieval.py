@@ -182,7 +182,7 @@ class HybridRetriever:
             chunks.append(RetrievedChunk(
                 id=chunk.id, source_id=chunk.source_id, title=chunk.title,
                 topic=chunk.topic, language=chunk.language, content=chunk.content,
-                score=round(score, 6),
+                score=round(score, 6), status=chunk.status.value,
                 vector_rank=rank_vector.get(chunk_id),
                 keyword_rank=rank_keyword.get(chunk_id),
             ))

@@ -24,8 +24,8 @@
         </div>
         <button class="icon-btn no-flip" id="lang-btn" onclick="toggleLanguage()"
                 title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
-        <button class="icon-btn no-flip" id="tracker-btn" onclick="toggleTracker()" title="دوراتي وأعراضي">📖</button>
-        <button class="icon-btn no-flip" id="settings-btn" onclick="toggleSettings()" title="بياناتي">⚙</button>
+        <button class="icon-btn no-flip" id="settings-btn" onclick="togglePanel()"
+                title="ملفي ودوراتي" data-i18n-attr="title" data-i18n="ui.panel_title">👤</button>
       </div>
     </header>
 
@@ -37,7 +37,7 @@
       <div class="welcome" id="welcome">
         <div class="welcome-card">
           <h2 data-i18n="ui.welcome_title">أهلاً بكِ 👋</h2>
-          <p data-i18n="ui.welcome_body">سجّلي دوراتك وأعراضك من 📖، واسألي عن أي شيء يخص الدورة الشهرية.</p>
+          <p data-i18n="ui.welcome_body">سجّلي دوراتك وأعراضك من 👤، واسألي عن أي شيء يخص الدورة الشهرية.</p>
           <div class="suggestions">
             <button class="chip" onclick="ask('إيه الفرق بين الدورة المنتظمة والغير منتظمة؟')">الدورة المنتظمة والغير منتظمة</button>
             <button class="chip" onclick="ask('إيه أعراض ما قبل الدورة؟')">أعراض ما قبل الدورة</button>
@@ -63,18 +63,19 @@
       <div class="composer-hint" id="hint" data-i18n="ui.composer_hint">Enter للإرسال · Shift+Enter لسطر جديد</div>
     </footer>
 
-    <!-- لوحة التتبّع: الدورات والأعراض والرؤى -->
-    <aside class="settings tracker" id="tracker" hidden onclick="if(event.target===this)toggleTracker()">
+    <!-- لوحة واحدة: الدورات · الأعراض · الرؤى · ملفي (نفس الشكل في كل التبويبات) -->
+    <aside class="settings tracker" id="panel" hidden onclick="if(event.target===this)togglePanel()">
       <div class="settings-body">
         <div class="settings-head">
-          <h2>دوراتي وأعراضي</h2>
-          <button class="icon-btn" onclick="toggleTracker()">✕</button>
+          <h2 data-i18n="ui.panel_title">ملفي ودوراتي</h2>
+          <button class="icon-btn" onclick="togglePanel()" aria-label="✕">✕</button>
         </div>
 
         <div class="tabs" role="tablist">
-          <button class="tab active" id="tab-cycles" onclick="setTrackerTab('cycles')">الدورات</button>
-          <button class="tab" id="tab-symptoms" onclick="setTrackerTab('symptoms')">الأعراض</button>
-          <button class="tab" id="tab-insights" onclick="setTrackerTab('insights')">الرؤى</button>
+          <button class="tab active" id="tab-cycles" onclick="setPanelTab('cycles')" data-i18n="ui.tab_cycles">الدورات</button>
+          <button class="tab" id="tab-symptoms" onclick="setPanelTab('symptoms')" data-i18n="ui.tab_symptoms">الأعراض</button>
+          <button class="tab" id="tab-insights" onclick="setPanelTab('insights')" data-i18n="ui.tab_insights">الرؤى</button>
+          <button class="tab" id="tab-profile" onclick="setPanelTab('profile')" data-i18n="ui.tab_profile">ملفي</button>
         </div>
 
         <!-- الدورات -->
@@ -120,43 +121,39 @@
           <div id="insights-body"></div>
         </section>
 
+        <!-- ملفي: الاسم + سياق الدورة -->
+        <section id="pane-profile" hidden>
+          <label><span data-i18n="ui.name_label">اسمك (اختياري)</span>
+            <input type="text" id="f-name" maxlength="40" autocomplete="given-name"
+                   placeholder="مثال: سارة" data-i18n-attr="placeholder" data-i18n="ui.name_placeholder"></label>
+          <p class="muted" data-i18n="ui.name_hint">المساعد هينادي عليكِ بالاسم ده.</p>
+          <label>العمر <input type="number" id="f-age" min="10" max="60" placeholder="اختياري"></label>
+          <label>البلد (لتحديد رقم الطوارئ)
+            <select id="f-country"></select></label>
+          <label>حمل (لو معروف)
+            <select id="f-pregnancy">
+              <option value="">غير محدد</option>
+              <option value="غير مؤكد">احتمال حمل</option>
+              <option value="مؤكد">حمل مؤكد</option>
+              <option value="لا">لا</option>
+            </select></label>
+          <label>وسيلة منع الحمل <input type="text" id="f-contraception" placeholder="اختياري"></label>
+          <label>أمراض مشخّصة
+            <textarea id="f-conditions" rows="2"
+              placeholder="كل سطر: اسم الحالة | مشخّصة أو غير متأكدة"></textarea></label>
+          <div class="settings-actions">
+            <button class="btn-primary" onclick="saveSettings()" data-i18n="ui.save">حفظ</button>
+            <button class="btn-ghost" onclick="clearSettings()" data-i18n="ui.clear">مسح</button>
+          </div>
+        </section>
+
         <p class="settings-note">
-          البيانات تُحفظ على خادم التطبيق بمعرّف جهازكِ، والتفاصيل الشخصية في متصفحك.
+          الاسم والدورات والأعراض تُحفظ على خادم التطبيق بمعرّف جهازكِ، وباقي التفاصيل الشخصية في متصفحك.
           يمكنكِ حذف كل شيء من زر «حذف كل بياناتي».
         </p>
         <div class="settings-actions">
-          <button class="btn-ghost danger" onclick="deleteAllData()">حذف كل بياناتي</button>
+          <button class="btn-ghost danger" onclick="deleteAllData()" data-i18n="ui.delete_all">حذف كل بياناتي</button>
         </div>
-      </div>
-    </aside>
-
-    <!-- لوحة البيانات الشخصية -->
-    <aside class="settings" id="settings" hidden onclick="if(event.target===this)toggleSettings()">
-      <div class="settings-body">
-        <div class="settings-head">
-          <h2>بياناتي (سياق الدورة)</h2>
-          <button class="icon-btn" onclick="toggleSettings()">✕</button>
-        </div>
-        <label>العمر <input type="number" id="f-age" min="10" max="60" placeholder="اختياري"></label>
-        <label>البلد (لتحديد رقم الطوارئ)
-          <select id="f-country"></select></label>
-        <label>حمل (لو معروف)
-          <select id="f-pregnancy">
-            <option value="">غير محدد</option>
-            <option value="غير مؤكد">احتمال حمل</option>
-            <option value="مؤكد">حمل مؤكد</option>
-            <option value="لا">لا</option>
-          </select></label>
-        <label>وسيلة منع الحمل <input type="text" id="f-contraception" placeholder="اختياري"></label>
-        <label>أمراض مشخّصة
-          <textarea id="f-conditions" rows="2"
-            placeholder="كل سطر: اسم الحالة | مشخّصة أو غير متأكدة"></textarea></label>
-
-        <div class="settings-actions">
-          <button class="btn-primary" onclick="saveSettings()">حفظ</button>
-          <button class="btn-ghost" onclick="clearSettings()">مسح</button>
-        </div>
-        <p class="settings-note">البيانات الشخصية تُحفظ في متصفحك، والدورات والأعراض تُحفظ لدى الخادم بمعرّف جهازكِ.</p>
       </div>
     </aside>
 

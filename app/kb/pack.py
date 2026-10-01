@@ -367,8 +367,9 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
     print(f"  {report.summary()}")
     print(f"  ادّعاءات مراجعة أُلغيت: {len(seed.ignored_claims)}")
     print(f"  محاولات اعتماد آلي رُفضت: {len(registry.rejected_auto_approvals)}")
-    print("\nالمقاطع دخلت كمسودات draft_unreviewed: لا شيء منها قابل للاستشهاد،")
-    print("ولا يصل لمستخدمة حتى تراجعه طبيبة وترقّيه بـ app.kb.review set-status.")
+    print("\nالمقاطع دخلت كمسودات draft_unreviewed (غير مراجَعة طبيًا).")
+    print("مع KB_ALLOW_DRAFT=1 (الافتراضي) يعرضها المساعد موسومة «غير مراجَعة»؛")
+    print("ومع KB_ALLOW_DRAFT=0 لا يصل منها شيء لمستخدمة حتى تُرقّى بـ app.kb.review set-status.")
     return 0
 
 
