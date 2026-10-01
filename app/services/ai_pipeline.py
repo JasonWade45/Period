@@ -12,10 +12,9 @@
 """
 from __future__ import annotations
 
-import hashlib
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Optional
 
@@ -46,6 +45,7 @@ from .emergency_numbers import EmergencyNumbers
 from .prompt_builder import PromptBuilder
 from .referral import ensure_referral_notice
 from .rules_engine import compute_all_findings, max_severity
+from .security import key_fingerprint
 from .validator import validate
 
 log = logging.getLogger("cyclecare.ai")
@@ -62,6 +62,8 @@ class PipelineDeps:
     store: Any = None                         # Store للتتبّع (اختياري)
     audit_writer: Any = None                  # دالة كتابة التدقيق (اختيارية)
     clock: Any = None                         # دالة تُرجع تاريخ اليوم (للاستقرار)
+    # مسرد القواعد (rules_glossary.json) — يدخل البرومبت لتفسير أكواد النتائج
+    rules_glossary: dict = field(default_factory=dict)
 
 
 def resolve_request_language(req: AiChatRequest, accept_language: str | None) -> str:
@@ -112,7 +114,8 @@ class AiPipeline:
 
     def _emergency_response(self, req: AiChatRequest, findings: list[Finding],
                             kind: str, matched: str, language: str,
-                            started: float, code: str = "emergency_filter") -> AiChatResponse:
+                            started: float, code: str = "emergency_filter",
+                            mode: str = "chat") -> AiChatResponse:
         info = self._info(req)
         result = FilterResult(kind=kind, matched=matched, source="message")
         answer = build_fixed_reply(result, info, locale=language)
@@ -135,7 +138,7 @@ class AiPipeline:
         )
         self._audit(req, findings, sources_ids=[], used_model=False, emergency=True,
                     crisis=crisis, needs_doctor=True, language=language,
-                    started=started, code=code, excerpt="",
+                    started=started, code=code, mode=mode,
                     response=response.model_dump())
         return response
 
@@ -143,20 +146,20 @@ class AiPipeline:
     def _audit(self, req: AiChatRequest, findings: list[Finding], *,
                sources_ids: list[str], used_model: bool, emergency: bool, crisis: bool,
                needs_doctor: bool, language: str, started: float, code: str,
-               excerpt: str = "", model: str = "", retries: int = 0,
+               mode: str = "chat", model: str = "", retries: int = 0,
                fallback: bool = False, llm_error: str = "",
                response: dict[str, Any] | None = None) -> None:
         """كتابة تدقيق بلا PII: لا نص رسالة، فقط بصمة وطول ونوع المطابقة."""
         if self.deps.audit_writer is None:
             return
         entry = AuditEntry(
-            user_id=hashlib.sha256((req.user_key or "anonymous").encode()).hexdigest()[:16],
-            mode="chat", prompt_version=settings.prompt_version,
+            user_id=key_fingerprint(req.user_key or ""),
+            mode=mode, prompt_version=settings.prompt_version,
             findings=findings, sources_ids=list(sources_ids), used_model=used_model,
             emergency=emergency, crisis=crisis, needs_doctor=needs_doctor,
             validator_retries=retries, fallback=fallback, llm_error=llm_error,
             latency_ms=int((time.monotonic() - started) * 1000),
-            request_excerpt=excerpt, response=response or {},
+            response=response or {},
         )
         extra = {"language": language, "model": model, "decision": code,
                  "message_len": len(req.message)}
@@ -181,7 +184,7 @@ class AiPipeline:
         )
         self._audit(req, findings, sources_ids=[], used_model=False, emergency=False,
                     crisis=False, needs_doctor=response.needs_doctor, language=language,
-                    started=started, code="no_source", excerpt="",
+                    started=started, code="no_source",
                     llm_error=retriever_reason[:200])
         return response
 
@@ -213,7 +216,7 @@ class AiPipeline:
         info = self._info(req)
         system = self.deps.prompt_builder.build(
             mode="chat", user_context=ctx, findings=findings, sources=sources,
-            rules_glossary={}, current_date=self._today(),
+            rules_glossary=self.deps.rules_glossary, current_date=self._today(),
             emergency_number=info.number, crisis_line=info.crisis_line,
         )
 
@@ -316,20 +319,20 @@ class AiPipeline:
                 symptoms: list[dict] | None = None) -> AiSummaryResponse:
         """ملخّص الدورات المسجّلة — نفس المسار، بعقد مختلف.
 
-        هذا المسار **لا** يستدعي فلتر الطوارئ على الرسالة (لا رسالة أصلًا): هو
-        قراءة لبيانات مسجّلة. لكن نتائج محرك القواعد تمرّ بالفلتر كما هي، فإن
-        أنتجت حالة طوارئ فالرد ثابت بلا موديل.
+        رسالة الملخص اختيارية (الواجهة ترسل نص الاختصار): الفلتر يفحصها كما
+        في المسار العادي، ونتائج محرك القواعد تمرّ بالفلتر أيضًا — فإن تفعّل
+        أيٌّ منهما فالرد ثابت بلا موديل.
         """
         started = time.monotonic()
         language = resolve_request_language(req, accept_language)
         ctx = context or req.user_context
         findings = compute_all_findings(ctx, symptoms or [])
 
-        filt = run_filter("", findings)
+        filt = run_filter(req.message, findings)
         if filt.triggered:
             fixed = self._emergency_response(req, findings, filt.kind or "medical",
                                              filt.matched, language, started,
-                                             code="emergency_findings")
+                                             code="emergency_findings", mode="summary")
             return AiSummaryResponse(
                 overview=fixed.answer, medical_alerts=fixed.answer,
                 what_this_does_not_mean=get_translator().t("answer.does_not_mean", language),
@@ -360,7 +363,8 @@ class AiPipeline:
             self._audit(req, findings, sources_ids=[], used_model=False, emergency=False,
                         crisis=False, needs_doctor=empty.overview != "",
                         language=language, started=started, code="no_source_summary",
-                        llm_error=retrieval.reason[:200], response=empty.model_dump())
+                        mode="summary", llm_error=retrieval.reason[:200],
+                        response=empty.model_dump())
             return empty
 
         sources = self._to_source_chunks(retrieval.chunks)
@@ -368,7 +372,7 @@ class AiPipeline:
         info = self._info(req)
         system = self.deps.prompt_builder.build(
             mode="summary", user_context=ctx, findings=findings, sources=sources,
-            rules_glossary={}, current_date=self._today(),
+            rules_glossary=self.deps.rules_glossary, current_date=self._today(),
             emergency_number=info.number, crisis_line=info.crisis_line,
         )
 
@@ -414,8 +418,8 @@ class AiPipeline:
             self._audit(req, findings, sources_ids=sorted(allowed_ids), used_model=False,
                         emergency=False, crisis=False, needs_doctor=False,
                         language=language, started=started, code="fallback_summary",
-                        model=model, retries=retries, fallback=True, llm_error=llm_error,
-                        response=response.model_dump())
+                        mode="summary", model=model, retries=retries, fallback=True,
+                        llm_error=llm_error, response=response.model_dump())
             return response
 
         used = [sid for sid in data.get("sources_used", []) if sid in allowed_ids]
@@ -435,7 +439,7 @@ class AiPipeline:
         )
         self._audit(req, findings, sources_ids=used, used_model=True, emergency=False,
                     crisis=False, needs_doctor=False, language=language, started=started,
-                    code="ok_summary", model=model, retries=retries,
+                    code="ok_summary", mode="summary", model=model, retries=retries,
                     response=response.model_dump())
         return response
 

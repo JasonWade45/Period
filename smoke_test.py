@@ -10,9 +10,9 @@ CTX = {
     "cycles_recorded": 5,
     "avg_cycle_days": 41,
     "last_cycles": [
-        {"start_date": "2026-06-05", "length_days": 5},
-        {"start_date": "2026-07-13", "length_days": 4},
-        {"start_date": "2026-08-23", "length_days": 6},
+        {"start_date": "2026-06-05", "bleeding_days": 5},
+        {"start_date": "2026-07-13", "bleeding_days": 4},
+        {"start_date": "2026-08-23", "bleeding_days": 6},
     ],
 }
 
@@ -27,8 +27,9 @@ TESTS = [
 out = []
 for mode, msg in TESTS:
     started = time.time()
-    r = httpx.post(BASE + "/v1/chat",
-                   json={"message": msg, "mode": mode, "user_context": CTX},
+    path = "/api/v1/ai/summary" if mode == "summary" else "/api/v1/ai/chat"
+    r = httpx.post(BASE + path,
+                   json={"message": msg, "user_context": CTX},
                    timeout=180)
     sec = round(time.time() - started, 1)
     if r.status_code != 200:

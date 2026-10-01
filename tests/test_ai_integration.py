@@ -218,9 +218,9 @@ def test_summary_uses_the_model_when_there_is_data_and_a_source(ai_client, pipel
     """ملخص ببيانات مسجّلة: يمرّ بالموديل، ويعلن قراره، ويستشهد بالمصدر المعتمد."""
     pipe, llm, _ = pipeline
     store = main._store
-    store.add_cycle("device-1", "2026-07-01", 5)
-    store.add_cycle("device-1", "2026-08-10", 6)
-    store.add_cycle("device-1", "2026-09-20", 4)
+    store.add_bleeding_log("device-1", "2026-07-01", 5)
+    store.add_bleeding_log("device-1", "2026-08-10", 6)
+    store.add_bleeding_log("device-1", "2026-09-20", 4)
 
     response = ai_client.post("/api/v1/ai/summary",
                               json={"message": "", "user_key": "device-1", "language": "ar"})

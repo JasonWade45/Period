@@ -30,7 +30,7 @@ def test_cycle_validation_error_is_422(client):
     r = client.post(f"/v1/cycles?user_key={USER}",
                     json={"start_date": "2026-06-05", "length_days": 500})
     assert r.status_code == 422
-    assert "length_days" in r.json()["detail"]
+    assert "bleeding_days" in r.json()["detail"]
 
 
 def test_delete_cycle_and_404(client):
@@ -122,7 +122,7 @@ def test_logged_cycles_drive_the_chat_pipeline(client, monkeypatch):
     for offset in (0, 30, 60):
         client.post(f"/v1/cycles?user_key={USER}", json={"start_date": _day(offset)})
 
-    body = client.post("/v1/chat", json={
+    body = client.post("/api/v1/ai/chat", json={
         "message": "إيه أعراض ما قبل الدورة؟",
         "user_key": USER,
         # سياق يدوي مغلوط عدد دوراته 0 — يجب أن تتغلّب عليه البيانات المسجّلة
@@ -137,12 +137,12 @@ def test_chat_emergency_path_ignores_rate_limit(client, monkeypatch):
     monkeypatch.setattr(main, "_llm", None)
     limit = main.settings.rate_limit_requests
     for _ in range(limit):
-        client.post("/v1/chat", json={"message": "سؤال", "user_key": USER})
+        client.post("/api/v1/ai/chat", json={"message": "سؤال", "user_key": USER})
 
     # الحصة استُهلكت: الطلب العادي يُرفض
-    assert client.post("/v1/chat", json={"message": "سؤال", "user_key": USER}).status_code == 429
+    assert client.post("/api/v1/ai/chat", json={"message": "سؤال", "user_key": USER}).status_code == 429
     # لكن الطوارئ تمرّ
-    r = client.post("/v1/chat", json={"message": "بنزف كل ساعة وبرمي جلطات كبيرة",
+    r = client.post("/api/v1/ai/chat", json={"message": "بنزف كل ساعة وبرمي جلطات كبيرة",
                                       "user_key": USER})
     assert r.status_code == 200
     assert r.json()["emergency"] is True
@@ -151,8 +151,8 @@ def test_chat_emergency_path_ignores_rate_limit(client, monkeypatch):
 def test_rate_limited_response_has_retry_after(client, monkeypatch):
     monkeypatch.setattr(main, "_llm", None)
     for _ in range(main.settings.rate_limit_requests):
-        client.post("/v1/chat", json={"message": "سؤال", "user_key": USER})
-    r = client.post("/v1/chat", json={"message": "سؤال", "user_key": USER})
+        client.post("/api/v1/ai/chat", json={"message": "سؤال", "user_key": USER})
+    r = client.post("/api/v1/ai/chat", json={"message": "سؤال", "user_key": USER})
     assert r.status_code == 429
     assert int(r.headers["Retry-After"]) >= 1
 
@@ -166,7 +166,8 @@ def test_delete_all_data_endpoint(client, monkeypatch):
                 json={"log_date": _day(1), "symptom": "صداع", "severity": 3})
 
     body = client.delete(f"/v1/data?user_key={USER}").json()
-    assert body == {"cycles_deleted": 1, "symptoms_deleted": 1}
+    assert body == {"bleeding_logs_deleted": 1, "symptom_logs_deleted": 1,
+                    "health_profile_deleted": 0, "consents_deleted": 0}
     assert client.get(f"/v1/cycles?user_key={USER}").json() == []
     assert client.get(f"/v1/symptoms?user_key={USER}").json() == []
 

@@ -22,7 +22,7 @@ def test_tracker_endpoints_accept_correct_key(secured_client):
 
 
 def test_chat_requires_key_when_configured(secured_client):
-    r = secured_client.post("/v1/chat", json={"message": "سؤال"},
+    r = secured_client.post("/api/v1/ai/chat", json={"message": "سؤال"},
                             headers={"X-API-Key": "wrong"})
     assert r.status_code == 401
 
@@ -34,7 +34,7 @@ def test_health_is_always_open(secured_client):
 
 def test_emergency_reply_is_never_blocked_by_auth(secured_client):
     """قرار مقصود: مستخدمة في خطر بمفتاح خاطئ يجب أن تصلها أرقام الطوارئ."""
-    r = secured_client.post("/v1/chat",
+    r = secured_client.post("/api/v1/ai/chat",
                             json={"message": "بنزف كل ساعة وبرمي جلطات كبيرة"},
                             headers={"X-API-Key": "wrong"})
     assert r.status_code == 200
@@ -44,7 +44,7 @@ def test_emergency_reply_is_never_blocked_by_auth(secured_client):
 
 
 def test_crisis_reply_is_never_blocked_by_auth(secured_client):
-    r = secured_client.post("/v1/chat", json={"message": "مش عايزة أعيش"},
+    r = secured_client.post("/api/v1/ai/chat", json={"message": "مش عايزة أعيش"},
                             headers={"X-API-Key": "wrong"})
     assert r.status_code == 200
     assert r.json()["crisis"] is True
@@ -105,16 +105,14 @@ def test_fingerprint_of_empty_is_empty():
     assert key_fingerprint("") == ""
 
 
-def test_audit_stores_fingerprint_not_user_key(monkeypatch):
-    """سجل التدقيق لا يجوز أن يحتفظ بمعرّف الجهاز الخام."""
-    import app.main as main_mod
-    captured: list = []
-    import app.services.audit as audit
-    monkeypatch.setattr(audit, "write", captured.append)
-    monkeypatch.setattr(main_mod, "_llm", None)
+def test_audit_stores_fingerprint_not_user_key():
+    """سجل التدقيق لا يجوز أن يحتفظ بمعرّف الجهاز الخام (البصمة فقط)."""
+    from app.schemas import AiChatRequest
+    from tests.pipeline_helpers import build_pipeline
 
-    from app.schemas import ChatRequest
-    main_mod._run_pipeline(ChatRequest(message="سؤال", user_key="device-abc"))
+    captured: list = []
+    pipe = build_pipeline(llm=None, audit_writer=lambda e, x=None: captured.append(e))
+    pipe.chat(AiChatRequest(message="سؤال", user_key="device-abc"))
 
     assert captured[0].user_id == key_fingerprint("device-abc")
     assert "device-abc" not in (captured[0].user_id or "")

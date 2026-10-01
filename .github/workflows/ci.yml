@@ -1,0 +1,74 @@
+# تكامل مستمر: اختبارات + فحوصات ساكنة (tests) وفحص مفاتيح + تدقيق الاعتمادات (security).
+# يعمل على كل دفع وطلب سحب. لا يحتاج أي سرّ: GITHUB_TOKEN منصة فقط،
+# والاختبارات محلية بلا شبكة وبلا مفتاح موديل.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests & static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Static checkers
+        # نفس فحوصات التشغيل المحلي: الترجمة، عقد البرومبت، RTL، المصطلحات، المفاتيح
+        run: |
+          python tools/check_i18n.py
+          python tools/check_prompt.py
+          python tools/check_rtl.py
+          python tools/check_glossary.py
+          python tools/check_no_secrets.py
+
+      - name: Frontend syntax
+        run: node --check frontend/app.js
+
+      - name: Tests
+        run: python -m pytest tests/ -q
+
+  security:
+    name: Secrets & dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # رفع نتائج gitleaks إلى code scanning
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0       # gitleaks يفحص التاريخ كاملًا لا اللقطة الحالية
+
+      - name: Gitleaks (secret scan over history)
+        # مثبّت على SHA لا على وسيط: نقل الوسيط إلى كود معدَّل سرًّا = هجوم سلسلة توريد.
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: pip-audit (dependency vulnerabilities)
+        # --strict: فشل الخدمة (لا شبكات/OSV) يُفشل المهمة بدل صمت كاذب.
+        # المخزون الحالي نظيف — أي ثغرة جديدة تظهر هنا فورًا.
+        run: |
+          python -m pip install --quiet pip-audit
+          python -m pip_audit -r requirements.txt --strict

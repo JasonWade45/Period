@@ -241,7 +241,7 @@ async function finishSignup() {
   if (lastStart) {
     try {
       await api(`/v1/cycles?user_key=${encodeURIComponent(deviceKey())}`, "POST",
-                { start_date: lastStart, length_days: null });
+                { start_date: lastStart, bleeding_days: null });
     } catch {
       /* التتبّع اختياري — لا نمنع الدخول لو تعذّر التسجيل */
     }
@@ -471,12 +471,13 @@ async function send(text) {
 
   try {
     const settings = readSettingsForm();
-    const data = await api("/v1/chat", "POST", {
+    const path = state.mode === "summary" ? "/api/v1/ai/summary" : "/api/v1/ai/chat";
+    const data = await api(path, "POST", {
       message: text,
-      mode: state.mode,
       user_key: deviceKey(),
       country_code: settings.country_code,
       user_context: settings,
+      language: window.i18n ? window.i18n.state.locale : undefined,
     });
     state.messages.push({ role: "user", text }, { role: "bot", data });
 
@@ -565,8 +566,8 @@ async function loadCycles() {
     list.innerHTML = "";
     rows.forEach((c) => {
       const li = document.createElement("li");
-      const label = c.length_days
-        ? `${fmtDate(c.start_date)} · ${c.length_days} يوم نزيف`
+      const label = c.bleeding_days
+        ? `${fmtDate(c.start_date)} · ${c.bleeding_days} يوم نزيف`
         : fmtDate(c.start_date);
       const span = document.createElement("span");
       span.textContent = label;
@@ -589,7 +590,7 @@ async function addCycle() {
   try {
     await api(`/v1/cycles?user_key=${encodeURIComponent(deviceKey())}`, "POST", {
       start_date: start,
-      length_days: len === "" ? null : Number(len),
+      bleeding_days: len === "" ? null : Number(len),
     });
     document.getElementById("c-date").value = "";
     document.getElementById("c-length").value = "";
@@ -721,11 +722,11 @@ function showInsights() {
 }
 
 async function deleteAllData() {
-  if (!confirm("سيُحذف كل ما سجّلتِه من دورات وأعراض. متأكدة؟")) return;
+  if (!confirm("سيُحذف دوراتك وأعراضك وملفك وموافقاتك من الخادم. سجل ردود المحادثة (بلا نصوص) لا يُمحى من هنا. متأكدة؟")) return;
   try {
     await api(`/v1/data?user_key=${encodeURIComponent(deviceKey())}`, "DELETE");
     await refreshTracker();
-    alert("تم حذف كل بياناتك.");
+    alert("تم حذف بياناتك المسجّلة من الخادم.");
   } catch (e) {
     alert(`تعذّر الحذف: ${e.message}`);
   }

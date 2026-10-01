@@ -102,6 +102,12 @@ class ExportContext:
 
 # ------------------------------------------------------------------------ CSV
 
+def _bleeding_days(row: dict[str, Any]) -> Any:
+    """طول النزيف: الميدان الجديد `bleeding_days` أولًا، والقديم `length_days`
+    احتياطًا لبيانات/اختبارات ما زالت تبني الصفوف بالمفتاح القديم."""
+    return row["bleeding_days"] if "bleeding_days" in row else row.get("length_days")
+
+
 def cycles_to_csv(rows: Iterable[dict[str, Any]], ctx: ExportContext) -> bytes:
     """CSV بترميز UTF-8 مع BOM حتى يفتحه Excel بالعربي صحيحًا.
 
@@ -120,7 +126,7 @@ def cycles_to_csv(rows: Iterable[dict[str, Any]], ctx: ExportContext) -> bytes:
         writer.writerow([
             format_date(row["start_date"], loc, ctx.digits_style,
                         timezone_name=ctx.timezone),
-            _maybe_number(row.get("length_days"), ctx),
+            _maybe_number(_bleeding_days(row), ctx),
             _maybe_number(row.get("cycle_length"), ctx),
             str(row.get("note") or ""),
         ])
@@ -235,7 +241,7 @@ def report_sections_from_cycles(cycles: Sequence[dict[str, Any]],
     for cycle in cycles:
         date_text = format_date(cycle["start_date"], loc, ctx.digits_style,
                                 timezone_name=ctx.timezone)
-        days = cycle.get("length_days")
+        days = _bleeding_days(cycle)
         days_text = (format_duration_days(int(days), loc, ctx.digits_style)
                      if days else "")
         rows.append(f"{date_text} — {days_text}".strip(" —"))

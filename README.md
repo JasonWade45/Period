@@ -9,48 +9,53 @@ The assistant is **educational only**: it does not diagnose and does not prescri
 ## How a request flows
 
 ```
-POST /v1/chat
+POST /api/v1/ai/chat        (or POST /api/v1/ai/summary)
    │
    ├─ 0. Stored data merge (SQLite, per device key)
    │      cycles and symptoms logged via /v1/cycles and /v1/symptoms replace
    │      hand-typed stats: cycle length is averaged from real date gaps
    │
    ├─ 1. Rules engine (pure Python, no model)
-   │      compute_findings(user_context) → INSUFFICIENT_DATA / LONG_CYCLE /
-   │      SHORT_CYCLE / IRREGULAR_CYCLE / NO_ALERT_PATTERN + severity
+   │      compute_findings(merged data) → INSUFFICIENT_DATA / LONG_CYCLE /
+   │      SHORT_CYCLE / IRREGULAR_CYCLE / NO_ALERT_PATTERN, plus
+   │      PROLONGED_BLEEDING / MISSED_PERIOD / REPEATED_SEVERE_SYMPTOMS + severity
    │
    ├─ 2. Pre-model emergency filter (no model call)
    │      crisis  → fixed reply, crisis=true,  emergency=true
    │      medical → fixed reply,                emergency=true
    │      Matches on the user message and on URGENT/EMERGENCY findings.
    │
-   ├─ 3. Retrieval (keyword RAG over app/data/sources.json)
+   ├─ 3. Retrieval (hybrid: vectors + keywords, RRF — approved KB chunks only)
+   │      data/kb.db via app/kb/retrieval.py; drafts need KB_ALLOW_DRAFT=1.
    │      The retrieved chunk ids become the only ids the model may cite.
+   │      Empty result → «no reliable source» without calling the model.
    │
-   ├─ 4. Prompt build (app/prompts/system_prompt_v1.1.md + variables)
+   ├─ 4. Prompt build (app/prompts/system_prompt_v1.2.md + variables)
    │
    ├─ 5. Model call (Groq) → validator
    │      JSON shape, required fields, source-id allowlist, banned
    │      attribution patterns ("أنتِ عندك…", dosage talk, false reassurance)
    │      One retry with feedback, then a safe fallback answer.
    │
-   └─ 6. Audit (JSONL) — findings, sources, flags, retries, fallback reason
+   └─ 6. Audit (JSONL) — findings, sources, flags, retries, fallback reason,
+          message length — never the message text; purged after AUDIT_RETENTION_DAYS
 ```
 
 Key property: **steps 1, 2 and 6 never depend on the model or on the API key.** If Groq is missing, rate-limited, down, or returns invalid JSON, the user still gets a safe answer and the emergency/crisis paths keep working at full strength.
 
 ## Knowledge base
 
-Two files, deliberately separate:
+Knowledge lives in three places, deliberately separate:
 
-| File | Status | Reaches the model? |
+| Store | Status today | Reaches the model? |
 |---|---|---|
-| `app/data/sources.json` | verified — `source_name`, `section`, `reviewed_at`, `reviewer` | Yes, and only these ids may be cited |
-| `app/data/sources_draft.json` | draft — `drafted_at` + `derived_from`, explicitly named as unreviewed | **No** (default), and not citable |
+| `data/kb.db` (KB v2, from `kb/knowledge/knowledge_seed.jsonl`) | 22 approved chunks (owner-reviewed) | **Yes** — the only retrieval source for `/api/v1/ai/*`, approved only (`KB_ALLOW_DRAFT=1` = internal evaluation) |
+| `app/data/sources.json` | 44 reviewed records (reviewer + date): 38 citable, 6 `text_removed` pending licence confirmation | No — backs the `/health` counters and the legacy loader gates; chat retrieves from the KB above |
+| `app/data/sources_draft.json` | empty — everything was promoted | **No**, and not citable |
 
-The loader rejects any chunk with missing provenance, a verified chunk without a review date or reviewer, a draft without its origin, or a duplicate id. A draft is never retrievable, so it cannot enter the prompt — and if a model ever cites a draft id anyway, the validator rejects that id and the answer falls back. Both paths are covered by tests (`tests/test_knowledge_base.py`, `tests/test_e2e_pipeline.py`).
+The legacy loader rejects any chunk with missing provenance, a verified chunk without a review date or reviewer, a draft without its origin, or a duplicate id. A draft is never retrievable, so it cannot enter the prompt — and if a model ever cites a draft id anyway, the validator rejects that id and the answer falls back. Both paths are covered by tests (`tests/test_knowledge_base.py`, `tests/test_e2e_pipeline.py`).
 
-Review workflow:
+Review workflow (legacy loader):
 
 ```bash
 python tools/review_sources.py list                          # what is pending
@@ -59,31 +64,30 @@ python tools/review_sources.py promote draft-pcos-diagnosis \
     --reviewer "د. فلانة — أخصائية نسا وتوليد" --date 2026-10-05
 ```
 
-Promotion requires a named reviewer; it moves the chunk into `sources.json` as verified. (All six chunks that used to be `verified` were demoted and had their text removed pending licence confirmation — `sources.json` is intentionally empty right now, so every answer path that needs a source says so instead of guessing.) `KNOWLEDGE_INCLUDE_DRAFTS=1` sends drafts to the model for internal evaluation only — it logs a loud warning, and `/health` reports `drafts_included`.
+Promotion requires a named reviewer; it moves the chunk into `sources.json` as verified. All 44 records were reviewed by the project owner (2026-09-30). The six chunks attributed to NHS/ACOG/WHO keep `text_removed=true` — their **text** is gone pending licence confirmation, so they are never retrieved regardless of status. `KNOWLEDGE_INCLUDE_DRAFTS=1` sends drafts to the model for internal evaluation only — it logs a loud warning, and `/health` reports `drafts_included`.
 
-### The medical draft is explicitly *not* live knowledge
+### What is live, what is held back
 
-The Arabic knowledge draft supplied for this project (cycle basics, PCOS, endometriosis, heavy bleeding, red flags, investigations, treatment options) was ingested as **38 draft chunks waiting for clinician sign-off**. It is not citable and never reaches a user today. Reasons, not formalities:
+The Arabic knowledge draft supplied for this project (cycle basics, PCOS, endometriosis, heavy bleeding, red flags, investigations, treatment options) exists in two forms:
 
-- it is a paraphrase, and it names NHS/ACOG/NICE/FIGO/ESHRE as its basis. Publishing it as a source would be **false attribution** — `source_name` is left as an internal unreviewed draft precisely so no body is credited with text it did not write;
-- the numbers and thresholds in it have not been checked against the originals;
-- it contains treatment options (NSAIDs, tranexamic acid, hormonal IUD, metformin, SSRIs). As education that is allowed; as directed advice it is exactly what the validator now blocks by name (`خدي إيبوبروفين`, `take ibuprofen`, `your dose`), while still allowing "الإيبوبروفين من الخيارات التي تقررها الطبيبة".
+- **The 38 `draft-*` chunks in `sources.json`** — reviewed and promoted by the project owner, citable under the legacy loader. They were held back first for reasons, not formalities: the text is a paraphrase naming NHS/ACOG/NICE/FIGO/ESHRE as its basis, so crediting those bodies verbatim would be **false attribution** (the records carry `attribution_unverified` and `source_name` stays internal); the numbers were never checked against the originals; and it lists treatment options (NSAIDs, tranexamic acid, hormonal IUD, metformin, SSRIs) — as education that is allowed, as directed advice it is exactly what the validator blocks by name (`خدي إيبوبروفين`, `take ibuprofen`, `your dose`), while still allowing "الإيبوبروفين من الخيارات التي تقررها الطبيبة". Owner review is documented as sufficient for educational content **with** the referral seal; a named physician has not reviewed them — see Known gaps.
+- **The 22-chunk seed in `kb/`** — what the chat path actually retrieves today (`data/kb.db`, approved-only). Imported as `draft_unreviewed`, then bulk-approved by the owner (`python -m app.kb.review bulk-approve --reviewer "JasonWade45"`).
 
-Two deterministic thresholds were extracted from it into the rules engine, marked in the source as draft-derived and pending sign-off: bleeding longer than 7 days (`PROLONGED_BLEEDING`) and 90 days since the last logged bleeding (`MISSED_PERIOD`). Both are MONITOR, not MEDICAL_REVIEW, because the input is user-entered and this code cannot distinguish "period actually stopped" from "log not updated" — the finding text says both.
+Two deterministic thresholds were extracted from the draft into the rules engine, marked as draft-derived and pending physician sign-off: bleeding longer than 7 days (`PROLONGED_BLEEDING`) and 90 days since the last logged bleeding (`MISSED_PERIOD`). Both are MONITOR, not MEDICAL_REVIEW, because the input is user-entered and this code cannot distinguish "period actually stopped" from "log not updated" — the finding text says both.
 
 ## Safety design
 
 | Layer | File | Guarantee |
 |---|---|---|
 | Pre-model filter | `app/services/emergency_filter.py` | Emergency/crisis messages never reach the model; fixed replies include the configured numbers verbatim. |
-| Rules engine | `app/services/rules_engine.py` | Severity comes from recorded data only, with `evidence` numbers attached. |
-| Prompt contract | `app/prompts/system_prompt_v1.1.md` | No diagnosis, no negation of a diagnosis, no dosing, no reassurance, education only from supplied sources. |
+| Rules engine | `app/services/rules_engine.py` | Severity comes from recorded data only, with `evidence` numbers attached. Thresholds are not hard-coded: they load from `app/data/medical_rules.json` (MR-001..MR-010) at import, a missing/invalid registry fails startup loudly, and each finding carries the matching `rule_id`. |
+| Prompt contract | `app/prompts/system_prompt_v1.2.md` | No diagnosis, no negation of a diagnosis, no dosing, no reassurance, education only from supplied sources. |
 | Validator | `app/services/validator.py` | Rejects bad JSON, unknown `sources_used` ids, and banned attribution/dosage phrasing. Text is normalised first (diacritics, alef/ya/ta-marbuta variants) so dialect spellings cannot slip past a pattern; 20 known bypass phrasings are covered by regression tests. |
-| Fallback | `app/main.py` | Any model or validation failure degrades to a safe answer — never a 5xx. |
+| Fallback | `app/services/ai_pipeline.py` | Any model or validation failure degrades to a safe answer — never a 5xx. |
 | Post-model check | `app/services/emergency_filter.py` | If the model reports emergency/crisis (a phrasing the lexical filter missed), the number is forced into the answer text, not just the boolean flag. |
 | Country numbers | `app/services/emergency_numbers.py` | 23 documented countries with a source each; unknown country → generic number explicitly labelled *unverified*; crisis lines are never invented. |
 | Auth & limits | `app/services/security.py` | Optional API key; per-device rate limit that **never** applies to emergency/crisis messages. |
-| Audit | `app/services/audit.py` | Every response is logged with its flags; a failed audit write is logged but never breaks the response. |
+| Audit | `app/services/audit.py` | Every response is logged with its flags and the message length — never the message text. Old records are purged after `AUDIT_RETENTION_DAYS` (startup + CLI). A failed audit write is logged but never breaks the response. |
 
 ## Quick start
 
@@ -121,15 +125,16 @@ Open <http://127.0.0.1:8113/> for the app, <http://127.0.0.1:8113/docs> for the 
 | `LLM_SDK_MAX_RETRIES` | `2` | The `groq` SDK's own retries (5xx/429). |
 | `COUNTRY_CODE` | `EG` | Selects the emergency number from `app/data/emergency_numbers.json`. |
 | `EMERGENCY_NUMBER` | *(unset)* | Only set this to force one number for **every** request (single-country deployment). An explicitly set value overrides the country table; the built-in default does not, otherwise choosing a country would have no effect. |
-| `DB_PATH` | `data/cyclecare.db` | SQLite file for cycles and symptoms. Gitignored. |
+| `DB_PATH` | `data/cyclecare.db` | SQLite file for tracker data: bleeding logs, symptom logs, health profile, consents. Gitignored. |
 | `API_KEY` | *(empty)* | Empty = open (local development only). When set, `/v1/*` requires `X-API-Key`. Emergency and crisis messages are still accepted with a wrong key on purpose. |
 | `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_SECONDS` | `30` / `60` | Per device key. Never applied to emergency/crisis messages. In-memory: with multiple workers the effective limit multiplies. |
 | `CRISIS_LINE` | *(empty)* | Local crisis/support line; empty replies say it is unavailable rather than inventing one. |
-| `PROMPT_VERSION` | `v1.1` | Echoed in every response and audit entry. |
-| `PROMPT_PATH` | `app/prompts/system_prompt_v1.1.md` | |
-| `SOURCES_PATH` | `app/data/sources.json` | المقاطع القابلة للاستشهاد في المسار القديم. **فارغ عن قصد حاليًا:** المقاطع الستة نُسبت إلى NHS/ACOG/WHO بلا مراجعة موثوقة، فأُزيل نصها ونُقلت إلى `sources_draft.json` بانتظار تأكيد الترخيص. النتيجة المطلوبة: صفر مقاطع قابلة للاستشهاد، والمساعد يقول «لا أملك مصدرًا موثوقًا». |
+| `PROMPT_VERSION` | `v1.2` | Echoed in every response and audit entry. |
+| `PROMPT_PATH` | `app/prompts/system_prompt_v1.2.md` | |
+| `SOURCES_PATH` | `app/data/sources.json` | 44 سجلًا مُراجَعًا: 38 قابل للاستشهاد (مراجعة المالك 2026-09-30)، و6 مقاطع أُزيل نصها بانتظار تأكيد الترخيص فلا تُسترجَع أبدًا. هذا الملف يُغذّي عدّادات `/health` وبوابات محمّلها؛ استرجاع المحادثة يأتي من قاعدة المعرفة `data/kb.db` (22 مقطعًا معتمدًا). |
 | `RULES_GLOSSARY_PATH` | `app/data/rules_glossary.json` | Plain-language meaning per rule code. |
-| `AUDIT_LOG_PATH` | `audit/responses.jsonl` | Gitignored. |
+| `AUDIT_LOG_PATH` | `audit/responses.jsonl` | Gitignored. Findings, flags and message length only — no message text. |
+| `AUDIT_RETENTION_DAYS` | `90` | Purged at startup and by `python -m app.services.audit purge --days N` (records without a timestamp are kept). |
 | `RAG_TOP_K` | `5` | |
 | `DRAFT_SOURCES_PATH` | `app/data/sources_draft.json` | Unreviewed material, kept out of circulation. |
 | `KNOWLEDGE_INCLUDE_DRAFTS` | `0` | Never enable in production. Internal evaluation only. |
@@ -150,7 +155,7 @@ The full pipeline runs (prompt → HTTP → SDK → validator → audit) against
 ## Tests
 
 ```bash
-pytest                 # 572 test: unit, API, e2e, KB, eval, AI integration, i18n/RTL static
+pytest                 # 621 tests: unit, API, e2e, KB, eval, AI integration, medical rules, i18n/RTL static
 ```
 
 `tests/test_e2e_pipeline.py` drives the real pipeline over real HTTP against the fake provider, so it covers what unit tests cannot: the rendered prompt (no unfilled variables, user text kept out of the system prompt), provider 429/500 handling, one-retry-then-fallback, and the validator gates firing on live traffic.
@@ -162,17 +167,27 @@ uvicorn app.main:app --port 8113 &
 python smoke_test.py   # writes _live.json; SMOKE_BASE overrides the base URL
 ```
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request — it needs no secrets (only the platform's `GITHUB_TOKEN`), and the test job is fully offline:
+
+- **tests**: install → the static checkers (`check_i18n`, `check_prompt`, `check_rtl`, `check_glossary`, `check_no_secrets`) → `node --check frontend/app.js` → `pytest` (`smoke_test.py` stays excluded — it needs a live server and a real key).
+- **security**: [gitleaks](https://github.com/gitleaks/gitleaks) across the full history (findings upload to GitHub code scanning), and `pip-audit --strict` against `requirements.txt` — a dependency vulnerability or a service failure fails the job; the current inventory is clean (0 known vulnerabilities).
+
+`python tools/check_no_secrets.py` is the local counterpart of the secret scan: it fails if any **tracked** file is `.env`, a key/certificate (`*.key`, `*.pem`), a health database (`*.db`), an audit log, a local debug dump, or carries a real key fingerprint (`gsk_…`, `AKIA…`, `github_pat_…`, PEM blocks). Short placeholders such as `gsk_xxx` in `.env.example` deliberately do not match.
+
+When `pip-audit` starts failing, that is the job working as intended: upgrade the flagged dependency; if no fixed release exists yet, document a **time-boxed** ignore with a dated note rather than switching the scan off — a skipped scan is worse than a red one. The first `gitleaks` run walks the *entire* history, so anything ever committed (even if since removed) will surface: review that first report before merging.
+
 ## API
 
-`POST /v1/chat`
+`POST /api/v1/ai/chat`
 
 ```json
 {
   "message": "إيه أعراض ما قبل الدورة؟",
-  "mode": "chat",
   "user_context": {
     "age": 27, "cycles_recorded": 5, "avg_cycle_days": 41,
-    "last_cycles": [{"start_date": "2026-06-05", "length_days": 38}]
+    "last_cycles": [{"start_date": "2026-06-05", "bleeding_days": 5}]
   }
 }
 ```
@@ -181,29 +196,33 @@ Tracker endpoints (all take `?user_key=<device id>`):
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET/POST | `/v1/cycles` | List / add a cycle (`start_date`, optional `length_days` 1–90) |
-| DELETE | `/v1/cycles/{id}` | Delete one cycle |
+| GET/POST | `/v1/cycles` | List / add a bleeding log (`start_date`, optional `bleeding_days` 1–30; the legacy name `length_days` is still accepted and still appears in responses) |
+| DELETE | `/v1/cycles/{id}` | Delete one bleeding log |
 | GET/POST | `/v1/symptoms` | List / add a log (`log_date`, `symptom`, `severity` 1–5, `note`) |
 | DELETE | `/v1/symptoms/{id}` | Delete one log |
+| GET/PUT | `/v1/profile` | Health profile: `locale`, `country_code`, `digits_style`, `week_start`, `age`, `contraception`, `pregnancy_status`, `conditions`. `PUT` replaces the whole profile (an absent field clears it); `GET` on an unknown key returns an empty profile |
+| GET/POST | `/v1/consents` | Record processing consents (`ai_model_processing`, `local_audit_log`). A new decision for the same activity replaces the old one; storage only — nothing is enforced yet |
 | GET | `/v1/insights` | Rules-engine findings + glossary, no model |
-| DELETE | `/v1/data` | Erase all data for this device key |
+| DELETE | `/v1/data` | Erase this device key's app data (logs, profile, consents). The audit trail is kept |
+| DELETE | `/v1/account` | Same as `/v1/data` **plus** the audit records under this key's fingerprint (`audit_entries_deleted`) |
 | GET | `/v1/meta` | Countries, emergency numbers, verification status |
 
 `GET /v1/insights` findings now include `PROLONGED_BLEEDING` and `MISSED_PERIOD` (draft-derived thresholds, see above).
 
-Data semantics worth knowing before writing to the API: `cycles.length_days` is **how many days the bleeding lasted** (1–30), not cycle length. Cycle length is derived on the server from gaps between start dates, which is the medical definition. Mixing the two produced a real bug — a 38-day "cycle length" typed into the bleeding field fired a prolonged-bleeding flag, and the reverse misread bleeding duration as cycle irregularity. Regression tests pin both directions.
+Data semantics worth knowing before writing to the API: `bleeding_logs.bleeding_days` (the request field; the old name `length_days` still works in both directions) is **how many days the bleeding lasted** (1–30), not cycle length. Cycle length is derived on the server from gaps between start dates, which is the medical definition. Mixing the two produced a real bug — a 38-day "cycle length" typed into the bleeding field fired a prolonged-bleeding flag, and the reverse misread bleeding duration as cycle irregularity. Regression tests pin both directions. Databases written before the rename are migrated in place on startup: tables and columns are renamed with their data and ids intact.
 
-`mode: "chat"` returns `answer`, `sources_used`, `needs_doctor`, `emergency`, `crisis`, `missing_info`.
-`mode: "summary"` returns `overview`, `what_changed`, `patterns`, `medical_alerts`, `what_this_does_not_mean`, `questions_for_doctor`, `sources_used`.
-Both always include `prompt_version` and `rule_codes`. Status is 200 even when the model fails (the body carries the fallback); 422 only for an empty message.
+`POST /api/v1/ai/chat` returns `answer`, `sources_used`, `needs_doctor`, `emergency`, `crisis`, `missing_info`, `decision`, `emergency_payload`, `retrieval`.
+`POST /api/v1/ai/summary` returns `overview`, `what_changed`, `patterns`, `medical_alerts`, `what_this_does_not_mean`, `questions_for_doctor`, `sources_used`.
+Both always include `prompt_version`, `rule_codes`, `model`, `language` and `decision` (`ok | no_source | fallback | emergency_filter | summary_empty`). There is no `mode` field — the endpoint *is* the mode. Status is 200 even when the model fails (the body carries the fallback); 422 only for an empty message.
+`GET /api/v1/ai/health` → `configured`, `kb_backend`, `retrievable_chunks`, `producible_statuses`, `kb_allow_draft`, `embedding_model`, `embedding_backend`, `prompt_version`, `languages`.
 
-`GET /health` → `status`, `prompt_version`, `model`, `llm_configured`, `chunks_loaded`, `emergency_number_is_default`, `crisis_line_configured`.
+`GET /health` → `status`, `prompt_version`, `model`, `llm_configured`, `chunks_loaded`, `chunks_citable`, `drafts_pending_review`, `chunks_text_removed`, `drafts_included`, `emergency_number_is_default`, `emergency_number_verified`, `crisis_line_configured`, `auth_required`, `country_code`, `tracker_enabled`.
 
 ## Layout
 
 ```
 app/
-  main.py                  FastAPI app, pipeline, endpoints, static frontend mount
+  main.py                  FastAPI app, lifespan, tracker/insights endpoints, health, frontend mount
   routers/ai.py            /api/v1/ai/chat + /summary + /health
   kb/                      schemas, store (SQLite/PostgreSQL+pgvector), embedding,
                            retrieval (RRF), ingest CLI, review CLI
@@ -212,7 +231,9 @@ app/
   services/ai_pipeline.py  rules → emergency → retrieval → LLM → validate → retry
   config.py                env/.env settings
   schemas.py               request/response/audit models
-  data/                    sources.json (RAG), rules_glossary.json,
+  data/                    sources.json (legacy reviewed set — chat retrieves from
+                           data/kb.db), rules_glossary.json, medical_rules.json
+                           (MR-001..MR-010 thresholds; rules_engine reads it at import),
                            emergency_numbers.json (per country, with sources)
   prompts/                 versioned system prompt
   services/                emergency_filter, emergency_numbers, rules_engine, rag,
@@ -223,20 +244,22 @@ frontend/                  vanilla JS + CSS, RTL Arabic UI, landing + signup wiz
   tests/rtl.spec.js        Playwright RTL screenshot spec (needs a browser)
 locales/                   ar.json, en.json, needs_review.json
 knowledge/                 glossary_ar.csv + seed/registry templates
+kb/                       knowledge seed + eval questions + glossary + registry (owner package)
 migrations/                pgvector SQL (kb_sources, kb_chunks, HNSW, GIN)
 eval/                      eval set (JSONL) + reports (gitignored)
 store/                     ar.md + en.md store listings
-tools/                     check_i18n.py, check_rtl.py, check_glossary.py
-tests/                     offline unit, API and end-to-end tests (325)
+tools/                     check_i18n.py, check_rtl.py, check_glossary.py,
+                           check_prompt.py, check_no_secrets.py
+tests/                     offline unit, API and end-to-end tests (621)
 tools/fake_groq_server.py  local Groq-compatible server for development
 smoke_test.py              live end-to-end check
 ```
 
-## Before a real launch
+## Known gaps
 
 These are known gaps, not features:
 
-1. **The knowledge draft needs clinical review.** 38 chunks are waiting. Until a clinician signs them off and a source's own text or licence permits reuse, the assistant can only answer from the 6 verified chunks — for most topics it will correctly say it has no reliable information rather than answer from the draft.
+1. **Clinical sign-off is still pending.** The Arabic draft is live on owner review: the 38 `sources.json` records and the 22 KB chunks were approved by a named person (`JasonWade45`, 2026-09-30) on the documented basis that the content is educational and every answer carries the referral seal. A physician has not reviewed them. The medical rules live in `app/data/medical_rules.json` (MR-001..MR-010): MR-001..MR-008 reuse exactly the thresholds the engine already shipped — nothing was invented — and **every** rule carries `clinical_review: {required: true, reviewer: null, reviewed_at: null}`. MR-009 and MR-010 are deliberately dormant (empty condition, `threshold: null`, `severity: null`) until their specs arrive; an active rule without a threshold is rejected at startup. The six NHS/ACOG/WHO chunks stay `text_removed` until their licence is confirmed.
 2. **Emergency number accuracy.** The table covers 23 countries with a source each, but a number can change and an unknown country still gets a generic number. Re-verify before launch and whenever a country is added; a wrong number in a crisis reply is the highest-severity failure mode in this codebase.
 3. **Crisis line coverage.** No crisis line is shipped, because inventing one is worse than admitting none is available. Every reply currently says no verified line exists — fill this in per country from an official source.
 4. **Device key is not authentication.** `user_key` isolates rows; it is not a credential, and anyone holding it can read that data. Real accounts (and encryption at rest) are needed before this holds anything a user would not want exposed.
@@ -244,8 +267,8 @@ These are known gaps, not features:
 6. **Both safety filters are pattern-based.** The pre-model emergency filter and the post-model validator are lexical, so unseen dialect spellings, typo variants, and phrasings outside the pattern set can slip past. The validator now normalises Arabic script and covers 20 previously-bypassing phrasings, but a pattern list is not a classifier: treat every real flagged response as a candidate new test case, and plan for a trained classifier.
 7. **Validating harder can make answers worse, not safer.** A validator rejection produces the generic fallback, so an over-eager pattern costs a good answer. The regression suite therefore pins both directions: known violations must be blocked, and legitimate educational sentences must still pass. Add both kinds of test whenever the pattern list changes.
 8. **No calendar view.** Logging is a list with a date field, not a month grid, and there is no reminder or prediction. Deliberate: the prompt forbids assured predictions, so any calendar must show logged data only.
-9. **Keyword RAG.** Matching is lexical, so paraphrased questions retrieve nothing. Replace with embeddings while keeping the source-id allowlist.
-10. **Audit log privacy.** `request_excerpt` stores up to 300 characters of user text in plaintext JSONL — sensitive health data. Define retention, access control, and encryption before production.
+9. **Retrieval has a silent embedding fallback and two stores.** Chat retrieval merges vector + keyword candidates (RRF) over `data/kb.db`; if the embedding model cannot load, the app logs a warning server-side and falls back to keyword-only retrieval — a quality regression the client never sees. Meanwhile `/health` counters (`chunks_citable` = 38) come from the legacy `sources.json` loader while the chat path retrieves from the KB (22 approved): two stores, two counts. Consolidate them (or label the counters explicitly) before launch.
+10. **Audit log privacy.** `audit/responses.jsonl` stores findings, flags, source ids, a hashed device id (`key_fingerprint`) and the message **length** — never the message text (`request_excerpt` was removed). Retention is `AUDIT_RETENTION_DAYS` (default 90): purged at startup and by `python -m app.services.audit purge`. Still missing before production: access control on the file, encryption at rest, and a decision on whether even fingerprints may be kept.
 11. **Conversation state.** Each request is independent; there is no multi-turn memory.
 12. **PostgreSQL/pgvector path is written but not executed here.** `app/kb/postgres.py`
     and `migrations/001_kb_pgvector.sql` could not be run in this environment
@@ -259,9 +282,10 @@ These are known gaps, not features:
     Arabic shaping. A system font is used as a fallback so the smoke test can
     run; ship a proper Arabic font and re-check the rendering visually.
 14. **Arabic strings still inside `frontend/app.js`.** The chrome, suggestions,
-    emergency overlay and language switching now come from `locales/`, but ~19
-    content strings remain in JS. `tools/check_rtl.py` reports the count as a
-    warning rather than a failure until they are migrated.
+    emergency overlay and language switching now come from `locales/`, but 27
+    content strings remain in JS (10 of them fallbacks inside `i18nText`).
+    `tools/check_rtl.py` reports the count as a warning rather than a failure
+    until they are migrated.
 
 ## قاعدة المعرفة (v2): استيراد، استرجاع، مراجعة
 
@@ -286,8 +310,8 @@ draft_unreviewed ───┤                      ├─▶ approved ──▶ 
 اشتراط طبيب؛ ومسار الطبيب (`physician_reviewed`) يبقى متاحًا لرفعة أعلى إن
 أُريد. التوثيق لا يتغيّر: اسم إنسان + تاريخ في الحالتين.
 
-**ختم الاستشارة يفرضه الخادم:** كل إجابة عادية ناجحة في المسارين
-(`/api/v1/ai/chat` و`/v1/chat`) تُختم تلقائيًا بسطر «هذه معلومات إرشادية ولا
+**ختم الاستشارة يفرضه الخادم:** كل إجابة عادية ناجحة في المسار الوحيد
+(`/api/v1/ai/chat`) تُختم تلقائيًا بسطر «هذه معلومات إرشادية ولا
 تُغني عن استشارة طبيبك» من `locales/<lang>.json` (مفتاح
 `answer.referral_notice`)، سواء التزم الموديل بالبرومبت أو لا — دون تكرار إن كان
 السطر موجودًا. ردود الطوارئ مستثناة (رقم الطوارئ يسبق كل شيء).
@@ -319,31 +343,37 @@ python -m app.kb.ingest --path knowledge/knowledge_seed.example.jsonl \
 لمقارنة النموذجين: `python -m app.eval.run --set ...` مع كل نموذج وسجّلي
 `retrievable_chunks` ونتيجة الفئات.
 
-### حالة الحزمة الآن (2026-09-30): لم تصل بعد
+### حالة الحزمة: وصلت ✓ — تحقّق آلي بـ `pack check`
 
-الملفات الأربعة **غير موجودة** في المستودع ولا في أي مسار رفع — تحقّق آلي، لا
-افتراض. محاولتا تسليم سابقتان لم تحملا محتوى («في `/home/user/uploads`» ثم
-«ملصقة أدناه»). لذلك:
+الملفات الأربعة موجودة في `kb/` (وليس وعدًا بها):
 
 ```bash
 $ python -m app.kb.pack check
-  [غائب] knowledge/knowledge_seed.jsonl
-  [غائب] eval/eval_questions_seed.jsonl
-  [غائب] knowledge/glossary_ar.csv
-  [غائب] knowledge/sources_registry.json
-الحزمة ناقصة: لا يُنشأ أي محتوى بالنيابة عن صاحبة المشروع.
+جذر الحزمة: kb
+  [موجود] knowledge/knowledge_seed.jsonl  (15380 بايت)
+  [موجود] eval/eval_questions_seed.jsonl  (3523 بايت)
+  [موجود] knowledge/glossary_ar.csv  (2365 بايت)
+  [موجود] knowledge/sources_registry.json  (7326 بايت)
+
+مقاطع البذرة: 22 (كلها draft_unreviewed، authored_by=ai_draft)
+أسئلة التقييم: 25 (كلها needs_review)
+مصادر السجل: 18 | محاولات اعتماد آلي رُفضت: 0
+مصطلحات القاموس: 30
+
+لا شيء ممّا سبق قابل للاستشهاد: البذرة مسوّدات، والاعتماد بشري.
 ```
 
-- **لا يُخترع المحتوى.** الملفات تُبنى كما هي لحظة وصول نصّها في المحادثة.
-- تقرير أسئلة صاحبة المشروع يقول صراحةً «لم تُقَس — الملف غير موجود» بدل رقم
-  مُخترع، وتقرير الوكلاء (26 سؤالًا) يعمل كما هو.
-- الكود جاهز: لا يلزم أي تعديل بعد وصول الحزمة، فقط `pack check` ثم `pack ingest`
-  ثم `eval.compare`.
-- القاموس المؤقت الحالي `knowledge/glossary_ar.csv` (25 مصطلحًا) بديل عن قاموس
-  الحزمة؛ عند وصول `kb/knowledge/glossary_ar.csv` تُعطى الأولوية له تلقائيًا في
-  `tools/check_glossary.py`.
+- **لا يُخترع المحتوى.** `pack check` يعيد التحقق مع كل تشغيل؛ أي ملف يغيب
+  يظهر `[غائب]` وينتهي الأمر بلا افتراض أو رقم مُختلق.
+- تقرير أسئلة صاحبة المشروع (25 سؤالًا) يُقاس منفصلًا عن أسئلة الوكلاء
+  (26 سؤالًا)، وكلاهما يعمل اليوم.
+- البذرة تُستورد كمسودات ثم لا تُعتمد إلا بأمر بشري — راجع «دورة حياة
+  المقطع» أعلاه؛ `data/kb.db` يحوي اليوم 22 مقطعًا معتمدًا بعد bulk-approve.
+- القاموس `kb/knowledge/glossary_ar.csv` (30 مصطلحًا) هو المعتمد الآن:
+  يفضّله `tools/check_glossary.py` تلقائيًا منذ وصول الحزمة، ونسخة المستودع
+  `knowledge/glossary_ar.csv` (25 مصطلحًا) بقيت بديلًا مؤقتًا.
 
-### حزمة `kb/` — الملفات الأربعة التي تصل من صاحبة المشروع
+### حزمة `kb/` — الملفات الأربعة التي وصلت من صاحبة المشروع
 
 الحزمة تُقرأ من مسارات ثابتة، ولا يُنشئ المستودع محتواها بالنيابة عنها:
 
@@ -433,9 +463,11 @@ python -m app.kb.review set-status kb-cycle-length-01 physician_reviewed \
   `emergency_payload` يحتوي الرقم وحالة التحقق منه.
 - كل إجابة تحمل `sources_used` من معرّفات المقاطع المسترجَعة فقط؛ موديل يستشهد
   بمعرّف غير مسترجَع يُرفض ← إعادة ← رد احتياطي.
-- `decision` في الرد يوضح المسار: `ok | no_source | fallback | emergency_filter`.
+- `decision` في الرد يوضح المسار: `ok | no_source | fallback | emergency_filter | summary_empty`.
 - التدقيق يخزّن `prompt_version` و`model` والقرار وطول الرسالة — **ولا يخزّن
-  نص رسالة الطوارئ ولا نص رسائلكِ أصلًا** في هذه المسارات.
+  نص رسالة الطوارئ ولا نص رسائلكِ أصلًا** في هذه المسارات. الاحتفاظ
+  `AUDIT_RETENTION_DAYS` (90 يومًا افتراضيًا): جرّف عند الإقلاع وأمر
+  `python -m app.services.audit purge`.
 - `GET /api/v1/ai/health` يعرض عدد المقاطع القابلة للاسترجاع والنموذج واللغات.
 
 ## التقييم (Eval)
@@ -510,8 +542,12 @@ python -m app.eval.run --kb-db data/kb.db --allow-draft               # قاعد
 - **التشغيل:** `pip install -r requirements.txt` ثم ضعي `GROQ_API_KEY` في ملف `.env` ثم `uvicorn app.main:app --host 0.0.0.0 --port 8113`.
 - **التتبّع:** سجّلي الدورات والأعراض من زر 📖 في الواجهة، وتُحفظ في SQLite على الخادم بمعرّف جهازكِ. الرؤى (`/v1/insights`) تعمل بلا إنترنت وبلا مفتاح.
 - **الأمان:** اضبطي `API_KEY` قبل أي نشر؛ الرسائل التي يُفعّل فيها فلتر الطوارئ تُقبل دائمًا حتى لو كان المفتاح خاطئًا — قرار مقصود.
-- **قاعدة المعرفة:** ما يصل للموديل هو `sources.json` فقط (6 مقاطع مُتحقَّقة). المسودة التي أُرسلت للمشروع محفوظة في `sources_draft.json` كـ38 مقطعًا **محجوبة عن الاستشهاد** حتى تُراجَع طبيبيًا وتُرقّى بـ`tools/review_sources.py`. سبب الرفض ليس شكليًا: النص إعادة صياغة وينسب نفسه إلى NHS/ACOG/NICE، ونشره كمصدر إسناد زائف، والأرقام لم تُراجَع على الأصل.
-- **طول النزيف ≠ طول الدورة:** `length_days` يعني أيام النزيف (1–30)، وطول الدورة يُحسب على الخادم من فروق تواريخ البداية.
+- **قاعدة المعرفة:** ما يصل للموديل اليوم هو مقاطع `data/kb.db` (22 مقطعًا معتمدًا بعد مراجعة المالك) عبر استرجاع هجين. ملف `sources.json` يضم 44 سجلًا مُراجَعًا: 38 قابلًا للاستشهاد (المسودة العربية بعد مراجعتها 2026-09-30) و6 مقاطع أُزيل نصها بانتظار تأكيد الترخيص فلا تُسترجَع أبدًا؛ وهو يُغذّي عدّادات `/health` لا المحادثة، و`sources_draft.json` فارغ لأن كل شيء رُقّى. أسباب التحفظ الأصلية لم تلغِ الكتابة: النص إعادة صياغة وينسب نفسه إلى NHS/ACOG/NICE (إسناد زائف لو نُشر كما هو) والأرقام لم تُراجَع على الأصل — ويبقى ناقصًا مراجعة طبية.
+- **طول النزيف ≠ طول الدورة:** `bleeding_days` يعني أيام النزيف (1–30)، واسمها القديم `length_days` ما زال مقبولًا في الإدخال ويظهر في الإخراج، وطول الدورة يُحسب على الخادم من فروق تواريخ البداية.
 - **بدون مفتاح:** التطبيق يقلع ويظل رد الطوارئ والأزمات يعمل كاملًا؛ الأسئلة العادية تُرد بإجابة آمنة مع `llm_configured: false` في `/health`.
 - **الأرقام:** 23 بلدًا في `app/data/emergency_numbers.json` لكل رقم مصدر؛ البلد غير المُدرج يحصل على رقم عام **مع تنبيه أنه غير مُتحقق منه**. لا تُضاف أرقام دعم نفسي مُخترعة.
-- **الاختبارات:** `pytest` (اختبارات محلية بلا شبكة) و`python smoke_test.py` (فحص حقيقي مع خادم يعمل).
+- **الاختبارات:** `pytest` (اختبارات محلية بلا شبكة) و`python smoke_test.py` (فحص حقيقي مع خادم يعمل). التكامل المستمر (GitHub Actions) يشغّل الفحوصات الساكنة والاختبارات على كل سحب، ويفحص التاريخ كاملًا بـgitleaks ويثدّق الاعتمادات بـpip-audit؛ ومحلًا `python tools/check_no_secrets.py` يرفض أي مفتاح أو قاعدة بيانات في ملفات متتبَّعة.
+
+## الرخصة
+
+MIT — انظر [LICENSE](LICENSE). الخطوط المضمَّنة برخصتها الخاصة (`assets/fonts/OFL.txt` — OFL-1.1).

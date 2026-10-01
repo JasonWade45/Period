@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, computed_field
 
 
 class Severity(str, Enum):
@@ -75,6 +75,9 @@ def max_severity_of(severities: list[Severity]) -> Severity:
 
 class Finding(BaseModel):
     rule_code: str
+    # معرّف السجل الطبي MR-xxx (ADDITIVE): يظهر في الرؤى والبرومبت والتدقيق،
+    # ومن لا يعرفه يتجاهله — وجوده يجعل «اشرحلي تنبيه MR-001» قابلًا للإجابة.
+    rule_id: Optional[str] = None
     severity: Severity
     title: str
     evidence: list[str] = Field(default_factory=list)
@@ -110,11 +113,52 @@ class ConditionStatus(BaseModel):
     status: str  # "مشخّصة" | "غير متأكدة"
 
 
+# --------------------------------------------------- قيم مُقنَّنة (enums)
+class Locale(str, Enum):
+    AR = "ar"
+    EN = "en"
+
+
+class DigitsStyle(str, Enum):
+    WESTERN = "western"
+    ARABIC_INDIC = "arabic_indic"
+
+
+class WeekStart(str, Enum):
+    MONDAY = "monday"
+    TUESDAY = "tuesday"
+    WEDNESDAY = "wednesday"
+    THURSDAY = "thursday"
+    FRIDAY = "friday"
+    SATURDAY = "saturday"
+    SUNDAY = "sunday"
+
+
+class ConsentKey(str, Enum):
+    """أنشطة المعالجة التي يمكن أن تُسجَّل لها موافقة/رفضًا.
+
+    التخزين فقط: تسجيل الاختيار لا يغيّر سلوك النظام بعد — فرض الاختيار
+    (مثل إيقاف التدقيق عند الرفض) مسار منفصل يجب أن يُبنى بقرار صريح.
+    """
+
+    AI_MODEL_PROCESSING = "ai_model_processing"   # إرسال الرسائل إلى موديل خارجي (Groq)
+    LOCAL_AUDIT_LOG = "local_audit_log"           # تسجيل محلي للردود في audit/
+
+
 class CycleStat(BaseModel):
     start_date: str
-    # طول النزيف بالأيام (كم يومًا استمر)، وليس طول الدورة.
+    # اسم الميدان الجديد + القديم مقبولان في الإدخال (validation_alias)،
+    # والخروج يحملهما معًا للعملاء الذين ما زالوا يقرؤون length_days.
+    # طول النزيف بالأيام (كم يومًا استمر)، وليس طول الدورة —
     # طول الدورة = الفرق بين تواريخ البداية المتتالية.
-    length_days: Optional[int] = None
+    bleeding_days: Optional[int] = Field(
+        default=None, validation_alias=AliasChoices("bleeding_days", "length_days"))
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def length_days(self) -> Optional[int]:
+        """الاسم القديم في المخرجات: نفس قيمة bleeding_days دائمًا."""
+        return self.bleeding_days
 
 
 class UserContext(BaseModel):
@@ -133,49 +177,23 @@ class UserContext(BaseModel):
         return self.model_dump_json(exclude_none=True)
 
 
-class ChatRequest(BaseModel):
-    message: str
-    user_context: UserContext = Field(default_factory=UserContext)
-    mode: str = "chat"  # chat | summary
-    language_hint: Optional[str] = None
-    # معرّف جهاز تُنشئه الواجهة عشوائيًا لعزل البيانات عن بعضها. ليس مصادقة.
-    user_key: Optional[str] = None
-    # بلد المستخدمة: يحدّد رقم الطوارئ من جدول مُوثّق
-    country_code: Optional[str] = None
-
-
-class ChatResponse(BaseModel):
-    answer: str = ""
-    sources_used: list[str] = Field(default_factory=list)
-    needs_doctor: bool = False
-    emergency: bool = False
-    crisis: bool = False
-    missing_info: list[str] = Field(default_factory=list)
-    prompt_version: str = ""
-    rule_codes: list[str] = Field(default_factory=list)
-
-
-class SummaryResponse(BaseModel):
-    overview: str = ""
-    what_changed: str = ""
-    patterns: str = ""
-    medical_alerts: str = ""
-    what_this_does_not_mean: str = ""
-    questions_for_doctor: list[str] = Field(default_factory=list)
-    sources_used: list[str] = Field(default_factory=list)
-    prompt_version: str = ""
-    rule_codes: list[str] = Field(default_factory=list)
-
-
 class CycleIn(BaseModel):
     start_date: str                      # أول يوم نزيف (YYYY-MM-DD)
-    length_days: Optional[int] = None
+    # الميدان الجديد؛ `length_days` القديم ما زال مقبولًا بنفس المعنى (توافق).
+    bleeding_days: Optional[int] = Field(
+        default=None, validation_alias=AliasChoices("bleeding_days", "length_days"))
 
 
 class CycleOut(BaseModel):
     id: int
     start_date: str
-    length_days: Optional[int] = None
+    bleeding_days: Optional[int] = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def length_days(self) -> Optional[int]:
+        """الاسم القديم في المخرجات: نفس قيمة bleeding_days دائمًا."""
+        return self.bleeding_days
 
 
 class SymptomIn(BaseModel):
@@ -191,6 +209,46 @@ class SymptomOut(BaseModel):
     symptom: str
     severity: Optional[int] = None
     note: Optional[str] = None
+
+
+class HealthProfileIn(BaseModel):
+    """PUT /v1/profile — استبدال كامل للملف: الحقل الغائب يُمسح إلى null."""
+
+    locale: Optional[Locale] = None
+    country_code: Optional[str] = Field(default=None, pattern=r"^[A-Za-z]{2}$")
+    digits_style: Optional[DigitsStyle] = None
+    timezone: Optional[str] = Field(default=None, max_length=64)
+    week_start: Optional[WeekStart] = None
+    age: Optional[int] = Field(default=None, ge=0, le=120)
+    contraception: Optional[str] = Field(default=None, max_length=100)
+    pregnancy_status: Optional[str] = Field(default=None, max_length=64)
+    conditions: Optional[list[ConditionStatus]] = None
+
+
+class HealthProfileOut(BaseModel):
+    locale: Optional[Locale] = None
+    country_code: Optional[str] = None
+    digits_style: Optional[DigitsStyle] = None
+    timezone: Optional[str] = None
+    week_start: Optional[WeekStart] = None
+    age: Optional[int] = None
+    contraception: Optional[str] = None
+    pregnancy_status: Optional[str] = None
+    conditions: list[ConditionStatus] = Field(default_factory=list)
+    updated_at: str = ""
+
+
+class ConsentIn(BaseModel):
+    consent_key: ConsentKey
+    granted: bool
+    version: Optional[str] = Field(default=None, max_length=32)   # إصدار النص الموقّع
+
+
+class ConsentOut(BaseModel):
+    consent_key: ConsentKey
+    granted: bool
+    version: Optional[str] = None
+    decided_at: str = ""
 
 
 class InsightsResponse(BaseModel):
@@ -220,13 +278,12 @@ class AuditEntry(BaseModel):
     # سبب الرد الاحتياطي (نوع الخطأ أو أخطاء التحقق) — للتدقيق والتشغيل فقط
     llm_error: str = ""
     latency_ms: int = 0
-    request_excerpt: str = ""
+    # لا نص رسالة هنا أبدًا: التدقيق يخزّن المعرّفات والقرار وطول الرسالة فقط.
     response: dict[str, Any] = {}
 
 
-# --------------------------------------------------------------- واجهة AI الجديدة
-# أضيفت مع توسعة البريف (قاعدة المعرفة + التعريب). لا تُستخدم في /v1/chat
-# القديم حتى لا يتغيّر عقد الواجهة القائمة.
+# --------------------------------------------------------------- واجهة AI
+# مسار المحادثة الوحيد `/api/v1/ai/*` (لا `/v1/chat` منفصل).
 
 class AiChatRequest(BaseModel):
     """طلب /api/v1/ai/chat — الرسالة نص، وكل قراءة الصحة تُبنى من محرك القواعد."""

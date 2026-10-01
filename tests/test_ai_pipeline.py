@@ -305,7 +305,8 @@ def test_audit_for_emergency_stores_no_excerpt(kb_store):
     pipeline.chat(_request("بنزف كتير واسمي فلانة محمد"))
 
     entry, extra = captured[0]
-    assert entry.request_excerpt == ""
+    # الحقل أُزيل من المخطط أصلًا: لا يوجد مكان لنص رسالة أن يُخزَّن فيه
+    assert "request_excerpt" not in entry.model_dump()
     assert extra["decision"] == "emergency_filter"
     assert "فلانة" not in json.dumps(entry.model_dump(), ensure_ascii=False)
 

@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "notes": "سجل القواعد الطبية MR-001..MR-010. العتبات هنا مُعاد استخدامها حرفيًا من المحرك السابق (لا رقم مخترع)، وكل قاعدة تحتوي clinical_review.required=true حتى يراجعها طبيب. MR-009 وMR-010 خاملتان (threshold=null) حتى تأتي مواصفاتهما: شرط + عتبة + خطورة + مصدر.",
+  "rules": [
+    {
+      "id": "MR-001",
+      "title_ar": "نزيف أطول من المعتاد",
+      "title_en": "Prolonged bleeding",
+      "condition": "أي نزيف مسجَّل طوله أكبر من threshold.days أيامًا؛ يُصعَّد عند threshold.escalate_at فأكثر",
+      "threshold": {"days": 7, "escalate_at": 10},
+      "severity": {"base": "MONITOR", "escalate_to": "MEDICAL_REVIEW"},
+      "finding_code": "PROLONGED_BLEEDING",
+      "source_id": "draft-heavy-bleeding-signs",
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-002",
+      "title_ar": "آخر نزيف مسجَّل قبل 90 يومًا أو أكثر",
+      "title_en": "Missed (logged) period",
+      "condition": "الأيام منذ آخر نزيف مسجَّل أكبر من أو تساوي threshold.days",
+      "threshold": {"days": 90},
+      "severity": {"base": "MONITOR"},
+      "finding_code": "MISSED_PERIOD",
+      "source_id": "draft-amenorrhea-types",
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-003",
+      "title_ar": "متوسط طول الدورة طويل",
+      "title_en": "Long cycle",
+      "condition": "متوسط طول الدورة (من فروق تواريخ البداية) أكبر من threshold.days؛ يُصعَّد عند threshold.escalate_at فأكثر",
+      "threshold": {"days": 35, "escalate_at": 60},
+      "severity": {"base": "MONITOR", "escalate_to": "MEDICAL_REVIEW"},
+      "finding_code": "LONG_CYCLE",
+      "source_id": "draft-cycle-length-range",
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-004",
+      "title_ar": "متوسط طول الدورة قصير",
+      "title_en": "Short cycle",
+      "condition": "متوسط طول الدورة (من فروق تواريخ البداية) أصغر من threshold.days",
+      "threshold": {"days": 21},
+      "severity": {"base": "MONITOR"},
+      "finding_code": "SHORT_CYCLE",
+      "source_id": "draft-cycle-length-range",
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-005",
+      "title_ar": "تفاوت بين أطوال الدورات المسجّلة",
+      "title_en": "Irregular cycles",
+      "condition": "الفرق بين أكبر وأصغر طول دورة مسجَّل (فروق التواريخ) >= threshold.monitor_at؛ يُصعَّد عند threshold.medical_at فأكثر",
+      "threshold": {"monitor_at": 7, "medical_at": 14},
+      "severity": {"base": "MONITOR", "escalate_to": "MEDICAL_REVIEW"},
+      "finding_code": "IRREGULAR_CYCLE",
+      "source_id": "draft-cycle-length-range",
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-006",
+      "title_ar": "أعراض شديدة متكررة في السجل",
+      "title_en": "Repeated severe symptoms",
+      "condition": "عدد سجلات الأعراض بشدة >= threshold.min_severity خلال threshold.window_days يومًا >= threshold.severe_logs",
+      "threshold": {"severe_logs": 3, "min_severity": 4, "window_days": 90},
+      "severity": {"base": "MONITOR"},
+      "finding_code": "REPEATED_SEVERE_SYMPTOMS",
+      "source_id": "draft-when-to-see-doctor",
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-007",
+      "title_ar": "بيانات دورات غير كافية لاستنتاج نمط",
+      "title_en": "Insufficient data",
+      "condition": "عدد الدورات المسجّلة أصغر من threshold.min_cycles",
+      "threshold": {"min_cycles": 3},
+      "severity": {"base": "MONITOR"},
+      "finding_code": "INSUFFICIENT_DATA",
+      "source_id": null,
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-008",
+      "title_ar": "لا نمط إنذار في البيانات المسجّلة",
+      "title_en": "No alert pattern",
+      "condition": "بنية فقط: لم تُفعّل أي قاعدة أخرى مع بيانات كافية — ليست ادعاءً طبيًا",
+      "threshold": null,
+      "severity": {"base": "NORMAL"},
+      "finding_code": "NO_ALERT_PATTERN",
+      "source_id": null,
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-009",
+      "title_ar": "",
+      "title_en": "",
+      "condition": "",
+      "threshold": null,
+      "severity": null,
+      "finding_code": "",
+      "source_id": null,
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    },
+    {
+      "id": "MR-010",
+      "title_ar": "",
+      "title_en": "",
+      "condition": "",
+      "threshold": null,
+      "severity": null,
+      "finding_code": "",
+      "source_id": null,
+      "clinical_review": {"required": true, "reviewer": null, "reviewed_at": null}
+    }
+  ]
+}

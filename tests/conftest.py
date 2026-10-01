@@ -27,13 +27,17 @@ def store(tmp_path, monkeypatch):
 @pytest.fixture
 def no_audit(monkeypatch):
     import app.services.audit as audit
-    monkeypatch.setattr(audit, "write", lambda entry: None)
+    monkeypatch.setattr(audit, "write", lambda entry, extra=None: None)
 
 
 @pytest.fixture
 def client(store, no_audit):
     from fastapi.testclient import TestClient
+    from tests.pipeline_helpers import install_safe_pipeline
     with TestClient(main.app) as c:  # with → يشغّل lifespan
+        # pipeline آمن بلا مفتاح موديل وبلا تدقيق: أي اختبار يحتاج مسارًا
+        # مختلفًا يبنيه بنفسه (أنظر tests/pipeline_helpers.py).
+        install_safe_pipeline(main.app.state)
         yield c
 
 
@@ -43,9 +47,11 @@ def secured_client(store, no_audit, monkeypatch):
     import app.services.security as security
     from dataclasses import replace
     from fastapi.testclient import TestClient
+    from tests.pipeline_helpers import install_safe_pipeline
 
     monkeypatch.setattr(security, "settings", replace(security.settings, api_key="secret-test-key"))
     with TestClient(main.app) as c:
+        install_safe_pipeline(main.app.state)
         c.headers.update({"X-API-Key": "secret-test-key"})
         yield c
 

@@ -80,6 +80,8 @@ class Settings:
 
     # Audit
     audit_log_path: Path = Path(_env("AUDIT_LOG_PATH", str(APP_DIR / ".." / "audit" / "responses.jsonl")))
+    # مدة الاحتفاظ بسجل التدقيق بالأيام (يُنضَّب عند الإقلاع وبأمر CLI)
+    audit_retention_days: int = int(_env("AUDIT_RETENTION_DAYS", "90"))
 
     # RAG (النظام القديم — يُستبدل تدريجيًا بقاعدة المعرفة)
     rag_top_k: int = int(_env("RAG_TOP_K", "5"))

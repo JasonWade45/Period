@@ -131,7 +131,7 @@ def test_ensure_emergency_text_crisis_uses_crisis_wording():
 # ---------------------------------------------------------------------
 def test_emergency_reply_uses_country_table(client, monkeypatch):
     monkeypatch.setattr(main, "_llm", None)
-    body = client.post("/v1/chat", json={
+    body = client.post("/api/v1/ai/chat", json={
         "message": "بنزف كل ساعة وبرمي جلطات كبيرة",
         "country_code": "AE",
     }).json()
@@ -144,7 +144,7 @@ def test_emergency_reply_uses_country_table(client, monkeypatch):
 ])
 def test_each_country_gets_its_own_number(client, monkeypatch, code, number):
     monkeypatch.setattr(main, "_llm", None)
-    body = client.post("/v1/chat", json={
+    body = client.post("/api/v1/ai/chat", json={
         "message": "ألم شديد في الصدر", "country_code": code,
     }).json()
     assert number in body["answer"], f"{code} لم يحصل على {number}"
@@ -152,7 +152,7 @@ def test_each_country_gets_its_own_number(client, monkeypatch, code, number):
 
 def test_unknown_country_gets_generic_number_with_caveat(client, monkeypatch):
     monkeypatch.setattr(main, "_llm", None)
-    body = client.post("/v1/chat", json={
+    body = client.post("/api/v1/ai/chat", json={
         "message": "بنزف كل ساعة وبرمي جلطات كبيرة", "country_code": "ZZ",
     }).json()
     assert "112" in body["answer"]           # الرقم العام
@@ -160,12 +160,20 @@ def test_unknown_country_gets_generic_number_with_caveat(client, monkeypatch):
 
 
 def test_explicit_operator_override_still_wins(client, monkeypatch):
-    """لو ضبط المشغّل EMERGENCY_NUMBER صراحةً فهو المتقدّم على الجدول."""
-    import app.main as main_mod
-    monkeypatch.setattr(main_mod, "_llm", None)
-    monkeypatch.setattr(main_mod, "_emergency_override", lambda: "999")
+    """لو ضبط المشغّل EMERGENCY_NUMBER صراحةً فهو المتقدّم على جدول البلد.
 
-    body = client.post("/v1/chat", json={
+    المسار الجديد يقرأ الإعداد من إعدادات خط الأنابيب مباشرة (`_info`)، لذا
+    نُبدِّل settings وحدة التطبيق كما تفعل البيئة الحقيقية.
+    """
+    from dataclasses import replace
+
+    import app.services.ai_pipeline as pipeline_module
+
+    monkeypatch.setattr(
+        pipeline_module, "settings",
+        replace(pipeline_module.settings, emergency_number="999"))
+
+    body = client.post("/api/v1/ai/chat", json={
         "message": "بنزف كل ساعة وبرمي جلطات كبيرة", "country_code": "AE",
     }).json()
     assert "999" in body["answer"]

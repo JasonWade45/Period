@@ -109,23 +109,29 @@ def test_include_drafts_flag_gates_draft_retrieval(tmp_path):
     assert any(c.status == DRAFT for c in on.retrieve("كلمة", top_k=10))
 
 
-def test_no_verified_chunks_means_the_assistant_says_so(monkeypatch, tmp_path):
+def test_no_verified_chunks_means_the_assistant_says_so():
     """معيار القبول: بلا مصدر معتمد يُقال ذلك صراحةً ولا يُستدعى الموديل.
 
-    (المصادر المُصدَّرة الآن معتمدة — نعزل المسار على مخزن فارغ لحماية الضمان.)
+    (نعزل المسار على مُسترجع فارغ بدل الاعتماد على بيانات الشحن.)
     """
     from app.i18n import get_translator
-    from app.schemas import ChatRequest, UserContext
+    from app.schemas import AiChatRequest, UserContext
+    from tests.pipeline_helpers import build_pipeline
 
-    empty = tmp_path / "empty.json"
-    empty.write_text("[]", encoding="utf-8")
-    monkeypatch.setattr(main, "_rag", KeywordRag(empty, drafts_path=empty))
+    class _WatchedLLM:
+        calls = 0
 
-    response = main._run_pipeline(
-        ChatRequest(message="إيه طول الدورة الشهرية؟", user_context=UserContext()))
+        def complete(self, *args, **kwargs):
+            _WatchedLLM.calls += 1
+            return "{}", 1
+
+    pipe = build_pipeline(llm=_WatchedLLM(), use_stubs=False)
+    response = pipe.chat(AiChatRequest(message="إيه طول الدورة الشهرية؟",
+                                       user_context=UserContext()))
 
     assert response.answer == get_translator().t("answer.no_reliable_source", "ar")
     assert response.sources_used == []
+    assert _WatchedLLM.calls == 0
 
 
 # -------------------------------------------------------- رفض الإسناد الناقص
@@ -260,7 +266,7 @@ def test_production_rag_excludes_drafts_and_license_holds():
 
 def test_prompt_never_contains_blocked_or_draft_ids(monkeypatch):
     """حتى لو طلبت المستخدمة موضوعًا تغطيه مسودة أو مقطع محجوز، لا يُرسل نصّهما."""
-    from app.schemas import ChatRequest, UserContext
+    from app.schemas import UserContext
     from app.services.prompt_builder import PromptBuilder
 
     builder = PromptBuilder(settings.prompt_path, settings.prompt_version)

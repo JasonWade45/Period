@@ -1,33 +1,126 @@
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
+from pathlib import Path
 
 from ..schemas import Finding, Severity, UserContext, max_severity_of
 
-MIN_CYCLES_FOR_PATTERN = 3
-SYMPTOM_WINDOW_DAYS = 90          # نافذة النظر في سجل الأعراض
-REPEATED_SEVERE_THRESHOLD = 3     # عدد السجلات الشديدة خلال النافذة
+RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "medical_rules.json"
 
-# ---------------------------------------------------------------------------
-# عتبات مستخلصة من المسودة التثقيفية (app/data/sources_draft.json) — بانتظار
-# تثبيت طبي. مُعلَنة هنا صراحةً حتى لا تختلط بأرقام موثّقة:
-#   - النزيف الأطول من 7 أيام من معايير النزيف الغزير التي تستحق تقييمًا.
-#   - توقف الدورة 3 شهور (90 يومًا) يستحق تقييمًا بعد استبعاد الحمل.
-# كلتاهما MONITOR لا MEDICAL_REVIEW، لأن مدخلات المستخدمة نفسها قد تكون ناقصة،
-# ولا نملك تمييز «دورة متوقفة فعلًا» عن «سجل لم يُحدَّث منذ مدة».
-# ---------------------------------------------------------------------------
-MAX_BLEEDING_DAYS = 7
-LONG_BLEEDING_DAYS = 10           # تصعيد عند طول نزيف بعيد عن المألوف
-AMENORRHEA_DAYS = 90
-SHORT_CYCLE_DAYS = 21
-LONG_CYCLE_DAYS = 35
-IRREGULAR_SPREAD_DAYS = 7
-IRREGULAR_SPREAD_HIGH = 14
+_SEVERITY_VALUES: frozenset[str] = frozenset(s.value for s in Severity)
+
+
+class RulesRegistryError(RuntimeError):
+    """سجل القواعد ناقص أو فاسد — يُصرَح به فورًا بدل تشغيل عتبات صامتة."""
+
+
+def load_rules(path: Path | str | None = None) -> dict:
+    """قراءة وتصفية app/data/medical_rules.json (MR-001..MR-010).
+
+    كل فشل ي raising بالعربية مع الملف والسبب؛ لا افتراضات صامتة على صحة العتب.
+    """
+    p = Path(path) if path is not None else RULES_PATH
+    try:
+        raw = p.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RulesRegistryError(f"تعذّرت قراءة سجل القواعد {p}: {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RulesRegistryError(f"سجل القواعد ليس JSON صالحًا ({p}): {exc}") from exc
+    if not isinstance(data, dict) or data.get("version") != 1:
+        raise RulesRegistryError(f"سجل القواعد {p}: غير مدعوم أو version != 1")
+    rules = data.get("rules")
+    if not isinstance(rules, list) or not rules:
+        raise RulesRegistryError(f"سجل القواعد {p}: rules مفقودة أو فارغة")
+
+    seen: set[str] = set()
+    for rule in rules:
+        if not isinstance(rule, dict):
+            raise RulesRegistryError(f"سجل القواعد {p}: عنصر ليس كائنًا")
+        rid = rule.get("id")
+        if not isinstance(rid, str) or not rid.startswith("MR-"):
+            raise RulesRegistryError(f"سجل القواعد {p}: id غير صالح: {rid!r}")
+        if rid in seen:
+            raise RulesRegistryError(f"سجل القواعد {p}: id مكرر {rid}")
+        seen.add(rid)
+
+        review = rule.get("clinical_review")
+        if not isinstance(review, dict) or not isinstance(review.get("required"), bool):
+            raise RulesRegistryError(f"{rid}: clinical_review مفقود أو بلا required")
+
+        code = rule.get("finding_code")
+        threshold = rule.get("threshold")
+        severity = rule.get("severity")
+        if code == "":
+            # قاعدة خاملة (MR-009/MR-010): لا عتب ولا خطورة حتى تأتي المواصفات
+            if threshold is not None or severity is not None:
+                raise RulesRegistryError(f"{rid}: خاملة (finding_code فارغ) لذا threshold/severity يجب أن يكونا null")
+            continue
+        if not isinstance(code, str):
+            raise RulesRegistryError(f"{rid}: finding_code غير صالح: {code!r}")
+        if threshold is None and code != "NO_ALERT_PATTERN":
+            raise RulesRegistryError(f"{rid}: قاعدة فعّالة ({code}) بلا threshold — لا تُشغَّل عتبات صامتة")
+        if not isinstance(severity, dict) or severity.get("base") not in _SEVERITY_VALUES:
+            raise RulesRegistryError(f"{rid}: severity.base مفقود أو خارج مستويات النظام")
+        escalate = severity.get("escalate_to")
+        if escalate is not None and escalate not in _SEVERITY_VALUES:
+            raise RulesRegistryError(f"{rid}: severity.escalate_to خارج مستويات النظام")
+        if threshold is not None and not isinstance(threshold, dict):
+            raise RulesRegistryError(f"{rid}: threshold يجب أن يكون كائنًا أو null")
+    return data
+
+
+_REGISTRY: dict = load_rules()
+_BY_ID: dict[str, dict] = {r["id"]: r for r in _REGISTRY["rules"]}
+
+
+def _threshold(rule_id: str, key: str) -> int:
+    """عتبة رقمية من السجل — غيابها فشل صريح لا قيمة افتراضية مخترعة."""
+    rule = _BY_ID.get(rule_id)
+    if rule is None:
+        raise RulesRegistryError(f"قاعدة {rule_id} غائبة من السجل")
+    th = rule.get("threshold")
+    if not isinstance(th, dict) or key not in th:
+        raise RulesRegistryError(f"{rule_id}: عتبة {key!r} مفقودة أو null")
+    return int(th[key])
+
+
+# العتبات كلها مصدرها app/data/medical_rules.json (values معتمدة من المستخدم،
+# مأخوذة حرفيًا من المحرك السابق — لا رقم مخترع). القاعدة بعتبة null خاملة.
+MIN_CYCLES_FOR_PATTERN = _threshold("MR-007", "min_cycles")
+SYMPTOM_WINDOW_DAYS = _threshold("MR-006", "window_days")     # نافذة سجل الأعراض
+REPEATED_SEVERE_THRESHOLD = _threshold("MR-006", "severe_logs")
+SEVERE_SYMPTOM_LEVEL = _threshold("MR-006", "min_severity")    # الشدة المحتسبة (4-5)
+
+MAX_BLEEDING_DAYS = _threshold("MR-001", "days")
+LONG_BLEEDING_DAYS = _threshold("MR-001", "escalate_at")
+AMENORRHEA_DAYS = _threshold("MR-002", "days")
+LONG_CYCLE_DAYS = _threshold("MR-003", "days")
+LONG_CYCLE_ESCALATE_DAYS = _threshold("MR-003", "escalate_at")
+SHORT_CYCLE_DAYS = _threshold("MR-004", "days")
+IRREGULAR_SPREAD_DAYS = _threshold("MR-005", "monitor_at")
+IRREGULAR_SPREAD_HIGH = _threshold("MR-005", "medical_at")
+
+# finding_code → معرّف السجل (ADDITIVE على Finding.rule_id)
+RULE_IDS: dict[str, str] = {
+    r["finding_code"]: r["id"]
+    for r in _REGISTRY["rules"]
+    if r.get("finding_code")
+}
+
+
+def _with_rule_ids(findings: list[Finding]) -> list[Finding]:
+    for f in findings:
+        if f.rule_id is None:
+            f.rule_id = RULE_IDS.get(f.rule_code)
+    return findings
 
 
 def _bleeding_lengths(ctx: UserContext) -> list[int]:
     """أطوال النزيف المسجّلة — وليست أطوال الدورات."""
-    return [c.length_days for c in ctx.last_cycles if c.length_days]
+    return [c.bleeding_days for c in ctx.last_cycles if c.bleeding_days]
 
 
 def cycle_gaps(ctx: UserContext) -> list[int]:
@@ -67,11 +160,11 @@ def compute_findings(ctx: UserContext, today: date | None = None) -> list[Findin
             evidence=[f"cycles_recorded={ctx.cycles_recorded}",
                       f"required>={MIN_CYCLES_FOR_PATTERN}"],
         ))
-        return findings
+        return _with_rule_ids(findings)
 
     if ctx.avg_cycle_days:
         if ctx.avg_cycle_days > LONG_CYCLE_DAYS:
-            sev = Severity.MEDICAL_REVIEW if ctx.avg_cycle_days >= 60 else Severity.MONITOR
+            sev = Severity.MEDICAL_REVIEW if ctx.avg_cycle_days >= LONG_CYCLE_ESCALATE_DAYS else Severity.MONITOR
             findings.append(Finding(
                 rule_code="LONG_CYCLE",
                 severity=sev,
@@ -116,7 +209,7 @@ def compute_findings(ctx: UserContext, today: date | None = None) -> list[Findin
             evidence=[f"cycles_recorded={ctx.cycles_recorded}"],
         ))
 
-    return findings
+    return _with_rule_ids(findings)
 
 
 def _record_level_findings(ctx: UserContext, ref: date) -> list[Finding]:
@@ -129,9 +222,9 @@ def _record_level_findings(ctx: UserContext, ref: date) -> list[Finding]:
     findings: list[Finding] = []
 
     long_bleeds = [c for c in ctx.last_cycles
-                   if c.length_days and c.length_days > MAX_BLEEDING_DAYS]
+                   if c.bleeding_days and c.bleeding_days > MAX_BLEEDING_DAYS]
     if long_bleeds:
-        worst = max(c.length_days for c in long_bleeds)
+        worst = max(c.bleeding_days for c in long_bleeds)
         findings.append(Finding(
             rule_code="PROLONGED_BLEEDING",
             severity=Severity.MEDICAL_REVIEW if worst >= LONG_BLEEDING_DAYS else Severity.MONITOR,
@@ -173,7 +266,7 @@ def compute_symptom_findings(symptoms: list[dict], today: date | None = None) ->
     cutoff = ref - timedelta(days=SYMPTOM_WINDOW_DAYS)
     severe: list[dict] = []
     for log in symptoms or []:
-        if not log.get("severity") or int(log["severity"]) < 4:
+        if not log.get("severity") or int(log["severity"]) < SEVERE_SYMPTOM_LEVEL:
             continue
         try:
             day = date.fromisoformat(str(log.get("log_date", "")))
@@ -187,7 +280,7 @@ def compute_symptom_findings(symptoms: list[dict], today: date | None = None) ->
 
     names = sorted({str(s["symptom"]) for s in severe})
     dates = sorted(str(s["log_date"]) for s in severe)
-    return [Finding(
+    return _with_rule_ids([Finding(
         rule_code="REPEATED_SEVERE_SYMPTOMS",
         severity=Severity.MONITOR,
         title="أعراض شديدة متكررة في السجل خلال آخر 90 يومًا",
@@ -195,7 +288,7 @@ def compute_symptom_findings(symptoms: list[dict], today: date | None = None) ->
                   f"threshold={REPEATED_SEVERE_THRESHOLD}",
                   f"from={dates[0]}", f"to={dates[-1]}",
                   "symptoms=" + "، ".join(names[:5])],
-    )]
+    )])
 
 
 def compute_all_findings(ctx: UserContext, symptoms: list[dict] | None = None) -> list[Finding]:
