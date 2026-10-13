@@ -134,8 +134,17 @@ function showAuth(mode) {
   document.getElementById("auth-error").hidden = true;
   document.getElementById("a-email").value = "";
   document.getElementById("a-password").value = "";
+  document.getElementById("a-password").type = "password";
+  document.getElementById("pw-toggle").textContent = "👁";
   renderAuthTexts();
   showView("auth");
+}
+
+function togglePw() {
+  const input = document.getElementById("a-password");
+  const shown = input.type === "text";
+  input.type = shown ? "password" : "text";
+  document.getElementById("pw-toggle").textContent = shown ? "👁" : "🙈";
 }
 
 function switchAuthMode() {
@@ -247,31 +256,44 @@ async function renderDashboard() {
     const cycles = await api(`/v1/cycles?user_key=${key}`);
     const symptoms = await api(`/v1/symptoms?user_key=${key}`);
 
-    document.getElementById("dash-cycles-count").textContent = cycles.length
-      ? `${cycles.length} ${i18nText("dash.record", "سجل")}` : "";
-    document.getElementById("dash-symptoms-count").textContent = symptoms.length
-      ? `${symptoms.length} ${i18nText("dash.record", "سجل")}` : "";
+    document.getElementById("dash-cycles-count").textContent = String(cycles.length);
+    document.getElementById("dash-symptoms-count").textContent = String(symptoms.length);
 
     if (!cycles.length) {
       cyclesList.innerHTML =
-        `<li class="muted">${i18nText("dash.empty_cycles", "لا توجد دورات مسجّلة بعد.")}</li>`;
+        `<li class="muted dash-empty"><span aria-hidden="true">🌙</span>` +
+        `${i18nText("dash.empty_cycles", "لا توجد دورات مسجّلة بعد.")}</li>`;
     } else {
       cyclesList.innerHTML = "";
       cycles.forEach((c) => {
         const li = document.createElement("li");
-        const days = c.bleeding_days ? ` · ${c.bleeding_days}` : "";
-        li.innerHTML = `<span>${fmtDate(c.start_date)}${days}</span>`;
+        const span = document.createElement("span");
+        span.textContent = fmtDate(c.start_date);
+        li.appendChild(span);
+        if (c.bleeding_days) {
+          const chip = document.createElement("span");
+          chip.className = "chip-mini";
+          chip.textContent = `${c.bleeding_days} ${i18nText("dash.days", "أيام")}`;
+          li.appendChild(chip);
+        }
         cyclesList.appendChild(li);
       });
     }
 
     if (!symptoms.length) {
       symptomsList.innerHTML =
-        `<li class="muted">${i18nText("dash.empty_symptoms", "لا توجد أعراض مسجّلة بعد.")}</li>`;
+        `<li class="muted dash-empty"><span aria-hidden="true">🍃</span>` +
+        `${i18nText("dash.empty_symptoms", "لا توجد أعراض مسجّلة بعد.")}</li>`;
     } else {
       symptomsList.innerHTML = "";
       symptoms.forEach((s) => {
         const li = document.createElement("li");
+        if (s.severity) {
+          const dot = document.createElement("span");
+          dot.className = `sev-dot sev-${Math.min(5, Math.max(1, s.severity))}`;
+          dot.setAttribute("aria-hidden", "true");
+          li.appendChild(dot);
+        }
         const sev = s.severity ? ` · ${s.severity}/5` : "";
         const note = s.note ? ` · ${s.note}` : "";
         const span = document.createElement("span");

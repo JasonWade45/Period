@@ -117,9 +117,13 @@
           </label>
           <label class="auth-field">
             <span data-i18n="auth.password">كلمة المرور</span>
-            <input type="password" id="a-password" name="password" required minlength="8"
-                   autocomplete="new-password" placeholder="٨ أحرف على الأقل"
-                   data-i18n-attr="placeholder" data-i18n="auth.password_ph">
+            <div class="pw-wrap">
+              <input type="password" id="a-password" name="password" required minlength="8"
+                     autocomplete="new-password" placeholder="٨ أحرف على الأقل"
+                     data-i18n-attr="placeholder" data-i18n="auth.password_ph">
+              <button type="button" class="pw-toggle" id="pw-toggle" onclick="togglePw()"
+                      aria-label="إظهار كلمة المرور أو إخفاءها">👁</button>
+            </div>
           </label>
           <p class="auth-error" id="auth-error" hidden></p>
           <button type="submit" class="btn-primary btn-big" id="a-submit">إنشاء الحساب</button>
@@ -155,16 +159,22 @@
       <h2 class="dash-title" data-i18n="dash.title">دشبوردي</h2>
       <div class="dash-grid">
         <section class="dash-card">
-          <div class="list-head">
-            <h3 data-i18n="dash.cycles_title">دوراتي</h3>
-            <span class="muted" id="dash-cycles-count"></span>
+          <div class="dash-stat">
+            <span class="dash-stat-icon" aria-hidden="true">📅</span>
+            <div class="dash-stat-body">
+              <span class="dash-stat-num" id="dash-cycles-count">0</span>
+              <span class="dash-stat-label" data-i18n="dash.cycles_title">دوراتي</span>
+            </div>
           </div>
           <ul class="record-list" id="dash-cycles-list"></ul>
         </section>
         <section class="dash-card">
-          <div class="list-head">
-            <h3 data-i18n="dash.symptoms_title">أعراضي</h3>
-            <span class="muted" id="dash-symptoms-count"></span>
+          <div class="dash-stat">
+            <span class="dash-stat-icon violet" aria-hidden="true">🌸</span>
+            <div class="dash-stat-body">
+              <span class="dash-stat-num" id="dash-symptoms-count">0</span>
+              <span class="dash-stat-label" data-i18n="dash.symptoms_title">أعراضي</span>
+            </div>
           </div>
           <ul class="record-list" id="dash-symptoms-list"></ul>
         </section>

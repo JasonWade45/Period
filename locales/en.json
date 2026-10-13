@@ -219,7 +219,7 @@
     "add_hint": "To add a cycle or symptom open chat and tap the 📖 button.",
     "empty_cycles": "No cycles logged yet.",
     "empty_symptoms": "No symptoms logged yet.",
-    "record": "records",
+    "days": "days",
     "loading": "Loading…",
     "failed": "Could not load"
   }
