@@ -4,40 +4,352 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CycleCare — مساعدتك لصحة الدورة</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="rtl.css">
+  <link rel="stylesheet" href="style.css?v=20261019">
+  <link rel="stylesheet" href="rtl.css?v=20261019">
 </head>
 <body>
+  <div class="ambient-bg" aria-hidden="true">
+    <span class="orb orb-rose"></span>
+    <span class="orb orb-violet"></span>
+    <span class="orb orb-soft"></span>
+  </div>
+
   <div id="app">
     <header class="topbar">
-      <div class="brand">
-        <span class="logo">C</span>
+      <a href="#lp-hero" class="brand brand-link" onclick="showLandingSection(event, 'lp-hero')">
+        <span class="logo no-flip" id="brand-logo" aria-hidden="true">C</span>
         <div>
-          <h1>CycleCare</h1>
-          <p data-i18n="app.tagline">مساعد تثقيفي لصحة الدورة الشهرية</p>
+          <h1 id="brand-title">CycleCare</h1>
+          <p data-i18n="app.tagline">تتبّع الدورة والتثقيف الصحي — بلا تشخيص</p>
         </div>
-      </div>
+      </a>
+
+      <nav class="lp-nav" id="lp-nav" aria-label="Primary">
+        <a href="#lp-features" onclick="showLandingSection(event, 'lp-features')" data-i18n="ui.landing.nav_features">المزايا</a>
+        <a href="#lp-phases" onclick="showLandingSection(event, 'lp-phases')" data-i18n="ui.landing.nav_phases">مراحل الدورة</a>
+        <a href="#lp-safety" onclick="showLandingSection(event, 'lp-safety')" data-i18n="ui.landing.nav_safety">منظومة الأمان</a>
+        <a href="#lp-faq" onclick="showLandingSection(event, 'lp-faq')" data-i18n="ui.landing.nav_faq">الأسئلة الشائعة</a>
+        <a href="#workspace-section" class="nav-cta-pill" onclick="enterWorkspace(event)" data-i18n="ui.landing.nav_app">المساعد والتتبّع</a>
+      </nav>
+
       <div class="topbar-actions">
         <div class="mode-toggle" role="tablist">
-          <button id="mode-chat" class="mode-btn active" onclick="setMode('chat')" data-i18n="ui.mode_chat">محادثة</button>
-          <button id="mode-summary" class="mode-btn" onclick="setMode('summary')" data-i18n="ui.mode_summary">ملخص</button>
+          <button id="mode-chat" class="mode-btn active" role="tab" aria-selected="true"
+                  onclick="setMode('chat')" data-i18n="ui.mode_chat">محادثة</button>
+          <button id="mode-summary" class="mode-btn" role="tab" aria-selected="false"
+                  onclick="setMode('summary')" data-i18n="ui.mode_summary">ملخص</button>
         </div>
+        <button class="icon-btn no-flip" id="view-toggle-btn" onclick="toggleLandingView()"
+                title="وضع التطبيق فقط" data-i18n-attr="title" data-i18n="ui.landing.toggle_view_app">🏠</button>
+        <button class="icon-btn no-flip" id="new-chat-btn" onclick="resetChat()"
+                title="محادثة جديدة" data-i18n-attr="title" data-i18n="ui.new_chat">✦</button>
+        <button class="icon-btn no-flip" id="theme-btn" onclick="toggleTheme()"
+                title="تبديل المظهر" data-i18n-attr="title" data-i18n="ui.theme_toggle">🌙</button>
         <button class="icon-btn no-flip" id="lang-btn" onclick="toggleLanguage()"
                 title="اللغة" data-i18n-attr="title" data-i18n="ui.language">🌐</button>
-        <button class="icon-btn no-flip" id="tracker-btn" onclick="toggleTracker()" title="دوراتي وأعراضي">📖</button>
-        <button class="icon-btn no-flip" id="settings-btn" onclick="toggleSettings()" title="بياناتي">⚙</button>
+        <button class="icon-btn no-flip tracker-trigger" id="tracker-btn" onclick="toggleTracker()"
+                title="دوراتي وأعراضي" data-i18n-attr="title" data-i18n="ui.tracker_title">
+          <span>📖</span>
+          <span class="nav-badge" id="tracker-badge" hidden>0</span>
+        </button>
+        <button class="icon-btn no-flip" id="settings-btn" onclick="toggleSettings()"
+                title="بياناتي (سياق الدورة)" data-i18n-attr="title" data-i18n="ui.settings_title">⚙</button>
+        <button class="auth-pill-btn no-flip" id="auth-btn" onclick="toggleAuthPanel()">
+          <span class="auth-dot" id="auth-status-dot"></span>
+          <span id="auth-btn-label" data-i18n="ui.auth.btn_guest">حسابي / دخول</span>
+        </button>
       </div>
     </header>
 
     <div class="disclaimer" data-i18n="app.not_a_diagnosis">
-      مساعد تثقيفي فقط — لا يشخّص ولا يصف علاجًا. في حالات الطوارئ توجّهي للطوارئ مباشرة.
+      هذا ليس تشخيصًا ولا بديلًا عن رأي طبيبة.
     </div>
 
+    <!-- ==================== LANDING PAGE SECTIONS ==================== -->
+    <div id="landing-sections" class="landing-wrapper">
+      <!-- 1. Hero Section -->
+      <section class="lp-hero" id="lp-hero">
+        <div class="lp-hero-content">
+          <span class="lp-badge" data-i18n="ui.landing.hero_badge">✦ رفيقتكِ الذكية والآمنة لصحة الدورة الشهرية</span>
+          <h2 class="lp-hero-title" data-i18n="ui.landing.hero_title">
+            افهمي دورتكِ الشهرية بثقة، خصوصية، وأمان طبي
+          </h2>
+          <p class="lp-hero-sub" data-i18n="ui.landing.hero_subtitle">
+            تتبّع دقيق للدورة والأعراض، رؤى صحية تعمل بدون إنترنت، ومساعد تثقيفي ثنائي اللغة يعتمد حصريًا على مصادر طبية معتمدة مع استجابة فورية لحالات الطوارئ.
+          </p>
+
+          <div class="lp-hero-ctas">
+            <button type="button" class="btn-lp-primary" onclick="enterWorkspace(event)" data-i18n="ui.landing.cta_start_chat">
+              ابدئي المحادثة الآن ←
+            </button>
+            <button type="button" class="btn-lp-secondary" onclick="toggleTracker()" data-i18n="ui.landing.cta_open_tracker">
+              سجّلي دورتكِ الأولى 📖
+            </button>
+            <a href="#lp-features" class="btn-lp-ghost" onclick="showLandingSection(event, 'lp-features')" data-i18n="ui.landing.cta_explore">
+              استكشفي المزايا ↓
+            </a>
+          </div>
+
+          <div class="lp-stats-strip">
+            <div class="lp-stat-item">
+              <strong class="ltr-isolate" data-i18n="ui.landing.stat_privacy_val">100%</strong>
+              <span data-i18n="ui.landing.stat_privacy_label">خصوصية وحق الحذف الفوري</span>
+            </div>
+            <div class="lp-stat-item">
+              <strong data-i18n="ui.landing.stat_layers_val">6 طبقات</strong>
+              <span data-i18n="ui.landing.stat_layers_label">حماية وتحقق حتمي</span>
+            </div>
+            <div class="lp-stat-item">
+              <strong data-i18n="ui.landing.stat_countries_val">23 دولة</strong>
+              <span data-i18n="ui.landing.stat_countries_label">أرقام إسعاف محلية</span>
+            </div>
+            <div class="lp-stat-item">
+              <strong data-i18n="ui.landing.stat_edu_val">0 تشخيص</strong>
+              <span data-i18n="ui.landing.stat_edu_label">تثقيف آمن بلا وصفات</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lp-hero-visual">
+          <div class="hero-glass-mockup">
+            <div class="mockup-header">
+              <span class="mockup-dot rose"></span>
+              <span class="mockup-dot violet"></span>
+              <span class="mockup-dot ok"></span>
+              <strong data-i18n="ui.landing.preview_card_title">مؤشر الدورة الذكي</strong>
+            </div>
+            <div class="mockup-wheel-wrap no-flip">
+              <svg class="hero-wheel-svg" viewBox="0 0 160 160" aria-hidden="true">
+                <defs>
+                  <linearGradient id="heroGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#e0507a" />
+                    <stop offset="100%" stop-color="#6d4aff" />
+                  </linearGradient>
+                </defs>
+                <circle class="hero-wheel-bg" cx="80" cy="80" r="62" />
+                <circle class="hero-wheel-arc" cx="80" cy="80" r="62" stroke="url(#heroGrad1)"
+                        stroke-dasharray="389.55" stroke-dashoffset="115" />
+                <circle class="hero-wheel-dot" cx="80" cy="18" r="6" />
+              </svg>
+              <div class="hero-wheel-center">
+                <span class="wheel-emoji">🌸</span>
+                <strong data-i18n="ui.landing.preview_card_sub">اليوم 14 · مرحلة التبويض التقديرية</strong>
+                <small data-i18n="ui.landing.preview_average">متوسط الدورة: 28 يومًا</small>
+              </div>
+            </div>
+            <div class="mockup-floating-pills">
+              <div class="float-pill fp-1" data-i18n="ui.landing.preview_pill_1">📊 تحليل محلي يعمل بدون إنترنت</div>
+              <div class="float-pill fp-2" data-i18n="ui.landing.preview_pill_2">🛡️ درع طوارئ فوري قبل الموديل</div>
+              <div class="float-pill fp-3" data-i18n="ui.landing.preview_pill_3">🔒 عزل بيانات الجهاز وخصوصية تامة</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Bento Grid Features -->
+      <section class="lp-section" id="lp-features">
+        <div class="lp-section-head">
+          <span class="lp-badge" data-i18n="ui.landing.features_badge">المزايا الأساسية</span>
+          <h2 data-i18n="ui.landing.features_title">كل ما تحتاجينه لفهم جسمكِ في مكان واحد</h2>
+          <p data-i18n="ui.landing.features_subtitle">صُمم CycleCare ليجمع بين سهولة التتبّع اليومي وأعلى معايير السلامة الطبية والخصوصية.</p>
+        </div>
+
+        <div class="bento-grid">
+          <article class="bento-card bento-featured" onclick="toggleTracker()">
+            <div class="bento-icon no-flip">📅</div>
+            <h3 data-i18n="ui.landing.f1_title">تتبّع ذكي للدورة الشهرية</h3>
+            <p data-i18n="ui.landing.f1_desc">سجّلي أول يوم نزيف وطوله، وسيحسب التطبيق تلقائيًا طول الدورة من الفروق الزمنية الفعلية مع استبعاد أخطاء الإدخال.</p>
+          </article>
+
+          <article class="bento-card" onclick="openTrackerTab('symptoms')">
+            <div class="bento-icon no-flip">📝</div>
+            <h3 data-i18n="ui.landing.f2_title">سجل يومي للأعراض والشدّة</h3>
+            <p data-i18n="ui.landing.f2_desc">وثّقي الأعراض اليومية وحدّدي شدّتها من 1 إلى 5 بشرائح سريعة لرصد تكرار الأعراض الشديدة خلال آخر 90 يومًا.</p>
+          </article>
+
+          <article class="bento-card" onclick="showInsights()">
+            <div class="bento-icon no-flip">📊</div>
+            <h3 data-i18n="ui.landing.f3_title">رؤى طبية تعمل بدون إنترنت</h3>
+            <p data-i18n="ui.landing.f3_desc">محرك قواعد حتمي يحلّل بياناتكِ المسجّلة محليًا ويشرح كل نمط بلغة مبسّطة دون الحاجة لاتصال بالشبكة.</p>
+          </article>
+
+          <article class="bento-card" onclick="enterWorkspace(event)">
+            <div class="bento-icon no-flip">💬</div>
+            <h3 data-i18n="ui.landing.f4_title">مساعد تثقيفي بمصادر معتمدة</h3>
+            <p data-i18n="ui.landing.f4_desc">إجابات تثقيفية مبنية حصريًا على مقاطع طبية معتمدة، مع منع صارم للتشخيص أو وصف الأدوية أو الجرعات.</p>
+          </article>
+
+          <article class="bento-card" onclick="toggleSettings()">
+            <div class="bento-icon no-flip">🛡️</div>
+            <h3 data-i18n="ui.landing.f5_title">استجابة فورية لحالات الطوارئ</h3>
+            <p data-i18n="ui.landing.f5_desc">فلتر حتمي يكتشف مؤشرات الخطر الجسدية والنفسية فورًا ويعرض رقم الطوارئ المحلي لبلدكِ بعزل اتجاهي آمن.</p>
+          </article>
+
+          <article class="bento-card" onclick="exportPdfReport()">
+            <div class="bento-icon no-flip">📄</div>
+            <h3 data-i18n="ui.landing.f6_title">تصدير تقارير PDF و Excel</h3>
+            <p data-i18n="ui.landing.f6_desc">احصلي على تقرير PDF عربي مشكّل أو ملف CSV متوافق مع Excel بضغطة واحدة لمشاركته مع طبيبتكِ.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- 3. Interactive 4-Phase Cycle Explorer -->
+      <section class="lp-section" id="lp-phases">
+        <div class="lp-section-head">
+          <span class="lp-badge" data-i18n="ui.landing.phases_badge">دليل تفاعلي</span>
+          <h2 data-i18n="ui.landing.phases_title">استكشفي مراحل الدورة الشهرية الأربع</h2>
+          <p data-i18n="ui.landing.phases_subtitle">اضغطي على كل مرحلة للتعرّف على التغيرات الطبيعية التي يمر بها الجسم خلالها.</p>
+        </div>
+
+        <div class="phases-explorer">
+          <div class="phases-tabs" role="tablist">
+            <button type="button" class="phase-btn active" id="pbtn-1" onclick="selectCyclePhase(1)">
+              <span class="phase-dot p1"></span>
+              <strong data-i18n="ui.landing.phase_1_name">1. المرحلة الحيضية</strong>
+              <small data-i18n="ui.landing.phase_1_days">الأيام 1 – 7 تقريبًا</small>
+            </button>
+            <button type="button" class="phase-btn" id="pbtn-2" onclick="selectCyclePhase(2)">
+              <span class="phase-dot p2"></span>
+              <strong data-i18n="ui.landing.phase_2_name">2. المرحلة الجريبية</strong>
+              <small data-i18n="ui.landing.phase_2_days">الأيام 1 – 13 تقريبًا</small>
+            </button>
+            <button type="button" class="phase-btn" id="pbtn-3" onclick="selectCyclePhase(3)">
+              <span class="phase-dot p3"></span>
+              <strong data-i18n="ui.landing.phase_3_name">3. مرحلة التبويض</strong>
+              <small data-i18n="ui.landing.phase_3_days">منتصف الدورة تقريبًا</small>
+            </button>
+            <button type="button" class="phase-btn" id="pbtn-4" onclick="selectCyclePhase(4)">
+              <span class="phase-dot p4"></span>
+              <strong data-i18n="ui.landing.phase_4_name">4. المرحلة الأصفرية</strong>
+              <small data-i18n="ui.landing.phase_4_days">ما بعد التبويض حتى الدورة التالية</small>
+            </button>
+          </div>
+
+          <div class="phase-detail-card" id="phase-detail-card">
+            <div class="phase-panel" id="ppanel-1">
+              <span class="phase-tag" data-i18n="ui.landing.phase_1_days">الأيام 1 – 7 تقريبًا</span>
+              <h3 data-i18n="ui.landing.phase_1_name">1. المرحلة الحيضية</h3>
+              <p data-i18n="ui.landing.phase_1_desc">تبدأ من أول يوم نزيف فعلي، وفيها تنزل بطانة الرحم. يختلف طول النزيف المعتاد بين النساء وغالبًا يستمر حتى 7 أيام.</p>
+            </div>
+            <div class="phase-panel" id="ppanel-2" hidden>
+              <span class="phase-tag" data-i18n="ui.landing.phase_2_days">الأيام 1 – 13 تقريبًا</span>
+              <h3 data-i18n="ui.landing.phase_2_name">2. المرحلة الجريبية</h3>
+              <p data-i18n="ui.landing.phase_2_desc">تمتد من بداية الدورة حتى التبويض، وفيها تنضج البويضة ويرتفع هرمون الإستروجين تدريجيًا لتجديد بطانة الرحم.</p>
+            </div>
+            <div class="phase-panel" id="ppanel-3" hidden>
+              <span class="phase-tag" data-i18n="ui.landing.phase_3_days">منتصف الدورة تقريبًا</span>
+              <h3 data-i18n="ui.landing.phase_3_name">3. مرحلة التبويض</h3>
+              <p data-i18n="ui.landing.phase_3_desc">تخرج البويضة الناضجة في منتصف الدورة تقريبًا. توقيت التبويض يختلف من دورة لأخرى ولا يُضمن بالحساب التقويمي وحده.</p>
+            </div>
+            <div class="phase-panel" id="ppanel-4" hidden>
+              <span class="phase-tag" data-i18n="ui.landing.phase_4_days">ما بعد التبويض حتى الدورة التالية</span>
+              <h3 data-i18n="ui.landing.phase_4_name">4. المرحلة الأصفرية</h3>
+              <p data-i18n="ui.landing.phase_4_desc">يرتفع فيها هرمون البروجسترون، وقد تظهر في الأسبوع أو الأسبوعين قبل الدورة أعراض ما قبل الدورة ثم تخف بعد بدايتها.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 6-Layer Safety Architecture -->
+      <section class="lp-section" id="lp-safety">
+        <div class="lp-section-head">
+          <span class="lp-badge" data-i18n="ui.landing.safety_badge">معمارية السلامة</span>
+          <h2 data-i18n="ui.landing.safety_title">6 طبقات حماية فورية لكل سؤال</h2>
+          <p data-i18n="ui.landing.safety_subtitle">لا يعتمد التطبيق على الذكاء الاصطناعي وحده؛ كل طلب يمر عبر بوابات تحقق حتمية قبل وبعد النموذج.</p>
+        </div>
+
+        <div class="safety-steps-grid">
+          <div class="safety-step">
+            <span class="step-num ltr-isolate">01</span>
+            <h4 data-i18n="ui.landing.s1_title">دمج السجلات الحقيقية</h4>
+            <p data-i18n="ui.landing.s1_desc">حساب المتوسطات والفروق من التواريخ المسجّلة فعليًا في قاعدة البيانات.</p>
+          </div>
+          <div class="safety-step">
+            <span class="step-num ltr-isolate">02</span>
+            <h4 data-i18n="ui.landing.s2_title">محرك القواعد الطبية</h4>
+            <p data-i18n="ui.landing.s2_desc">تحليل حتمي بلغة بايثون يفرز الأنماط ودرجة المراجعة بأدلة رقمية واضحة.</p>
+          </div>
+          <div class="safety-step">
+            <span class="step-num ltr-isolate">03</span>
+            <h4 data-i18n="ui.landing.s3_title">فلتر الطوارئ المسبق</h4>
+            <p data-i18n="ui.landing.s3_desc">تحويل فوري لحالات الخطر الجسدي أو النفسي إلى إرشادات إسعاف ثابتة دون انتظار الموديل.</p>
+          </div>
+          <div class="safety-step">
+            <span class="step-num ltr-isolate">04</span>
+            <h4 data-i18n="ui.landing.s4_title">استرجاع المصادر المعتمدة</h4>
+            <p data-i18n="ui.landing.s4_desc">حصر إجابات المساعد في المقاطع الطبية المعتمدة فقط ومنع الإجابة من معرفة عامة.</p>
+          </div>
+          <div class="safety-step">
+            <span class="step-num ltr-isolate">05</span>
+            <h4 data-i18n="ui.landing.s5_title">المدقق اللغوي والطبي</h4>
+            <p data-i18n="ui.landing.s5_desc">فحص صارم يمنع صيغ التشخيص («أنتِ عندكِ») أو ذكر الجرعات أو التطمين الزائف.</p>
+          </div>
+          <div class="safety-step">
+            <span class="step-num ltr-isolate">06</span>
+            <h4 data-i18n="ui.landing.s6_title">سجل تدقيق يحترم الخصوصية</h4>
+            <p data-i18n="ui.landing.s6_desc">توثيق رموز القواعد والمصادر المستخدَمة لضمان الجودة دون تخزين هويتكِ الشخصية.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. FAQ Accordion -->
+      <section class="lp-section" id="lp-faq">
+        <div class="lp-section-head">
+          <span class="lp-badge" data-i18n="ui.landing.faq_badge">أسئلة متكررة</span>
+          <h2 data-i18n="ui.landing.faq_title">كل ما تودّين معرفته عن CycleCare</h2>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item" open>
+            <summary data-i18n="ui.landing.faq_q1">هل يقوم التطبيق بتشخيص الحالات الطبية أو وصف علاج؟</summary>
+            <p data-i18n="ui.landing.faq_a1">لا إطلاقًا. CycleCare أداة تثقيفية وللتتبّع الشخصي فقط؛ لا يشخّص أي حالة ولا يصف أدوية أو جرعات، ولا يغني عن استشارة طبيبة.</p>
+          </details>
+          <details class="faq-item">
+            <summary data-i18n="ui.landing.faq_q2">كيف تُحفظ بياناتي وهل يمكنني مسحها بالكامل؟</summary>
+            <p data-i18n="ui.landing.faq_a2">تُحفظ التواريخ والأعراض بمعرّف عشوائي لجهازكِ فقط، وتبقى بيانات السياق في متصفحك. يمكنكِ مسح كل شيء فورًا وبضغطة واحدة من زر «حذف كل بياناتي».</p>
+          </details>
+          <details class="faq-item">
+            <summary data-i18n="ui.landing.faq_q3">هل يعمل تتبّع الدورة والرؤى الطبية بدون إنترنت؟</summary>
+            <p data-i18n="ui.landing.faq_a3">نعم، تسجيل الدورات والأعراض وحساب المتوسطات واستخراج الرؤى الطبية وتصدير التقارير يعمل بالكامل محليًا دون الحاجة لموديل خارجي.</p>
+          </details>
+          <details class="faq-item">
+            <summary data-i18n="ui.landing.faq_q4">كيف أستفيد من التطبيق قبل زيارة الطبيبة؟</summary>
+            <p data-i18n="ui.landing.faq_a4">يمكنكِ استخدام وضع «ملخص» لتوليد بطاقة منظّمة بأهم الأنماط والأسئلة المقترحة لطبيبتكِ، أو تحميل تقرير PDF وملف CSV لسجلّكِ الكامل.</p>
+          </details>
+        </div>
+      </section>
+
+      <!-- Workspace Section Header -->
+      <div class="lp-section-head workspace-intro" id="workspace-section">
+        <span class="lp-badge" data-i18n="ui.landing.workspace_badge">التطبيق التفاعلي المباشر</span>
+        <h2 data-i18n="ui.landing.workspace_title">جرّبي المساعد الذكي وسجّلي دورتكِ الآن</h2>
+        <p data-i18n="ui.landing.workspace_subtitle">استخدمي الشرائح السريعة لطرح سؤالكِ أو افتحي سجل الدورات والأعراض من زر 📖.</p>
+      </div>
+    </div>
+
+    <!-- ==================== INTERACTIVE ASSISTANT STUDIO ==================== -->
     <main class="chat" id="chat">
       <div class="welcome" id="welcome">
         <div class="welcome-card">
+          <div class="welcome-emblem no-flip" aria-hidden="true">
+            <span class="emblem-ring"></span>
+            <span class="emblem-core">🌸</span>
+          </div>
+          <span class="welcome-pill" data-i18n="ui.welcome_badge">مساحة آمنة وخصوصية تامة</span>
           <h2 data-i18n="ui.welcome_title">أهلاً بكِ 👋</h2>
           <p data-i18n="ui.welcome_body">سجّلي دوراتك وأعراضك من 📖، واسألي عن أي شيء يخص الدورة الشهرية.</p>
+
+          <div class="hero-actions">
+            <button type="button" class="hero-action-btn" onclick="toggleTracker()">
+              <span class="hero-action-icon no-flip">📖</span>
+              <span data-i18n="ui.quick_action_tracker">سجّلي دورة أو عرضًا</span>
+            </button>
+            <button type="button" class="hero-action-btn secondary" onclick="showInsights()">
+              <span class="hero-action-icon no-flip">📊</span>
+              <span data-i18n="ui.quick_action_insights">استعرضي الرؤى الطبية</span>
+            </button>
+          </div>
+
           <div class="suggestions">
             <button class="chip" onclick="ask('إيه الفرق بين الدورة المنتظمة والغير منتظمة؟')">الدورة المنتظمة والغير منتظمة</button>
             <button class="chip" onclick="ask('إيه أعراض ما قبل الدورة؟')">أعراض ما قبل الدورة</button>
@@ -50,82 +362,197 @@
     </main>
 
     <div class="typing" id="typing" hidden>
-      <span></span><span></span><span></span>
+      <div class="typing-dots">
+        <span></span><span></span><span></span>
+      </div>
+      <small class="typing-label" data-i18n="ui.typing_label">جارٍ تحضير الرد الآمن…</small>
     </div>
 
     <footer class="composer">
       <form id="chat-form" onsubmit="return handleSubmit(event)">
         <textarea id="input" rows="1" placeholder="اكتبي سؤالك هنا…"
-                  onkeydown="handleKey(event)"></textarea>
+                  data-i18n="ui.placeholders.chat"
+                  onkeydown="handleKey(event)" oninput="autoResizeInput(this)"></textarea>
         <button type="submit" id="send-btn" class="flip-rtl" aria-label="إرسال"
                 data-i18n-attr="aria-label" data-i18n="ui.send">➤</button>
       </form>
       <div class="composer-hint" id="hint" data-i18n="ui.composer_hint">Enter للإرسال · Shift+Enter لسطر جديد</div>
+      <div class="lp-footer-copy" data-i18n="ui.landing.footer_copy">
+        CycleCare AI — منصة تثقيفية آمنة لصحة الدورة الشهرية · جميع الحقوق محفوظة
+      </div>
     </footer>
 
     <!-- لوحة التتبّع: الدورات والأعراض والرؤى -->
     <aside class="settings tracker" id="tracker" hidden onclick="if(event.target===this)toggleTracker()">
       <div class="settings-body">
         <div class="settings-head">
-          <h2>دوراتي وأعراضي</h2>
-          <button class="icon-btn" onclick="toggleTracker()">✕</button>
+          <h2 data-i18n="ui.tracker_title">دوراتي وأعراضي</h2>
+          <button class="icon-btn no-flip" onclick="toggleTracker()" aria-label="Close">✕</button>
         </div>
 
         <div class="tabs" role="tablist">
-          <button class="tab active" id="tab-cycles" onclick="setTrackerTab('cycles')">الدورات</button>
-          <button class="tab" id="tab-symptoms" onclick="setTrackerTab('symptoms')">الأعراض</button>
-          <button class="tab" id="tab-insights" onclick="setTrackerTab('insights')">الرؤى</button>
+          <button class="tab active" id="tab-cycles" role="tab" aria-selected="true"
+                  onclick="setTrackerTab('cycles')" data-i18n="ui.tracker.tab_cycles">الدورات</button>
+          <button class="tab" id="tab-symptoms" role="tab" aria-selected="false"
+                  onclick="setTrackerTab('symptoms')" data-i18n="ui.tracker.tab_symptoms">الأعراض</button>
+          <button class="tab" id="tab-insights" role="tab" aria-selected="false"
+                  onclick="setTrackerTab('insights')" data-i18n="ui.tracker.tab_insights">الرؤى</button>
         </div>
 
         <!-- الدورات -->
-        <section id="pane-cycles">
-          <label>أول يوم نزيف <input type="date" id="c-date"></label>
-          <label>طول النزيف (أيام) — اختياري
-            <input type="number" id="c-length" min="1" max="30" placeholder="مثال: 5"></label>
-          <p class="muted">طول الدورة نفسه يُحسب تلقائيًا من الفرق بين تواريخ البداية.</p>
-          <div class="settings-actions">
-            <button class="btn-primary" onclick="addCycle()">إضافة دورة</button>
+        <section id="pane-cycles" class="tab-pane">
+          <div class="cycle-visual-card">
+            <div class="cycle-ring-wrap no-flip">
+              <svg class="cycle-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+                <defs>
+                  <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#e0507a" />
+                    <stop offset="100%" stop-color="#6d4aff" />
+                  </linearGradient>
+                </defs>
+                <circle class="ring-track" cx="60" cy="60" r="48" />
+                <circle class="ring-progress" id="cycle-ring-progress" cx="60" cy="60" r="48"
+                        stroke="url(#ringGrad)" stroke-dasharray="301.59" stroke-dashoffset="301.59" />
+              </svg>
+              <div class="cycle-ring-center">
+                <strong class="ring-day-num ltr-isolate" id="ring-day-num">—</strong>
+                <span class="ring-day-caption" id="ring-day-caption" data-i18n="ui.tracker.ring_empty_label">سجّلي أول دورة</span>
+              </div>
+            </div>
+
+            <div class="kpi-grid">
+              <div class="kpi-card">
+                <span class="kpi-label" data-i18n="ui.tracker.kpi_cycles">الدورات المسجّلة</span>
+                <strong class="kpi-value ltr-isolate" id="kpi-cycles-val">0</strong>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-label" data-i18n="ui.tracker.kpi_avg">متوسط الطول</span>
+                <strong class="kpi-value" id="kpi-avg-val">—</strong>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-label" data-i18n="ui.tracker.kpi_last">آخر بداية نزيف</span>
+                <strong class="kpi-value" id="kpi-last-val">—</strong>
+              </div>
+            </div>
           </div>
+
+          <div class="cycle-chart-card" id="cycle-chart-card" hidden>
+            <h4 class="chart-title" data-i18n="ui.tracker.chart_title">تطور طول الدورات الأخيرة (أيام)</h4>
+            <div class="cycle-bars" id="cycle-bars"></div>
+          </div>
+
+          <!-- بطاقة التنبؤ بنطاق (Range Prediction) + درجة الثقة + سبب التوقع + زر التصحيح -->
+          <div class="cycle-chart-card prediction-card" id="prediction-card">
+            <div class="prediction-head">
+              <h4 class="chart-title" data-i18n="ui.tracker.prediction_heading">نافذة التوقع القادمة (نطاق تقديري)</h4>
+              <span class="confidence-pill" id="prediction-confidence-badge" hidden></span>
+            </div>
+            <p class="muted" id="prediction-insufficient-msg" data-i18n="ui.tracker.prediction_insufficient">
+              بيانات غير كافية للتوقع بعد — سجّلي 3 دورات على الأقل لحساب نطاق الدورة القادمة.
+            </p>
+            <div id="prediction-details" hidden>
+              <div class="prediction-range-line">
+                <span data-i18n="ui.tracker.prediction_window_label">الدورة القادمة متوقعة بين</span>:
+                <strong id="prediction-window-val">—</strong>
+              </div>
+              <p class="prediction-basis-line">
+                <span data-i18n="ui.tracker.prediction_basis_label">السبب:</span>
+                <span id="prediction-basis-val"></span>
+              </p>
+              <small class="muted" data-i18n="ui.tracker.prediction_disclaimer">
+                هذا تقدير تقويمي ولا يُعتمد عليه لمنع الحمل أو تأكيد الإباضة.
+              </small>
+              <div class="settings-actions">
+                <button type="button" class="btn-ghost" onclick="correctCycleStartFromInput()"
+                        data-i18n="ui.tracker.prediction_not_accurate_btn">ليست دقيقة؟ صحّحي البداية الفعلية</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <label>
+              <span data-i18n="ui.tracker.start_date_label">أول يوم نزيف</span>
+              <input type="date" id="c-date">
+            </label>
+            <label>
+              <span data-i18n="ui.tracker.bleeding_length_label">طول النزيف (أيام) — اختياري</span>
+              <input type="number" id="c-length" min="1" max="30" placeholder="مثال: 5"
+                     data-i18n="ui.tracker.bleeding_length_placeholder">
+            </label>
+            <p class="muted" data-i18n="ui.tracker.cycle_auto_hint">طول الدورة نفسه يُحسب تلقائيًا من الفرق بين تواريخ البداية.</p>
+            <div class="settings-actions">
+              <button class="btn-primary" onclick="addCycle()" data-i18n="ui.tracker.add_cycle_btn">إضافة دورة</button>
+            </div>
+          </div>
+
           <div class="list-head">
-            <h3>المسجّل</h3>
+            <h3 data-i18n="ui.tracker.recorded_heading">المسجّل</h3>
             <span class="muted" id="cycles-count"></span>
           </div>
-          <ul class="record-list" id="cycles-list"><li class="muted">لا يوجد تسجيل بعد.</li></ul>
+          <ul class="record-list" id="cycles-list">
+            <li class="muted" data-i18n="ui.tracker.empty_records">لا يوجد تسجيل بعد.</li>
+          </ul>
         </section>
 
         <!-- الأعراض -->
-        <section id="pane-symptoms" hidden>
-          <label>التاريخ <input type="date" id="s-date"></label>
-          <label>العرض <input type="text" id="s-name" placeholder="مثال: تقلصات، صداع، غثيان"></label>
-          <label>شدّته من 1 إلى 5 (تقديركِ أنتِ)
-            <input type="number" id="s-severity" min="1" max="5" placeholder="اختياري"></label>
-          <label>ملاحظة — اختياري
-            <input type="text" id="s-note" placeholder="مثال: قبل الدورة بيوم"></label>
-          <div class="settings-actions">
-            <button class="btn-primary" onclick="addSymptom()">إضافة عرض</button>
+        <section id="pane-symptoms" class="tab-pane" hidden>
+          <div class="form-card">
+            <label>
+              <span data-i18n="ui.tracker.symptom_date_label">التاريخ</span>
+              <input type="date" id="s-date">
+            </label>
+            <label>
+              <span data-i18n="ui.tracker.symptom_name_label">العرض</span>
+              <input type="text" id="s-name" placeholder="مثال: تقلصات، صداع، غثيان"
+                     data-i18n="ui.tracker.symptom_name_placeholder">
+            </label>
+            <div class="quick-chips" id="quick-symptoms"></div>
+
+            <label>
+              <span data-i18n="ui.tracker.severity_label">شدّته من 1 إلى 5 (تقديركِ أنتِ)</span>
+              <input type="number" id="s-severity" min="1" max="5" placeholder="اختياري"
+                     data-i18n="ui.tracker.severity_placeholder" hidden>
+            </label>
+            <div class="severity-picker" id="severity-pills" role="radiogroup"></div>
+
+            <label>
+              <span data-i18n="ui.tracker.note_label">ملاحظة — اختياري</span>
+              <input type="text" id="s-note" placeholder="مثال: قبل الدورة بيوم"
+                     data-i18n="ui.tracker.note_placeholder">
+            </label>
+            <div class="settings-actions">
+              <button class="btn-primary" onclick="addSymptom()" data-i18n="ui.tracker.add_symptom_btn">إضافة عرض</button>
+              <button type="button" class="btn-ghost" onclick="copyYesterdayLog()" data-i18n="ui.tracker.copy_yesterday_btn">اليوم يشبه أمس 📋</button>
+            </div>
           </div>
+
           <div class="list-head">
-            <h3>السجل</h3>
+            <h3 data-i18n="ui.tracker.log_heading">السجل</h3>
             <span class="muted" id="symptoms-count"></span>
           </div>
-          <ul class="record-list" id="symptoms-list"><li class="muted">لا يوجد تسجيل بعد.</li></ul>
+          <ul class="record-list" id="symptoms-list">
+            <li class="muted" data-i18n="ui.tracker.empty_records">لا يوجد تسجيل بعد.</li>
+          </ul>
         </section>
 
         <!-- الرؤى -->
-        <section id="pane-insights" hidden>
-          <p class="muted">
+        <section id="pane-insights" class="tab-pane" hidden>
+          <p class="muted" data-i18n="ui.tracker.insights_intro">
             تحليل محلي مبني على بياناتكِ المسجّلة فقط، ويعمل بدون إنترنت.
             ليس تشخيصًا ولا يغني عن طبيبة.
           </p>
           <div id="insights-body"></div>
         </section>
 
-        <p class="settings-note">
+        <p class="settings-note" data-i18n="ui.tracker.privacy_note">
           البيانات تُحفظ على خادم التطبيق بمعرّف جهازكِ، والتفاصيل الشخصية في متصفحك.
           يمكنكِ حذف كل شيء من زر «حذف كل بياناتي».
         </p>
         <div class="settings-actions">
-          <button class="btn-ghost danger" onclick="deleteAllData()">حذف كل بياناتي</button>
+          <button class="btn-ghost" onclick="exportCsvData()" data-i18n="ui.tracker.export_csv_btn">تصدير السجل (CSV)</button>
+          <button class="btn-ghost" onclick="exportPdfReport()" data-i18n="ui.tracker.export_pdf_btn">تقرير طبي (PDF)</button>
+          <button class="btn-ghost" onclick="exportFullJson()" data-i18n="ui.tracker.export_json_btn">نسخة تصدير كاملة (JSON)</button>
+          <button class="btn-ghost danger" onclick="deleteAllData()" data-i18n="ui.tracker.delete_all_btn">حذف كل بياناتي</button>
         </div>
       </div>
     </aside>
@@ -134,44 +561,237 @@
     <aside class="settings" id="settings" hidden onclick="if(event.target===this)toggleSettings()">
       <div class="settings-body">
         <div class="settings-head">
-          <h2>بياناتي (سياق الدورة)</h2>
-          <button class="icon-btn" onclick="toggleSettings()">✕</button>
+          <h2 data-i18n="ui.settings_title">بياناتي (سياق الدورة)</h2>
+          <button class="icon-btn no-flip" onclick="toggleSettings()" aria-label="Close">✕</button>
         </div>
-        <label>العمر <input type="number" id="f-age" min="10" max="60" placeholder="اختياري"></label>
-        <label>البلد (لتحديد رقم الطوارئ)
-          <select id="f-country"></select></label>
-        <label>حمل (لو معروف)
-          <select id="f-pregnancy">
-            <option value="">غير محدد</option>
-            <option value="غير مؤكد">احتمال حمل</option>
-            <option value="مؤكد">حمل مؤكد</option>
-            <option value="لا">لا</option>
-          </select></label>
-        <label>وسيلة منع الحمل <input type="text" id="f-contraception" placeholder="اختياري"></label>
-        <label>أمراض مشخّصة
-          <textarea id="f-conditions" rows="2"
-            placeholder="كل سطر: اسم الحالة | مشخّصة أو غير متأكدة"></textarea></label>
+        <div class="form-card">
+          <details class="why-ask-box">
+            <summary data-i18n="ui.settings.why_we_ask_title">لماذا نسأل عن هذه البيانات؟</summary>
+            <p class="muted" data-i18n="ui.settings.why_we_ask_body">
+              كل حقل هنا اختياري وقابل للتخطّي والتعديل في أي وقت. نستخدم البلد لتحديد رقم الإسعاف المحلي فقط، ووضع الحياة والأمراض المشخّصة لتخصيص تنبيهات السلامة دون أي تتبّع إعلاني.
+            </p>
+          </details>
+          <label>
+            <span data-i18n="ui.settings.goal_label">الهدف / وضع الحياة الحالي</span>
+            <select id="f-goal">
+              <option value="track" data-i18n="ui.settings.goal_track">تتبّع الدورة الشهرية</option>
+              <option value="ttc" data-i18n="ui.settings.goal_ttc">محاولة حمل</option>
+              <option value="avoid_pregnancy" data-i18n="ui.settings.goal_avoid">تجنّب حمل (تثقيفي)</option>
+              <option value="pregnant" data-i18n="ui.settings.goal_pregnant">حمل حالي</option>
+              <option value="postpartum" data-i18n="ui.settings.goal_postpartum">ما بعد الولادة</option>
+              <option value="perimenopause" data-i18n="ui.settings.goal_perimenopause">مرحلة ما قبل سنّ اليأس</option>
+            </select>
+          </label>
+          <label>
+            <span data-i18n="ui.settings.age_label">العمر</span>
+            <input type="number" id="f-age" min="10" max="60" placeholder="اختياري"
+                   data-i18n="ui.settings.age_placeholder">
+          </label>
+          <label>
+            <span data-i18n="ui.settings.country_label">البلد (لتحديد رقم الطوارئ)</span>
+            <select id="f-country"></select>
+          </label>
+          <label>
+            <span data-i18n="ui.settings.pregnancy_label">حمل (لو معروف)</span>
+            <select id="f-pregnancy">
+              <option value="" data-i18n="ui.settings.pregnancy_none">غير محدد</option>
+              <option value="غير مؤكد" data-i18n="ui.settings.pregnancy_unsure">احتمال حمل</option>
+              <option value="مؤكد" data-i18n="ui.settings.pregnancy_confirmed">حمل مؤكد</option>
+              <option value="لا" data-i18n="ui.settings.pregnancy_no">لا</option>
+            </select>
+          </label>
+          <label>
+            <span data-i18n="ui.settings.contraception_label">وسيلة منع الحمل</span>
+            <input type="text" id="f-contraception" placeholder="اختياري"
+                   data-i18n="ui.settings.contraception_placeholder">
+          </label>
+          <label>
+            <span data-i18n="ui.settings.conditions_label">أمراض مشخّصة</span>
+            <textarea id="f-conditions" rows="2"
+              placeholder="كل سطر: اسم الحالة | مشخّصة أو غير متأكدة"
+              data-i18n="ui.settings.conditions_placeholder"></textarea>
+          </label>
 
-        <div class="settings-actions">
-          <button class="btn-primary" onclick="saveSettings()">حفظ</button>
-          <button class="btn-ghost" onclick="clearSettings()">مسح</button>
+          <div class="settings-actions">
+            <button class="btn-primary" onclick="saveSettings()" data-i18n="ui.settings.save_btn">حفظ</button>
+            <button class="btn-ghost" onclick="clearSettings()" data-i18n="ui.settings.clear_btn">مسح</button>
+          </div>
         </div>
-        <p class="settings-note">البيانات الشخصية تُحفظ في متصفحك، والدورات والأعراض تُحفظ لدى الخادم بمعرّف جهازكِ.</p>
+        <p class="settings-note" data-i18n="ui.settings.privacy_note">البيانات الشخصية تُحفظ في متصفحكِ، والدورات والأعراض تُحفظ لدى الخادم بمعرّف جهازكِ.</p>
       </div>
     </aside>
+
+    <!-- لوحة الحساب والخصوصية والأمان (مستخدم وكلمة مرور حقيقية + حفظ دائم + قفل PIN + تمويه) -->
+    <aside class="settings" id="auth-panel" hidden onclick="if(event.target===this)toggleAuthPanel()">
+      <div class="settings-body">
+        <div class="settings-head">
+          <h2 data-i18n="ui.auth.panel_title">حسابي والخصوصية والأمان</h2>
+          <button class="icon-btn no-flip" onclick="toggleAuthPanel()" aria-label="Close">✕</button>
+        </div>
+
+        <!-- عرض الزائرة (تسجيل الدخول / إنشاء حساب جديد) -->
+        <div id="auth-guest-view">
+          <p class="settings-note" data-i18n="ui.auth.guest_notice">
+            أنتِ تستخدمين الوضع المحلي بلا حساب حاليًا. أنشئي حسابًا أو سجّلي الدخول لحفظ دوراتكِ وأعراضكِ وملفكِ الشخصي بشكل دائم وآمن.
+          </p>
+
+          <div class="tracker-tabs" role="tablist">
+            <button id="auth-tab-login" class="tracker-tab active" role="tab"
+                    onclick="setAuthTab('login')" data-i18n="ui.auth.tab_login">تسجيل الدخول</button>
+            <button id="auth-tab-register" class="tracker-tab" role="tab"
+                    onclick="setAuthTab('register')" data-i18n="ui.auth.tab_register">إنشاء حساب جديد</button>
+          </div>
+
+          <form class="form-card" id="auth-form" onsubmit="submitAuthForm(event)">
+            <label id="auth-display-name-wrap" hidden>
+              <span data-i18n="ui.auth.display_name_label">الاسم المفضّل (اختياري)</span>
+              <input type="text" id="auth-display-name" placeholder="مثال: نور"
+                     data-i18n="ui.auth.display_name_placeholder" autocomplete="name">
+            </label>
+
+            <label>
+              <span data-i18n="ui.auth.username_label">اسم المستخدمة أو البريد الإلكتروني</span>
+              <input type="text" id="auth-username" placeholder="مثال: nour@example.com"
+                     data-i18n="ui.auth.username_placeholder" autocomplete="username" required>
+            </label>
+
+            <label>
+              <span data-i18n="ui.auth.password_label">كلمة المرور (6 أحرف على الأقل)</span>
+              <input type="password" id="auth-password" placeholder="••••••••"
+                     data-i18n="ui.auth.password_placeholder" autocomplete="current-password" required>
+            </label>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="auth-migrate-check" checked>
+              <span data-i18n="ui.auth.migrate_label">نقل سجلات الدورات والأعراض الحالية على هذا الجهاز إلى حسابي تلقائيًا</span>
+            </label>
+
+            <div class="settings-actions">
+              <button type="submit" class="btn-primary" id="auth-submit-btn"
+                      data-i18n="ui.auth.login_btn">دخول إلى حسابي</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- عرض المستخدمة المسجّلة -->
+        <div id="auth-user-view" hidden>
+          <div class="form-card account-active-card">
+            <div class="account-active-header">
+              <div class="account-avatar no-flip" id="auth-user-avatar">ن</div>
+              <div>
+                <strong id="auth-user-display">نور</strong>
+                <div class="muted ltr-isolate" id="auth-user-email">nour@example.com</div>
+                <span class="account-sync-badge" data-i18n="ui.auth.active_badge">متصلة بالحساب · الحفظ السحابي الدائم مفعّل</span>
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button type="button" class="btn-ghost danger" onclick="logoutAccount()"
+                      data-i18n="ui.auth.logout_btn">تسجيل الخروج</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- إعدادات قفل التطبيق بـ PIN ووضع التمويه والموافقة الصريحة -->
+        <div class="form-card">
+          <h3 data-i18n="ui.auth.security_heading">قفل التطبيق ووضع التمويه والخصوصية</h3>
+
+          <label>
+            <span data-i18n="ui.auth.pin_label">رمز قفل التطبيق (PIN من 4 أرقام)</span>
+            <input type="password" id="pin-input" maxlength="6" inputmode="numeric"
+                   placeholder="مثال: 2580" data-i18n="ui.auth.pin_placeholder">
+          </label>
+          <div class="settings-actions">
+            <button type="button" class="btn-primary" onclick="savePinSettings()"
+                    data-i18n="ui.auth.save_pin_btn">تفعيل رمز القفل</button>
+            <button type="button" class="btn-ghost" onclick="lockAppNow()"
+                    data-i18n="ui.auth.lock_now_btn">قفل الشاشة الآن 🔒</button>
+            <button type="button" class="btn-ghost danger" onclick="clearPinSettings()"
+                    data-i18n="ui.auth.clear_pin_btn">إلغاء القفل</button>
+          </div>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="disguise-checkbox" onchange="toggleDisguiseMode(this.checked)">
+            <span data-i18n="ui.auth.disguise_label">تفعيل وضع التمويه (تغيير اسم التطبيق وأيقونته إلى «مفكرتي اليومية 📝»)</span>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="consent-ai-checkbox" checked onchange="toggleAiConsent(this.checked)">
+            <span data-i18n="ui.auth.consent_ai_label">موافقة صريحة على استخدام سياق الدورة في المساعد الذكي (إلغاء التفعيل يعطّل المساعد مع بقاء التتبّع كاملًا)</span>
+          </label>
+        </div>
+      </div>
+    </aside>
+
+    <!-- شاشة قفل التطبيق بـ PIN -->
+    <div class="modal-backdrop" id="pin-lock-overlay" hidden>
+      <div class="modal-card pin-lock-card" role="dialog" aria-modal="true">
+        <div class="modal-icon pin-icon no-flip">🔒</div>
+        <h3 data-i18n="ui.auth.lock_title">التطبيق مقفل لحماية خصوصيتكِ</h3>
+        <p class="muted" data-i18n="ui.auth.lock_subtitle">أدخلي رمز PIN المكوّن من 4 أرقام للمتابعة.</p>
+        <form onsubmit="unlockAppWithPin(event)" class="pin-unlock-form">
+          <input type="password" id="unlock-pin-input" maxlength="6" inputmode="numeric"
+                 class="pin-code-input ltr-isolate" placeholder="••••" required>
+          <button type="submit" class="btn-primary" data-i18n="ui.auth.unlock_btn">فتح القفل</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- شريط التنقل السفلي الخماسي (اليوم، التقويم، الرؤى، المساعد، أنا) + زر الطوارئ الثابت -->
+    <nav class="bottom-tabs-bar" id="bottom-nav" aria-label="Bottom Navigation">
+      <button type="button" class="bottom-tab-btn" id="btab-today" onclick="switchBottomTab('today')">
+        <span class="btab-icon no-flip">🌸</span>
+        <span data-i18n="ui.tabs.today">اليوم</span>
+      </button>
+      <button type="button" class="bottom-tab-btn" id="btab-calendar" onclick="switchBottomTab('calendar')">
+        <span class="btab-icon no-flip">📅</span>
+        <span data-i18n="ui.tabs.calendar">التقويم</span>
+      </button>
+      <button type="button" class="bottom-tab-btn" id="btab-insights" onclick="switchBottomTab('insights')">
+        <span class="btab-icon no-flip">📊</span>
+        <span data-i18n="ui.tabs.insights">الرؤى</span>
+      </button>
+      <button type="button" class="bottom-tab-btn active" id="btab-assistant" onclick="switchBottomTab('assistant')">
+        <span class="btab-icon no-flip">💬</span>
+        <span data-i18n="ui.tabs.assistant">المساعد</span>
+      </button>
+      <button type="button" class="bottom-tab-btn" id="btab-me" onclick="switchBottomTab('me')">
+        <span class="btab-icon no-flip">👤</span>
+        <span data-i18n="ui.tabs.me">أنا</span>
+      </button>
+      <a href="tel:123" class="bottom-sos-btn no-flip" id="fixed-sos-btn">
+        <span>🚨</span>
+        <span data-i18n="ui.tabs.emergency_btn" class="ltr-isolate">طوارئ</span>
+        <strong class="ltr-isolate phone-number" id="fixed-emergency-num">123</strong>
+      </a>
+    </nav>
+
+    <!-- نافذة التأكيد المدمجة -->
+    <div class="modal-backdrop" id="confirm-modal" hidden onclick="if(event.target===this)resolveConfirm(false)">
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <div class="modal-icon no-flip">!</div>
+        <p id="confirm-message"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" onclick="resolveConfirm(false)" data-i18n="ui.feedback.confirm_cancel">إلغاء</button>
+          <button type="button" class="btn-primary danger-solid" onclick="resolveConfirm(true)" data-i18n="ui.feedback.confirm_yes">نعم، احذفي</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- حاوية الإشعارات السريعة -->
+    <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
     <!-- واجهة الطوارئ -->
     <div class="overlay" id="overlay" hidden>
       <div class="overlay-card" id="overlay-card">
-        <div class="overlay-icon" id="overlay-icon">!</div>
-        <h2 id="overlay-title">رعاية طبية عاجلة</h2>
+        <div class="overlay-icon no-flip" id="overlay-icon">!</div>
+        <h2 id="overlay-title" data-i18n="ui.overlay_medical">رعاية طبية عاجلة</h2>
         <pre id="overlay-text"></pre>
-        <button class="btn-primary" onclick="closeOverlay()">فهمت</button>
+        <button class="btn-primary" onclick="closeOverlay()" data-i18n="ui.overlay_ack">فهمت</button>
       </div>
     </div>
   </div>
 
-  <script src="i18n.js"></script>
-  <script src="app.js"></script>
+  <script src="i18n.js?v=20261019"></script>
+  <script src="app.js?v=20261019"></script>
 </body>
 </html>

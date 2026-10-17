@@ -198,9 +198,93 @@ def compute_symptom_findings(symptoms: list[dict], today: date | None = None) ->
     )]
 
 
+def compute_symptom_phase_correlations(
+    ctx: UserContext,
+    symptoms: list[dict],
+) -> list[Finding]:
+    """يرصد ارتباط الأعراض المتكررة بمراحل الدورة الشهرية (محليًا وبلا إنترنت).
+
+    يعتمد فقط على تواريخ بداية الدورات المسجّلة وتواريخ الأعراض المسجّلة، ويعرض
+    الأرقام الدالة (evidence) صراحةً دون أي استنتاج تشخيصي.
+    """
+    starts: list[date] = []
+    for c in ctx.last_cycles or []:
+        if not c.start_date:
+            continue
+        try:
+            starts.append(date.fromisoformat(str(c.start_date)[:10]))
+        except ValueError:
+            continue
+    starts = sorted(set(starts))
+    if not starts or len(symptoms or []) < 3:
+        return []
+
+    phase_names = {
+        "menstrual": "المرحلة الحيضية (أيام النزيف 1–5)",
+        "follicular": "المرحلة الجريبية (الأيام 6–12)",
+        "ovulation": "نافذة منتصف الدورة (الأيام 13–16)",
+        "luteal": "المرحلة الأصفرية / ما قبل الدورة (الأيام 17+)",
+    }
+    buckets: dict[tuple[str, str], int] = {}
+
+    for log in symptoms or []:
+        sname = str(log.get("symptom") or "").strip()
+        if not sname:
+            continue
+        try:
+            sdate = date.fromisoformat(str(log.get("log_date") or "")[:10])
+        except ValueError:
+            continue
+        # إيجاد أقرب بداية دورة سابقة أو مساوية لتاريخ العرض
+        earlier = [d for d in starts if d <= sdate]
+        if not earlier:
+            continue
+        cycle_day = (sdate - earlier[-1]).days + 1
+        if cycle_day < 1 or cycle_day > 45:
+            continue
+        if cycle_day <= 5:
+            phase = "menstrual"
+        elif cycle_day <= 12:
+            phase = "follicular"
+        elif cycle_day <= 16:
+            phase = "ovulation"
+        else:
+            phase = "luteal"
+        buckets[(sname, phase)] = buckets.get((sname, phase), 0) + 1
+
+    correlated = [
+        (sym, ph, count)
+        for (sym, ph), count in buckets.items()
+        if count >= 2
+    ]
+    if not correlated:
+        return []
+
+    correlated.sort(key=lambda item: item[2], reverse=True)
+    top_sym, top_phase, top_count = correlated[0]
+    return [
+        Finding(
+            rule_code="SYMPTOM_PHASE_CORRELATION",
+            severity=Severity.NORMAL,
+            title=f"تكرار عرض «{top_sym}» في {phase_names[top_phase]}",
+            evidence=[
+                f"symptom={top_sym}",
+                f"phase={top_phase}",
+                f"occurrences={top_count}",
+                f"cycles_analyzed={len(starts)}",
+            ],
+        )
+    ]
+
+
 def compute_all_findings(ctx: UserContext, symptoms: list[dict] | None = None) -> list[Finding]:
-    """دمج نتائج الدورات ونتائج الأعراض (سجل فارغ = لا نتيجة منه)."""
-    return compute_findings(ctx) + compute_symptom_findings(symptoms or [])
+    """دمج نتائج الدورات ونتائج الأعراض وارتباط المراحل (سجل فارغ = لا نتيجة منه)."""
+    sym_list = symptoms or []
+    return (
+        compute_findings(ctx)
+        + compute_symptom_findings(sym_list)
+        + compute_symptom_phase_correlations(ctx, sym_list)
+    )
 
 
 def max_severity(findings: list[Finding]) -> Severity:

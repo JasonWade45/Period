@@ -124,12 +124,46 @@ def test_fallback_does_claim_doctor_review_for_medical_review_findings(client, m
 
 def test_fallback_for_short_cycle_monitor_does_not_claim_doctor_review(client, monkeypatch) -> None:
     """SHORT_CYCLE = MONITOR أيضًا، فلا تنبيه مبالغًا فيه."""
+    from datetime import date, timedelta
+    d1 = (date.today() - timedelta(days=20)).isoformat()
+    d2 = (date.today() - timedelta(days=2)).isoformat()
     monkeypatch.setattr(main, "_llm", None)
     r = client.post("/v1/chat", json={"message": "سؤال", "user_context": {
         "cycles_recorded": 4, "avg_cycle_days": 18,
         "cycle_gaps": [18, 18],
-        "last_cycles": [{"start_date": "2026-07-01", "length_days": 4},
-                        {"start_date": "2026-07-19", "length_days": 5}]}})
+        "last_cycles": [{"start_date": d1, "length_days": 4},
+                        {"start_date": d2, "length_days": 5}]}})
     body = r.json()
     assert body["rule_codes"] == ["SHORT_CYCLE"]
     assert body["needs_doctor"] is False
+
+
+def test_emergency_response_includes_emergency_payload(client, monkeypatch) -> None:
+    monkeypatch.setattr(main, "_llm", None)
+    r = client.post("/v1/chat", json={"message": "بنزف كل ساعة وبرمي جلطات كبيرة",
+                                      "user_context": CTX})
+    body = r.json()
+    assert body["emergency"] is True
+    assert body["emergency_payload"] is not None
+    assert body["emergency_payload"]["number"] == main.settings.emergency_number
+
+
+def test_export_endpoints_and_security_headers(client) -> None:
+    ukey = "export-test-device"
+    client.post(f"/v1/cycles?user_key={ukey}", json={"start_date": "2026-08-01", "length_days": 5})
+    client.post(f"/v1/symptoms?user_key={ukey}", json={"log_date": "2026-08-02", "symptom": "صداع", "severity": 3})
+
+    csv_cycles = client.get(f"/v1/export/cycles.csv?user_key={ukey}")
+    assert csv_cycles.status_code == 200
+    assert csv_cycles.content.startswith(b"\xef\xbb\xbf")
+    assert csv_cycles.headers.get("X-Content-Type-Options") == "nosniff"
+    assert csv_cycles.headers.get("Cache-Control") == "no-store"
+
+    csv_symptoms = client.get(f"/v1/export/symptoms.csv?user_key={ukey}")
+    assert csv_symptoms.status_code == 200
+    assert csv_symptoms.content.startswith(b"\xef\xbb\xbf")
+
+    pdf_resp = client.get(f"/v1/export/report.pdf?user_key={ukey}")
+    assert pdf_resp.status_code == 200
+    assert pdf_resp.content.startswith(b"%PDF")
+

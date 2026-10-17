@@ -133,6 +133,11 @@ class UserContext(BaseModel):
         return self.model_dump_json(exclude_none=True)
 
 
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
     user_context: UserContext = Field(default_factory=UserContext)
@@ -142,6 +147,19 @@ class ChatRequest(BaseModel):
     user_key: Optional[str] = None
     # بلد المستخدمة: يحدّد رقم الطوارئ من جدول مُوثّق
     country_code: Optional[str] = None
+    # ذاكرة المحادثة متعددة الأدوار (آخر 6 رسائل منزوعة الهوية)
+    history: list[ChatTurn] = Field(default_factory=list)
+
+
+class EmergencyPayload(BaseModel):
+    """بيانات الطوارئ للواجهة: الرقم وحالته التحققية، بلا كلام طويل."""
+
+    kind: str = "medical"                   # medical | crisis
+    number: str = ""
+    number_verified: bool = False
+    country_code: Optional[str] = None
+    crisis_line: str = ""
+    instruction: str = ""                   # سطر واحد موجّه (نص المورد)
 
 
 class ChatResponse(BaseModel):
@@ -153,6 +171,7 @@ class ChatResponse(BaseModel):
     missing_info: list[str] = Field(default_factory=list)
     prompt_version: str = ""
     rule_codes: list[str] = Field(default_factory=list)
+    emergency_payload: Optional[EmergencyPayload] = None
 
 
 class SummaryResponse(BaseModel):
@@ -242,17 +261,6 @@ class AiChatRequest(BaseModel):
     timezone: Optional[str] = None
 
 
-class EmergencyPayload(BaseModel):
-    """بيانات الطوارئ للواجهة: الرقم وحالته التحققية، بلا كلام طويل."""
-
-    kind: str = "medical"                   # medical | crisis
-    number: str = ""
-    number_verified: bool = False
-    country_code: Optional[str] = None
-    crisis_line: str = ""
-    instruction: str = ""                   # سطر واحد موجّه (نص المورد)
-
-
 class RetrievalMeta(BaseModel):
     """ما حدث في الاسترجاع — للتشخيص وللاتساق في الواجهة والتدقيق."""
 
@@ -293,3 +301,71 @@ class AiSummaryResponse(BaseModel):
     rule_codes: list[str] = Field(default_factory=list)
     decision: str = ""
     retrieval: RetrievalMeta = Field(default_factory=RetrievalMeta)
+
+
+# ------------------------------------------- حسابات المستخدمات والملف الشخصي (Stage 1)
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    display_name: Optional[str] = None
+    migrate_user_key: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+    migrate_user_key: Optional[str] = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class PinSecurityRequest(BaseModel):
+    pin: Optional[str] = None
+    clear_pin: bool = False
+    disguise_mode: Optional[bool] = None
+
+
+class VerifyPinRequest(BaseModel):
+    pin: str
+
+
+class ProfilePayload(BaseModel):
+    goal: Optional[str] = None
+    age: Optional[int] = None
+    country_code: Optional[str] = None
+    pregnancy_status: Optional[str] = None
+    contraception: Optional[str] = None
+    conditions: Optional[list[ConditionStatus]] = None
+    medications: Optional[list[str]] = None
+    typical_cycle_days: Optional[int] = None
+    typical_bleeding_days: Optional[int] = None
+    onboarding_completed: Optional[bool] = None
+
+
+class ConsentUpdateRequest(BaseModel):
+    consent_type: str
+    granted: bool
+
+
+class DailyLogPayload(BaseModel):
+    log_date: str
+    flow: Optional[str] = None
+    mood: Optional[str] = None
+    sleep_hours: Optional[float] = None
+    water_cups: Optional[int] = None
+    exercise: Optional[str] = None
+    medications: Optional[str] = None
+    note: Optional[str] = None
+
+
+class PredictionCorrectionRequest(BaseModel):
+    actual_start_date: str
+    length_days: Optional[int] = None
+
+
+class PartnerShareCreateRequest(BaseModel):
+    partner_label: str = ""
+    scope: str = "next_window_only"

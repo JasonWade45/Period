@@ -1,10 +1,29 @@
 from __future__ import annotations
 
 import time
+from typing import Protocol, runtime_checkable
 
 from groq import Groq
 
 from ..config import settings
+
+
+@runtime_checkable
+class LLMProvider(Protocol):
+    """واجهة موحّدة لمزوّدات النماذج اللغوية (Groq / Claude / Grok / OpenAI-compatible).
+
+    لا يُثبَّت مزوّد بعينه في خط الأنابيب؛ أي عميل يحقق `complete` يعمل مباشرة.
+    """
+
+    def complete(
+        self,
+        system: str,
+        user: str,
+        *,
+        retry_feedback: str | None = None,
+        history: list[dict[str, str]] | None = None,
+    ) -> tuple[str, int]:
+        ...
 
 
 class LLMClient:
@@ -42,9 +61,22 @@ class LLMClient:
                 raise
         raise last_error  # type: ignore[misc]
 
-    def complete(self, system: str, user: str, *, retry_feedback: str | None = None) -> tuple[str, int]:
-        """يُرجع (نص_الرد, زمن_الاستجابة_ms)."""
-        messages = [{"role": "system", "content": system}]
+    def complete(
+        self,
+        system: str,
+        user: str,
+        *,
+        retry_feedback: str | None = None,
+        history: list[dict[str, str]] | None = None,
+    ) -> tuple[str, int]:
+        """يُرجع (نص_الرد, زمن_الاستجابة_ms) مع دعم ذاكرة آخر 6 رسائل منزوعة الهوية."""
+        messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+        for turn in (history or [])[-6:]:
+            role = turn.get("role")
+            content = (turn.get("content") or "").strip()
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+
         if retry_feedback:
             messages.append({"role": "user", "content": user})
             messages.append({"role": "assistant", "content": retry_feedback})

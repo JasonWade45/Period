@@ -7,8 +7,37 @@ from pathlib import Path
 from ..schemas import Finding, SourceChunk, UserContext
 
 _VAR_PATTERN = re.compile(r"\{\{\s*([A-Z_]+)\s*\}\}")
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
+_PHONE_RE = re.compile(r"(?:\+?\d[\d\s\-]{7,14}\d)")
 
 ALLOWED_MODES = {"chat", "summary"}
+MAX_HISTORY_TURNS = 6
+
+
+def scrub_pii(text: str) -> str:
+    """يزيل البريد الإلكتروني وأرقام الهواتف من نص المحادثة قبل إرساله للمزوّد."""
+    if not text:
+        return ""
+    cleaned = _EMAIL_RE.sub("[EMAIL]", text)
+    cleaned = _PHONE_RE.sub("[PHONE]", cleaned)
+    return cleaned.strip()
+
+
+def scrub_conversation_history(
+    history: list[dict[str, str]] | None,
+    *,
+    max_turns: int = MAX_HISTORY_TURNS,
+) -> list[dict[str, str]]:
+    """يحتفظ بآخر 6 رسائل فقط مع إخفاء الهوية (PII scrubbing)."""
+    if not history:
+        return []
+    out: list[dict[str, str]] = []
+    for item in history[-max_turns:]:
+        role = str(item.get("role") or "").strip().lower()
+        content = scrub_pii(str(item.get("content") or ""))
+        if role in ("user", "assistant") and content:
+            out.append({"role": role, "content": content[:600]})
+    return out
 
 
 class PromptBuilder:

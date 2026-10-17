@@ -109,6 +109,26 @@ def test_week_starts_on_saturday_by_default():
     assert len(labels) == 7
     assert labels[0] == "السبت"
     assert settings.week_start == "saturday"
+    ar_weekdays = json.loads((LOCALES / "ar.json").read_text(encoding="utf-8"))["dates"]["weekdays"]
+    en_weekdays = json.loads((LOCALES / "en.json").read_text(encoding="utf-8"))["dates"]["weekdays"]
+    assert ar_weekdays[0] == "السبت"
+    assert en_weekdays[0] == "Saturday"
+
+
+def test_stage0_text_fixes_regression():
+    """انحدار المرحلة 0: مفتاح severity_placeholder، تأنيث متسق (ـكِ)، وعدم وجود مفاتيح بحروف كبيرة."""
+    ar = json.loads((LOCALES / "ar.json").read_text(encoding="utf-8"))
+    en = json.loads((LOCALES / "en.json").read_text(encoding="utf-8"))
+
+    assert "severity_placeholder" in ar["ui"]["tracker"]
+    assert "severity_Placeholder" not in ar["ui"]["tracker"]
+    assert "severity_placeholder" in en["ui"]["tracker"]
+    assert "severity_Placeholder" not in en["ui"]["tracker"]
+
+    not_alone = ar["emergency"]["medical"]["not_alone"]
+    talk = ar["emergency"]["crisis"]["talk_to_someone"]
+    assert "وحدكِ" in not_alone and "وحدها" not in not_alone
+    assert "تثقين به" in talk and "وحدكِ" in talk and "وحدها" not in talk
 
 
 def test_week_start_is_configurable():

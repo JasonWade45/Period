@@ -70,6 +70,13 @@ class RateLimiter:
         current = time.monotonic() if now is None else now
         cutoff = current - self.window
         with self._lock:
+            if len(self._hits) > 2048:
+                stale = [
+                    k for k, q in self._hits.items()
+                    if not q or q[-1] <= cutoff
+                ]
+                for k in stale:
+                    self._hits.pop(k, None)
             bucket = self._hits.setdefault(identity, deque())
             while bucket and bucket[0] <= cutoff:
                 bucket.popleft()

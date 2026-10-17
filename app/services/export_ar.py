@@ -250,6 +250,82 @@ def report_sections_from_cycles(cycles: Sequence[dict[str, Any]],
     ]
 
 
+def build_doctor_report_sections(
+    cycles: Sequence[dict[str, Any]],
+    symptoms: Sequence[dict[str, Any]],
+    findings: Sequence[Any],
+    ctx: ExportContext,
+) -> list[PdfSection]:
+    """تقرير الطبيبة الشامل (البند 3.8):
+
+    الصفحة الأولى تبدأ بملخص تنفيذي سريع تقرؤه الطبيبة في 30 ثانية، يليه:
+    1) الدورات المسجّلة ونطاق التوقع القادم.
+    2) الأعراض والشدة المسجّلة.
+    3) الأنماط المرصودة (بصياغة غير تشخيصية مع الأرقام).
+    4) الأسئلة المقترحة للطبيبة وإخلاء المسؤولية.
+    """
+    from .prediction import predict_next_cycle_window
+
+    t = get_translator()
+    loc = ctx.locale
+    sections: list[PdfSection] = list(report_sections_from_cycles(cycles, ctx))
+
+    # نطاق التوقع القادم (إن توفرت 3 دورات فأكثر)
+    pred = predict_next_cycle_window([dict(c) for c in cycles])
+    if pred.status == "ok" and pred.window_start and pred.window_end:
+        w_start = format_date(pred.window_start, loc, ctx.digits_style, timezone_name=ctx.timezone)
+        w_end = format_date(pred.window_end, loc, ctx.digits_style, timezone_name=ctx.timezone)
+        avg_str = format_number(pred.basis.weighted_avg_days or 28, ctx.digits_style, group=False)
+        sections.insert(
+            1,
+            PdfSection(
+                heading=t.t("ui.summary_sections.overview", loc),
+                body=f"{w_start} – {w_end} (± {avg_str})",
+            ),
+        )
+
+    # الأعراض والشدة المسجّلة
+    if symptoms:
+        sym_bullets: list[str] = []
+        for s in list(symptoms)[:15]:
+            s_date = format_date(s["log_date"], loc, ctx.digits_style, timezone_name=ctx.timezone)
+            sev = s.get("severity")
+            sev_txt = f" ({t.t('csv.severity', loc)}: {format_number(int(sev), ctx.digits_style, group=False)}/5)" if sev else ""
+            sym_bullets.append(f"{s_date}: {s.get('symptom', '')}{sev_txt}")
+        sections.append(
+            PdfSection(
+                heading=t.t("ui.tracker.tab_symptoms", loc),
+                bullets=sym_bullets,
+            )
+        )
+
+    # الأنماط والتنبيهات غير التشخيصية
+    alert_bullets: list[str] = []
+    for f in findings or []:
+        title = getattr(f, "title", "") or (f.get("title") if isinstance(f, dict) else "")
+        ev = getattr(f, "evidence", []) or (f.get("evidence", []) if isinstance(f, dict) else [])
+        if title:
+            ev_str = f" [{', '.join(str(x) for x in ev[:3])}]" if ev else ""
+            alert_bullets.append(f"{title}{ev_str}")
+    if alert_bullets:
+        sections.append(
+            PdfSection(
+                heading=t.t("ui.summary_sections.patterns", loc),
+                body=t.t("answer.does_not_mean", loc),
+                bullets=alert_bullets,
+            )
+        )
+
+    # الأسئلة المقترحة للطبيبة
+    sections.append(
+        PdfSection(
+            heading=t.t("ui.summary_sections.questions_for_doctor", loc),
+            bullets=[t.t("answer.ask_doctor_default", loc)],
+        )
+    )
+    return sections
+
+
 def _esc(text: str) -> str:
     """reportlab يقرأ النص كوسوم XML: نهرّب الرموز الخاصة."""
     return (text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))

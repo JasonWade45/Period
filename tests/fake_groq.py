@@ -39,6 +39,7 @@ class FakeGroq:
 
     scenarios: list[dict[str, Any]] = field(default_factory=list)
     port: int = 0  # 0 = منفذ حر يختاره النظام
+    smart_preview: bool = False
     requests: list[dict[str, Any]] = field(default_factory=list)
     _server: ThreadingHTTPServer | None = None
     _thread: threading.Thread | None = None
@@ -90,6 +91,8 @@ class FakeGroq:
 
                 if "content" in scenario:
                     content = scenario["content"]
+                elif outer.smart_preview:
+                    content = _smart_preview_content(outer.requests[-1]["mode"], system)
                 else:
                     content = _default_content(outer.requests[-1]["mode"])
                 self._send(200, {
@@ -174,3 +177,88 @@ def _default_content(mode: str) -> str:
         "crisis": False,
         "missing_info": [],
     }, ensure_ascii=False)
+
+
+def _extract_dict_list(system: str, pattern: str, required_key: str) -> list[dict[str, Any]]:
+    for m in re.finditer(pattern, system):
+        start = m.start()
+        depth = 0
+        for pos in range(start, len(system)):
+            if system[pos] == "[":
+                depth += 1
+            elif system[pos] == "]":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        parsed = json.loads(system[start:pos + 1])
+                        if (
+                            isinstance(parsed, list)
+                            and parsed
+                            and all(isinstance(x, dict) for x in parsed)
+                            and required_key in parsed[0]
+                        ):
+                            return parsed
+                    except Exception:
+                        pass
+                    break
+    return []
+
+
+def _smart_preview_content(mode: str, system: str) -> str:
+    """يبني إجابة تثقيفية غنية مستندة إلى المقاطع المُسترجعة في البرومبت (لوضع المعاينة)."""
+    sources = _extract_dict_list(system, r'\[\s*\{\s*"id"\s*:', "text")
+    findings = _extract_dict_list(system, r'\[\s*\{\s*"rule_code"\s*:', "rule_code")
+
+    top_sources = sources[:2]
+    source_ids = [s.get("id") for s in top_sources if isinstance(s, dict) and s.get("id")]
+    needs_doc = any(
+        isinstance(f, dict) and f.get("severity") in ("MEDICAL_REVIEW", "URGENT", "EMERGENCY")
+        for f in findings
+    )
+
+    if mode == "summary":
+        finding_titles = [f.get("title", "") for f in findings if f.get("title")]
+        overview = (
+            "بناءً على بياناتكِ المسجّلة: " + " · ".join(finding_titles)
+            if finding_titles
+            else "ملخص تثقيفي مبني على السجلات المتوفرة في التطبيق."
+        )
+        src_summary = (
+            "\n".join(f"• {s.get('section', '')}: {s.get('text', '')}" for s in top_sources)
+            if top_sources
+            else "يُحسب طول الدورة من أول يوم نزيف حتى أول يوم نزيف في الدورة التالية."
+        )
+        return json.dumps({
+            "overview": overview,
+            "what_changed": "تُقارن الفروق الزمنية بين تواريخ البداية المسجّلة تلقائيًا عند إضافة دورات جديدة.",
+            "patterns": src_summary,
+            "medical_alerts": "إذا استمر تغيّر ملحوظ في طول الدورة أو غزارة النزيف، يُنصح بمراجعة طبيبة.",
+            "what_this_does_not_mean": "هذه الملاحظات تلخيص لبياناتكِ المسجّلة وليست تشخيصًا طبيًا.",
+            "questions_for_doctor": [
+                "هل نمط دوراتي المسجّلة يستدعي فحوصات إضافية؟",
+                "ما الأعراض التي تستوجب المتابعة المبكرة؟",
+                "كيف أتابع طول الدورة والأعراض بدقة؟",
+            ],
+            "sources_used": source_ids,
+        }, ensure_ascii=False)
+
+    if top_sources:
+        parts = []
+        for s in top_sources:
+            sec = s.get("section", "")
+            txt = s.get("text", "")
+            parts.append(f"• {sec}:\n{txt}" if sec else txt)
+        src_name = top_sources[0].get("source_name", "")
+        footer = f"\n\nالمصدر: {src_name} (معلومة تثقيفية عامة وليست تشخيصًا)." if src_name else ""
+        answer_text = "\n\n".join(parts) + footer
+        return json.dumps({
+            "answer": answer_text,
+            "sources_used": source_ids,
+            "needs_doctor": needs_doc,
+            "emergency": False,
+            "crisis": False,
+            "missing_info": [],
+        }, ensure_ascii=False)
+
+    return _default_content(mode)
+

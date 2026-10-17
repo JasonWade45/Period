@@ -69,7 +69,7 @@ def test_max_severity_ordering():
 # ---------------------------------------------------------------------------
 
 def _bleeding(days, start_offset=5):
-    return compute_findings(_ctx(1, bleeding=[days], starts=[_days_ago(start_offset)]))
+    return compute_findings(_ctx(1, bleeding=[days], starts=[_days_ago(start_offset)]), today=TODAY)
 
 
 def test_normal_bleeding_length_does_not_flag():
@@ -97,7 +97,7 @@ def test_bleeding_flag_works_with_a_single_record():
 
 
 def test_missed_period_flags_after_90_days():
-    fs = compute_findings(_ctx(4, avg=28, bleeding=[5], starts=[_days_ago(120)]))
+    fs = compute_findings(_ctx(4, avg=28, bleeding=[5], starts=[_days_ago(120)]), today=TODAY)
     f = next(x for x in fs if x.rule_code == "MISSED_PERIOD")
     assert f.severity == Severity.MONITOR
     assert any("days_since_last_logged_bleeding=120" in e for e in f.evidence)
@@ -106,7 +106,7 @@ def test_missed_period_flags_after_90_days():
 
 
 def test_missed_period_does_not_flag_before_90_days():
-    fs = compute_findings(_ctx(4, avg=28, bleeding=[5], starts=[_days_ago(60)]))
+    fs = compute_findings(_ctx(4, avg=28, bleeding=[5], starts=[_days_ago(60)]), today=TODAY)
     assert "MISSED_PERIOD" not in {f.rule_code for f in fs}
 
 

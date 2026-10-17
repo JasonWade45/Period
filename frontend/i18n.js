@@ -79,6 +79,7 @@
     if (node === undefined && state.fallback !== state.locale) {
       node = lookup(state.fallbackTranslations || {}, key);
     }
+    if (Array.isArray(node)) return node;
     if (typeof node !== "string") return key;      /* مفتاح ناقص يظهر صراحةً */
     return interpolate(toDigits(node), params);
   }
@@ -103,6 +104,7 @@
     document.querySelectorAll("[data-i18n]").forEach(function (element) {
       var key = element.getAttribute("data-i18n");
       var value = t(key);
+      if (typeof value !== "string") return;
       if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") {
         element.placeholder = value;
       } else if (element.hasAttribute("data-i18n-attr")) {
