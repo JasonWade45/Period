@@ -584,6 +584,7 @@ async function api(path, method = "GET", body = null, _retried = false) {
   const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
   if (accessToken) {
     opts.headers["Authorization"] = `Bearer ${accessToken}`;
+    opts.headers["X-User-Token"] = accessToken;
   }
   if (body) {
     opts.headers["Content-Type"] = "application/json";

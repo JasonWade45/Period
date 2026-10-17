@@ -2019,10 +2019,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 8px 12px;
+  padding: 8px 13px;
   border-radius: 999px;
-  background: var(--urgent);
-  color: #fff;
+  background: linear-gradient(135deg, #e11d48, #be123c);
+  color: #ffffff;
   text-decoration: none;
   font-size: 12px;
   font-weight: 700;

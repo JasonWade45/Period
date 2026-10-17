@@ -230,8 +230,14 @@ def test_stage5_partner_sharing_and_full_export(tmp_path) -> None:
     assert full_data["prediction"]["status"] == "ok"
 
 
-def test_stage6_security_and_privacy_docs_exist() -> None:
+def test_stage6_security_and_privacy_docs_exist(tmp_path) -> None:
     sec_doc = Path("docs/security_review.md")
     priv_doc = Path("store/privacy_policy_ar.md")
     assert sec_doc.is_file() and sec_doc.stat().st_size > 500
     assert priv_doc.is_file() and priv_doc.stat().st_size > 500
+
+    # اختبار الرد الترحيبي/التعريفي عند سؤال «انت مين ؟»
+    client = _make_client(tmp_path)
+    r_who = client.post("/v1/chat", json={"message": "انت مين ؟", "mode": "chat"})
+    assert r_who.status_code == 200
+    assert "CycleCare" in r_who.json()["answer"]

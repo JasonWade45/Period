@@ -216,13 +216,15 @@ def _write_audit(entry: AuditEntry) -> None:
 
 
 def _extract_bearer_claims(request: Request | None) -> TokenClaims | None:
-    """يقرأ ويتحقق من Authorization: Bearer <token> إن وُجد."""
+    """يقرأ ويتحقق من X-User-Token أو Authorization: Bearer <token> إن وُجد."""
     if request is None:
         return None
-    auth_header = (request.headers.get("authorization") or "").strip()
-    if not auth_header.lower().startswith("bearer "):
-        return None
-    token = auth_header[7:].strip()
+    token = (request.headers.get("x-user-token") or "").strip()
+    if not token:
+        auth_header = (request.headers.get("authorization") or "").strip()
+        if not auth_header.lower().startswith("bearer "):
+            return None
+        token = auth_header[7:].strip()
     if not token:
         return None
     try:
@@ -278,6 +280,82 @@ def _effective_context(req: ChatRequest) -> tuple[UserContext, list[dict], dict]
 
     merged = UserContext(**base)
     return merged, symptoms, stats
+
+
+_IDENTITY_AND_GREETING_PATTERNS_AR = (
+    "انت مين",
+    "انتي مين",
+    "من انت",
+    "من انتي",
+    "مين انت",
+    "مين انتي",
+    "مين معايا",
+    "مين معي",
+    "عرفيني بنفسك",
+    "عرفني بنفسك",
+    "بتعملي ايه",
+    "بتعمل ايه",
+    "تقدري تساعديني",
+    "تقدر تساعدني",
+    "ايه هو التطبيق",
+    "ما هو التطبيق",
+    "ما هي وظيفتك",
+    "مرحبا",
+    "اهلا",
+    "السلام عليكم",
+    "صباح الخير",
+    "مساء الخير",
+    "ازيك",
+    "عامله ايه",
+    "كيف حالك",
+)
+
+_IDENTITY_AND_GREETING_PATTERNS_EN = (
+    "who are you",
+    "what are you",
+    "what can you do",
+    "how can you help",
+    "hello",
+    "hi there",
+)
+
+
+def _check_greeting_or_identity_reply(message: str, locale: str) -> str | None:
+    """يردّ بتعريف ودود وآمن بالمساعد التثقيفي عندما تسأل المستخدمة «أنتِ مين؟» أو تلقي التحية."""
+    from .services.arabic import normalize_arabic
+    norm = normalize_arabic(message or "").strip()
+    raw_low = (message or "").strip().lower()
+    if not norm:
+        return None
+    if len(norm.split()) <= 7:
+        if any(pat in norm for pat in _IDENTITY_AND_GREETING_PATTERNS_AR) or raw_low in ("hi", "hey", "hello", "هاي", "هلا"):
+            if locale == "en":
+                return (
+                    "Hello! I am the safe educational assistant in **CycleCare (دورتي)** 🌸\n\n"
+                    "Here is how I can help you:\n"
+                    "• Explain menstrual cycle phases, ovulation, and common symptoms using verified medical sources (ACOG, WHO, NHS).\n"
+                    "• Summarize your logged cycles and symptoms and suggest questions for your doctor.\n"
+                    "• I provide **educational information only** — never a medical diagnosis, prescription, or medication dosage.\n\n"
+                    "Try asking me: *\"What is a normal cycle length?\"* or *\"Why can a period be late?\"*"
+                )
+            return (
+                "أهلاً بكِ! أنا **المساعد التثقيفي الآمن في منصّة CycleCare (دورتي)** 🌸\n\n"
+                "مهمّتي مساعدتكِ في:\n"
+                "• شرح مراحل الدورة الشهرية والإباضة والأعراض الشائعة بلغة عربية واضحة ومبسّطة.\n"
+                "• قراءة أنماط دورتكِ وأعراضكِ المسجّلة وتجهيز ملخص وأسئلة مقترحة لزيارة الطبيبة.\n"
+                "• الإجابة بالاعتماد على مراجع طبية معتمدة فقط (مثل ACOG وWHO وNHS) — **دون تقديم تشخيص طبي أو وصف أدوية أو جرعات**.\n\n"
+                "يمكنكِ سؤالي مثلاً: «إيه طول الدورة الطبيعية؟» أو «ليه الدورة بتتأخر؟» أو «إمتى ألم الدورة يستدعي طبيبة؟»."
+            )
+        if any(pat in raw_low for pat in _IDENTITY_AND_GREETING_PATTERNS_EN):
+            return (
+                "Hello! I am the safe educational assistant in **CycleCare (دورتي)** 🌸\n\n"
+                "Here is how I can help you:\n"
+                "• Explain menstrual cycle phases, ovulation, and common symptoms using verified medical sources (ACOG, WHO, NHS).\n"
+                "• Summarize your logged cycles and symptoms and suggest questions for your doctor.\n"
+                "• I provide **educational information only** — never a medical diagnosis, prescription, or medication dosage.\n\n"
+                "Try asking me: *\"What is a normal cycle length?\"* or *\"Why can a period be late?\"*"
+            )
+    return None
 
 
 def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
@@ -344,6 +422,40 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
         summary_q = get_translator().t("retrieval.summary_query", resolve_locale(req.language_hint))
         sources = _rag.retrieve(summary_q, settings.rag_top_k)
     allowed_ids = {c.id for c in sources}
+
+    # 3أ) لو كانت الرسالة تحية أو سؤال تعريفي («انت مين؟» / «مرحبا» / «بتعملي ايه؟»)
+    if not sources and req.mode == "chat":
+        from .i18n import resolve_locale
+        locale = resolve_locale(req.language_hint)
+        intro_reply = _check_greeting_or_identity_reply(req.message, locale)
+        if intro_reply is not None:
+            rule_codes = [f.rule_code for f in findings]
+            response = ChatResponse(
+                answer=intro_reply,
+                sources_used=[],
+                needs_doctor=max_severity(findings).at_least(Severity.MEDICAL_REVIEW),
+                emergency=False,
+                crisis=False,
+                missing_info=[],
+                prompt_version=settings.prompt_version,
+                rule_codes=rule_codes,
+            )
+            _write_audit(AuditEntry(
+                user_id=key_fingerprint(req.user_key or ""),
+                mode=req.mode,
+                prompt_version=settings.prompt_version,
+                findings=findings,
+                sources_ids=[],
+                used_model=False,
+                emergency=False,
+                crisis=False,
+                needs_doctor=bool(response.needs_doctor),
+                llm_error="",
+                latency_ms=int((time.monotonic() - started) * 1000),
+                request_excerpt="",
+                response=json.loads(response.model_dump_json()),
+            ))
+            return response
 
     # 3ب) لا مصدر معتمد ⇒ لا استدعاء للموديل. القاعدة نفسها في /api/v1/ai: بلا
     #     مصدر لا إجابة من معرفة عامة، بل نص صريح «لا أملك مصدرًا موثوقًا».

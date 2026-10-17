@@ -249,6 +249,9 @@ def _smart_preview_content(mode: str, system: str) -> str:
             txt = s.get("text", "")
             parts.append(f"• {sec}:\n{txt}" if sec else txt)
         src_name = top_sources[0].get("source_name", "")
+        derived = top_sources[0].get("derived_from") or []
+        if derived and isinstance(derived, list):
+            src_name = " · ".join(str(d) for d in derived[:2])
         footer = f"\n\nالمصدر: {src_name} (معلومة تثقيفية عامة وليست تشخيصًا)." if src_name else ""
         answer_text = "\n\n".join(parts) + footer
         return json.dumps({
