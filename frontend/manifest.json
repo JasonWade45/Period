@@ -1,0 +1,19 @@
+{
+  "name": "CycleCare — رفيقتكِ لتتبّع الدورة والتثقيف الصحي",
+  "short_name": "CycleCare",
+  "description": "تتبّع الدورة الشهرية، تسجيل يومي مهيكل في أقل من 10 ثوانٍ، ورؤى محلية تعمل بدون إنترنت.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff8fb",
+  "theme_color": "#e0507a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='28' fill='%23e0507a'/%3E%3Ctext x='64' y='86' font-size='72' text-anchor='middle' fill='%23ffffff' font-family='sans-serif'%3EC%3C/text%3E%3C/svg%3E",
+      "sizes": "128x128",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

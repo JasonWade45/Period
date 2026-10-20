@@ -147,6 +147,59 @@ def symptoms_to_csv(rows: Iterable[dict[str, Any]], ctx: ExportContext) -> bytes
     return ("\ufeff" + buffer.getvalue()).encode("utf-8")
 
 
+def daily_logs_to_csv(rows: Iterable[dict[str, Any]], ctx: ExportContext) -> bytes:
+    """تصدير السجل اليومي الكامل بترميز UTF-8 مع BOM."""
+    columns = [
+        "log_date", "bleeding_level", "pain_score", "pain_blocks_life", "mood", "energy",
+        "pad_count", "soak_hourly", "clots", "dizzy", "bleeding_color",
+        "discharge", "intermenstrual", "post_intercourse_bleeding",
+        "intercourse", "ovulation_test", "pregnancy_test", "bbt",
+        "sleep_hours", "water_ml", "exercise",
+        "stress", "medications",
+        "symptoms", "answered", "skipped", "note",
+    ]
+    buffer = io.StringIO(newline="")
+    writer = csv.writer(buffer)
+    writer.writerow(columns)
+    for row in rows:
+        raw_syms = row.get("symptoms") or []
+        sym_codes = [
+            (s.get("symptom_id") or s.get("symptom") or "") if isinstance(s, dict) else str(s)
+            for s in raw_syms
+        ]
+        writer.writerow([
+            format_date(row["log_date"], ctx.locale, ctx.digits_style, timezone_name=ctx.timezone)
+            if row.get("log_date") else "",
+            str(row.get("bleeding_level") or row.get("flow") or ""),
+            _maybe_number(row.get("pain_score"), ctx),
+            str(row.get("pain_blocks_life") if row.get("pain_blocks_life") is not None else ""),
+            str(row.get("mood") or ""),
+            _maybe_number(row.get("energy"), ctx),
+            _maybe_number(row.get("pad_count"), ctx),
+            str(row.get("soak_hourly") if row.get("soak_hourly") is not None else ""),
+            str(row.get("clots") or ""),
+            str(row.get("dizzy") if row.get("dizzy") is not None else ""),
+            str(row.get("bleeding_color") or ""),
+            str(row.get("discharge") or ""),
+            str(row.get("intermenstrual") if row.get("intermenstrual") is not None else ""),
+            str(row.get("post_intercourse_bleeding") if row.get("post_intercourse_bleeding") is not None else ""),
+            str(row.get("intercourse") if row.get("intercourse") is not None else ""),
+            str(row.get("ovulation_test") or ""),
+            str(row.get("pregnancy_test") or ""),
+            str(row.get("bbt") if row.get("bbt") is not None else ""),
+            str(row.get("sleep_hours") if row.get("sleep_hours") is not None else ""),
+            _maybe_number(row.get("water_ml"), ctx),
+            str(row.get("exercise") or ""),
+            _maybe_number(row.get("stress"), ctx),
+            str(row.get("medications") or ""),
+            ";".join(c for c in sym_codes if c),
+            ";".join(row.get("answered") or []),
+            ";".join(row.get("skipped") or []),
+            str(row.get("note") or ""),
+        ])
+    return ("\ufeff" + buffer.getvalue()).encode("utf-8")
+
+
 def _maybe_number(value: Any, ctx: ExportContext) -> str:
     if value in (None, ""):
         return ""
@@ -248,6 +301,108 @@ def report_sections_from_cycles(cycles: Sequence[dict[str, Any]],
         PdfSection(heading=t.t("pdf.disclaimer_heading", loc),
                    body=t.t("app.not_a_diagnosis", loc)),
     ]
+
+
+def build_doctor_report_sections(
+    cycles: Sequence[dict[str, Any]],
+    symptoms: Sequence[dict[str, Any]],
+    findings: Sequence[Any],
+    ctx: ExportContext,
+    daily_logs: Sequence[dict[str, Any]] | None = None,
+) -> list[PdfSection]:
+    """تقرير الطبيبة الشامل (البند 3.8):
+
+    الصفحة الأولى تبدأ بملخص تنفيذي سريع تقرؤه الطبيبة في 30 ثانية، يليه:
+    1) الدورات المسجّلة ونطاق التوقع القادم.
+    2) ملخص السجل اليومي المهيكل (غزارة النزيف، الألم الوظيفي، الطاقة والنوم).
+    3) الأعراض والشدة المسجّلة.
+    4) الأنماط المرصودة (بصياغة غير تشخيصية مع الأرقام).
+    5) الأسئلة المقترحة للطبيبة وإخلاء المسؤولية.
+    """
+    from .prediction import predict_next_cycle_window
+
+    t = get_translator()
+    loc = ctx.locale
+    sections: list[PdfSection] = list(report_sections_from_cycles(cycles, ctx))
+
+    # نطاق التوقع القادم (إن توفرت 3 دورات فأكثر)
+    pred = predict_next_cycle_window([dict(c) for c in cycles])
+    if pred.status == "ok" and pred.window_start and pred.window_end:
+        w_start = format_date(pred.window_start, loc, ctx.digits_style, timezone_name=ctx.timezone)
+        w_end = format_date(pred.window_end, loc, ctx.digits_style, timezone_name=ctx.timezone)
+        avg_str = format_number(pred.basis.weighted_avg_days or 28, ctx.digits_style, group=False)
+        sections.insert(
+            1,
+            PdfSection(
+                heading=t.t("ui.summary_sections.overview", loc),
+                body=f"{w_start} – {w_end} (± {avg_str})",
+            ),
+        )
+
+    # ملخص السجل اليومي المهيكل
+    if daily_logs:
+        heavy_count = sum(1 for l in daily_logs if str(l.get("bleeding_level") or "") == "heavy")
+        soak_count = sum(1 for l in daily_logs if l.get("soak_hourly") is True)
+        func_pain_count = sum(
+            1 for l in daily_logs
+            if (l.get("pain_score") is not None and int(l["pain_score"]) >= 4)
+            or l.get("pain_blocks_life") is True
+        )
+        dizzy_count = sum(1 for l in daily_logs if l.get("dizzy") is True)
+        log_bullets = [
+            f"إجمالي الأيام المسجّلة في السجل المهيكل: {format_number(len(daily_logs), ctx.digits_style, group=False)}",
+            f"أيام النزيف الغزير: {format_number(heavy_count, ctx.digits_style, group=False)}",
+            f"أيام غمر الفوطة كل ساعة: {format_number(soak_count, ctx.digits_style, group=False)}",
+            f"أيام الألم الشديد/المعطّل للأنشطة: {format_number(func_pain_count, ctx.digits_style, group=False)}",
+            f"أيام الدوخة المصاحبة للنزيف: {format_number(dizzy_count, ctx.digits_style, group=False)}",
+        ]
+        sections.append(
+            PdfSection(
+                heading=t.t("ui.today_screen.title", loc),
+                bullets=log_bullets,
+            )
+        )
+
+    # الأعراض والشدة المسجّلة
+    if symptoms:
+        sym_bullets: list[str] = []
+        for s in list(symptoms)[:15]:
+            s_date = format_date(s["log_date"], loc, ctx.digits_style, timezone_name=ctx.timezone)
+            sev = s.get("severity")
+            sev_txt = f" ({t.t('csv.severity', loc)}: {format_number(int(sev), ctx.digits_style, group=False)}/5)" if sev else ""
+            sym_bullets.append(f"{s_date}: {s.get('symptom', '')}{sev_txt}")
+        sections.append(
+            PdfSection(
+                heading=t.t("ui.tracker.tab_symptoms", loc),
+                bullets=sym_bullets,
+            )
+        )
+
+    # الأنماط والتنبيهات غير التشخيصية
+    alert_bullets: list[str] = []
+    for f in findings or []:
+        title = getattr(f, "title", "") or (f.get("title") if isinstance(f, dict) else "")
+        ev = getattr(f, "evidence", []) or (f.get("evidence", []) if isinstance(f, dict) else [])
+        if title:
+            ev_str = f" [{', '.join(str(x) for x in ev[:3])}]" if ev else ""
+            alert_bullets.append(f"{title}{ev_str}")
+    if alert_bullets:
+        sections.append(
+            PdfSection(
+                heading=t.t("ui.summary_sections.patterns", loc),
+                body=t.t("answer.does_not_mean", loc),
+                bullets=alert_bullets,
+            )
+        )
+
+    # الأسئلة المقترحة للطبيبة
+    sections.append(
+        PdfSection(
+            heading=t.t("ui.summary_sections.questions_for_doctor", loc),
+            bullets=[t.t("answer.ask_doctor_default", loc)],
+        )
+    )
+    return sections
 
 
 def _esc(text: str) -> str:

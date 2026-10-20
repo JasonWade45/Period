@@ -23,8 +23,8 @@ ARABIC_INDIC = "arabic_indic"
 _ARABIC_INDIC_DIGITS = str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩")
 # فاصلة الآلاف العربية هي U+066C في الأرقام العربية-الهندية، والفاصلة العادية للغربية.
 _ARABIC_THOUSANDS = "\u066c"
-WEEKDAY_ORDER: tuple[str, ...] = ("monday", "tuesday", "wednesday", "thursday",
-                                  "friday", "saturday", "sunday")
+WEEKDAY_ORDER: tuple[str, ...] = ("saturday", "sunday", "monday", "tuesday",
+                                  "wednesday", "thursday", "friday")
 
 
 def to_digits(value: Any, digits_style: str | None = None) -> str:
@@ -68,13 +68,13 @@ def format_date(value: date | datetime | str, locale: str | None = None,
     if not isinstance(months, list) or not isinstance(weekdays, list):
         raise TypeError("أسماء الشهور/الأيام يجب أن تكون قوائم في ملف المورد")
 
-    # ترتيب `date.weekday()` هو ISO (0 = الاثنين) وهو ترتيب ملف المورد؛
-    # دوران القائمة لأجل `WEEK_START` خاص بشبكة التقويم في الواجهة لا بتاريخ واحد.
+    # قائمة dates.weekdays في ملف المورد تبدأ بالسبت (0 = السبت … 6 = الجمعة)،
+    # بينما `day.weekday()` في بايثون يتبع ISO (0 = الاثنين … 5 = السبت، 6 = الأحد).
     payload = {
         "day": format_number(day.day, digits_style, group=False),
         "month": months[day.month - 1],
         "year": format_number(day.year, digits_style, group=False),
-        "weekday": weekdays[day.weekday()],
+        "weekday": weekdays[(day.weekday() + 2) % 7],
     }
     key = "dates.long_with_weekday" if with_weekday else "dates.long"
     return t.t(key, loc, **payload)
@@ -83,19 +83,18 @@ def format_date(value: date | datetime | str, locale: str | None = None,
 def _weekday_names(weekdays: list[str], week_start: str | None = None) -> list[str]:
     """يرتّب أسماء الأيام كما تُعرض حسب `WEEK_START` (السبت افتراضيًا).
 
-    ملف المورد يرتّبها من الاثنين (ترتيب ISO) لأنه ترتيب `date.weekday()`؛
-    وترتيب *العرض* يبدأ من `WEEK_START`، وهي مسألة إعداد لا مسألة لغة.
+    ملف المورد يرتّبها بدءًا من السبت (0 = السبت)، وعند اختيار بداية أسبوع
+    أخرى (مثل الاثنين أو الأحد) ندير القائمة لتبدأ من اليوم المطلوب.
     """
     start = _week_start_index(week_start)
     return [weekdays[(start + i) % 7] for i in range(7)]
 
 
 def _week_start_index(week_start: str | None) -> int:
-    if not week_start:
-        return settings.week_start_index
-    names = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
-             "friday": 4, "saturday": 5, "sunday": 6}
-    return names.get(week_start.strip().lower(), settings.week_start_index)
+    target = (week_start or settings.week_start).strip().lower()
+    names = {"saturday": 0, "sunday": 1, "monday": 2, "tuesday": 3,
+             "wednesday": 4, "thursday": 5, "friday": 6}
+    return names.get(target, 0)
 
 
 def weekday_labels(locale: str | None = None, week_start: str | None = None) -> list[str]:

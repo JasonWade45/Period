@@ -133,6 +133,11 @@ class UserContext(BaseModel):
         return self.model_dump_json(exclude_none=True)
 
 
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
     user_context: UserContext = Field(default_factory=UserContext)
@@ -142,6 +147,19 @@ class ChatRequest(BaseModel):
     user_key: Optional[str] = None
     # بلد المستخدمة: يحدّد رقم الطوارئ من جدول مُوثّق
     country_code: Optional[str] = None
+    # ذاكرة المحادثة متعددة الأدوار (آخر 6 رسائل منزوعة الهوية)
+    history: list[ChatTurn] = Field(default_factory=list)
+
+
+class EmergencyPayload(BaseModel):
+    """بيانات الطوارئ للواجهة: الرقم وحالته التحققية، بلا كلام طويل."""
+
+    kind: str = "medical"                   # medical | crisis
+    number: str = ""
+    number_verified: bool = False
+    country_code: Optional[str] = None
+    crisis_line: str = ""
+    instruction: str = ""                   # سطر واحد موجّه (نص المورد)
 
 
 class ChatResponse(BaseModel):
@@ -153,6 +171,7 @@ class ChatResponse(BaseModel):
     missing_info: list[str] = Field(default_factory=list)
     prompt_version: str = ""
     rule_codes: list[str] = Field(default_factory=list)
+    emergency_payload: Optional[EmergencyPayload] = None
 
 
 class SummaryResponse(BaseModel):
@@ -176,6 +195,8 @@ class CycleOut(BaseModel):
     id: int
     start_date: str
     length_days: Optional[int] = None
+    bleeding_days: Optional[int] = None
+    derived_from_logs: bool = False
 
 
 class SymptomIn(BaseModel):
@@ -197,6 +218,7 @@ class InsightsResponse(BaseModel):
     """نتائج محرك القواعد بلا موديل — تعمل حتى بلا إنترنت أو مفتاح."""
 
     findings: list[Finding] = Field(default_factory=list)
+    shadow_findings: list[Finding] = Field(default_factory=list)
     glossary: dict[str, str] = Field(default_factory=dict)
     cycles_recorded: int = 0
     avg_cycle_days: Optional[int] = None
@@ -242,17 +264,6 @@ class AiChatRequest(BaseModel):
     timezone: Optional[str] = None
 
 
-class EmergencyPayload(BaseModel):
-    """بيانات الطوارئ للواجهة: الرقم وحالته التحققية، بلا كلام طويل."""
-
-    kind: str = "medical"                   # medical | crisis
-    number: str = ""
-    number_verified: bool = False
-    country_code: Optional[str] = None
-    crisis_line: str = ""
-    instruction: str = ""                   # سطر واحد موجّه (نص المورد)
-
-
 class RetrievalMeta(BaseModel):
     """ما حدث في الاسترجاع — للتشخيص وللاتساق في الواجهة والتدقيق."""
 
@@ -293,3 +304,121 @@ class AiSummaryResponse(BaseModel):
     rule_codes: list[str] = Field(default_factory=list)
     decision: str = ""
     retrieval: RetrievalMeta = Field(default_factory=RetrievalMeta)
+
+
+# ------------------------------------------- حسابات المستخدمات والملف الشخصي (Stage 1)
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    display_name: Optional[str] = None
+    migrate_user_key: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+    migrate_user_key: Optional[str] = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class PinSecurityRequest(BaseModel):
+    pin: Optional[str] = None
+    clear_pin: bool = False
+    disguise_mode: Optional[bool] = None
+
+
+class VerifyPinRequest(BaseModel):
+    pin: str
+
+
+class ProfilePayload(BaseModel):
+    goal: Optional[str] = None
+    age: Optional[int] = None
+    age_band: Optional[str] = None
+    menarche_age: Optional[int] = None
+    last_period_start: Optional[str] = None
+    currently_bleeding: Optional[bool] = None
+    cycle_len_typical: Optional[str] = None
+    cycle_len_variation: Optional[str] = None
+    bleeding_len_typical: Optional[int] = None
+    country_code: Optional[str] = None
+    pregnancy_status: Optional[str] = None
+    contraception: Optional[str] = None
+    conditions: Optional[list[ConditionStatus]] = None
+    medications: Optional[list[str]] = None
+    meds_affecting_bleeding: Optional[list[str]] = None
+    family_bleeding: Optional[str] = None
+    typical_cycle_days: Optional[int] = None
+    typical_bleeding_days: Optional[int] = None
+    show_sensitive_questions: Optional[bool] = None
+    enable_lifestyle_questions: Optional[bool] = None
+    answered: Optional[list[str]] = None
+    skipped: Optional[list[str]] = None
+    onboarding_completed: Optional[bool] = None
+
+
+class ConsentUpdateRequest(BaseModel):
+    consent_type: str
+    granted: bool
+
+
+class DailyLogPayload(BaseModel):
+    log_date: str
+    log_uuid: Optional[str] = None
+    flow: Optional[str] = None
+    bleeding_level: Optional[str] = None
+    pain_score: Optional[int] = None
+    pain_blocks_life: Optional[bool] = None
+    mood: Optional[str] = None
+    mood_tags: Optional[list[str]] = None
+    energy: Optional[int] = None
+    pad_count: Optional[int] = None
+    soak_hourly: Optional[bool] = None
+    clots: Optional[str] = None
+    dizzy: Optional[bool] = None
+    bleeding_color: Optional[str] = None
+    discharge: Optional[str] = None
+    intermenstrual: Optional[bool] = None
+    post_intercourse_bleeding: Optional[bool] = None
+    intercourse: Optional[bool] = None
+    contraception_used: Optional[str] = None
+    ovulation_test: Optional[str] = None
+    pregnancy_test: Optional[str] = None
+    bbt: Optional[float] = None
+    sleep_hours: Optional[float] = None
+    water_cups: Optional[int] = None
+    water_ml: Optional[int] = None
+    exercise: Optional[str] = None
+    stress: Optional[int] = None
+    medications: Optional[str] = None
+    note: Optional[str] = None
+    flags: Optional[list[str]] = None
+    answered: Optional[list[str]] = None
+    skipped: Optional[list[str]] = None
+    field_timestamps: Optional[dict[str, str]] = None
+    symptoms: Optional[list[Any]] = None
+    client_id: Optional[str] = None
+    source: Optional[str] = None
+    updated_at: Optional[str] = None
+    today_local: Optional[str] = None
+
+
+class SafetyCheckRequest(BaseModel):
+    log_date: str
+    flags: list[str] = Field(default_factory=list)
+    country_code: Optional[str] = None
+    language_hint: Optional[str] = None
+
+
+class PredictionCorrectionRequest(BaseModel):
+    actual_start_date: str
+    length_days: Optional[int] = None
+
+
+class PartnerShareCreateRequest(BaseModel):
+    partner_label: str = ""
+    scope: str = "next_window_only"

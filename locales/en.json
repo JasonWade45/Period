@@ -24,8 +24,8 @@
   "answer": {
     "no_reliable_source": "I do not yet have an approved, reliable source to answer this question, and I will not answer from unverified general knowledge.\nIf something feels alarming, seeing a doctor is the right next step.",
     "fallback": "Sorry, a safe answer could not be generated right now. Please try again shortly; if something feels alarming, seeing a doctor is the right next step.",
-    "not_configured": "The assistant is unavailable right now, so I cannot answer this question. If something feels alarming, seeing a doctor is the right next step.",
     "not_verified": "The assistant's answer could not be verified",
+    "not_configured": "The assistant is unavailable right now, so I cannot answer this question. If something feels alarming, seeing a doctor is the right next step.",
     "does_not_mean": "This pattern does not identify a medical condition.",
     "ask_doctor_default": "What is the doctor's assessment of my recorded cycles?"
   },
@@ -87,13 +87,13 @@
       "December"
     ],
     "weekdays": [
+      "Saturday",
+      "Sunday",
       "Monday",
       "Tuesday",
       "Wednesday",
       "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday"
+      "Friday"
     ],
     "long": "{day} {month} {year}",
     "long_with_weekday": "{weekday}, {day} {month} {year}",
@@ -146,14 +146,24 @@
     "mode_chat": "Chat",
     "mode_summary": "Summary",
     "language": "Language",
+    "theme_toggle": "Toggle theme",
+    "new_chat": "New chat",
+    "tracker_title": "My Cycles & Symptoms",
+    "settings_title": "My Profile (Cycle Context)",
     "send": "Send",
     "composer_hint": "Enter to send · Shift+Enter for a new line",
+    "typing_label": "Preparing a safe answer…",
+    "copy_reply": "Copy",
+    "copied_reply": "Copied",
     "placeholders": {
       "chat": "Type your question…",
       "summary": "Add a note for the summary, or leave it empty…"
     },
+    "welcome_badge": "Private & Safe Educational Space",
     "welcome_title": "Welcome 👋",
     "welcome_body": "Record your cycles and symptoms in 📖, and ask anything about your cycle.",
+    "quick_action_tracker": "Log cycle or symptom",
+    "quick_action_insights": "View medical insights",
     "suggestions": [
       "What's the difference between a regular and an irregular cycle?",
       "What are premenstrual symptoms?",
@@ -172,6 +182,638 @@
     "server_error": "Could not reach the server",
     "overlay_medical": "Urgent medical care",
     "overlay_crisis": "Reasons to get help now",
-    "needs_doctor": "Needs medical review"
+    "overlay_ack": "Got it",
+    "needs_doctor": "Needs medical review",
+    "summary_sections": {
+      "overview": "Overview",
+      "what_changed": "What changed",
+      "patterns": "Observed patterns",
+      "medical_alerts": "Alerts",
+      "what_this_does_not_mean": "What this does not mean",
+      "questions_for_doctor": "Questions for your doctor"
+    },
+    "tracker": {
+      "tab_cycles": "Cycles",
+      "tab_symptoms": "Symptoms",
+      "tab_insights": "Insights",
+      "kpi_cycles": "Logged Cycles",
+      "kpi_avg": "Average Length",
+      "kpi_last": "Last Period Start",
+      "kpi_none": "—",
+      "ring_day_label": "Days since last start",
+      "ring_empty_label": "Log your first cycle",
+      "chart_title": "Recent Cycle Lengths (days)",
+      "export_csv_btn": "Export Log (CSV)",
+      "export_pdf_btn": "Medical Report (PDF)",
+      "start_date_label": "First day of bleeding",
+      "bleeding_length_label": "Bleeding length (days) — optional",
+      "bleeding_length_placeholder": "e.g. 5",
+      "cycle_auto_hint": "Cycle length is automatically calculated from the gap between start dates.",
+      "add_cycle_btn": "Add cycle",
+      "recorded_heading": "Recorded",
+      "empty_records": "No records yet.",
+      "bleeding_days_suffix": "bleeding days",
+      "delete_btn": "Delete",
+      "symptom_date_label": "Date",
+      "symptom_name_label": "Symptom",
+      "symptom_name_placeholder": "e.g. cramps, headache, nausea",
+      "quick_symptoms": [
+        "Cramps",
+        "Period pain",
+        "Headache",
+        "Fatigue",
+        "Bloating",
+        "Mood changes",
+        "Nausea",
+        "Lower back pain",
+        "Acne",
+        "Cravings",
+        "Sleep changes",
+        "Low energy",
+        "Discharge"
+      ],
+      "severity_label": "Severity from 1 to 5 (your estimate)",
+      "severity_placeholder": "Optional",
+      "severity_levels": [
+        "1 Very mild",
+        "2 Mild",
+        "3 Moderate",
+        "4 Strong",
+        "5 Very severe"
+      ],
+      "note_label": "Note — optional",
+      "note_placeholder": "e.g. one day before period",
+      "add_symptom_btn": "Add symptom",
+      "copy_yesterday_btn": "Today is like yesterday 📋",
+      "copied_yesterday": "Yesterday's log and symptoms copied to today.",
+      "undo_btn": "Undo ↩",
+      "undo_restored": "Record restored successfully.",
+      "prediction_heading": "Next Predicted Window (Estimated Range)",
+      "prediction_insufficient": "Insufficient data for prediction — log at least 3 cycles to calculate your next range.",
+      "prediction_window_label": "Next cycle expected between",
+      "prediction_basis_label": "Basis:",
+      "prediction_confidence_high": "Confidence: High",
+      "prediction_confidence_medium": "Confidence: Medium",
+      "prediction_confidence_low": "Confidence: Low",
+      "prediction_not_accurate_btn": "Not accurate? Correct actual start",
+      "prediction_disclaimer": "This is a calendar estimate and must not be used for contraception or confirming ovulation.",
+      "export_json_btn": "Full Backup (JSON)",
+      "log_heading": "Log",
+      "severity_tag": "Severity",
+      "insights_intro": "Local analysis based only on your logged data; works offline. Not a diagnosis and does not replace a doctor.",
+      "insights_loading": "Analysing…",
+      "insights_no_cycles": "No cycles recorded yet; log at least one cycle to start analysis.",
+      "insights_doctor_alert": "Your logged data has findings worth discussing with a doctor. This is not a diagnosis.",
+      "insights_evidence_prefix": "Numbers:",
+      "insights_empty": "No findings yet.",
+      "privacy_note": "Cycle and symptom logs are stored on the app server under your device key, while personal profile details stay in your browser. You can erase everything via 'Delete all my data'.",
+      "delete_all_btn": "Delete all my data"
+    },
+    "settings": {
+      "goal_label": "Goal / Current Life Mode",
+      "goal_track": "Cycle tracking",
+      "goal_ttc": "Trying to conceive",
+      "goal_avoid": "Avoiding pregnancy (educational)",
+      "goal_pregnant": "Pregnant",
+      "goal_postpartum": "Postpartum",
+      "goal_perimenopause": "Perimenopause",
+      "why_we_ask_title": "Why do we ask for this information?",
+      "why_we_ask_body": "Every field is optional, skippable, and editable anytime. Country sets your local emergency helpline, while life mode and diagnosed conditions tailor safety alerts with zero ad tracking.",
+      "age_label": "Age",
+      "age_placeholder": "Optional",
+      "country_label": "Country (for local helpline number)",
+      "pregnancy_label": "Pregnancy status (if known)",
+      "pregnancy_none": "Not specified",
+      "pregnancy_unsure": "Possible pregnancy",
+      "pregnancy_confirmed": "Confirmed pregnancy",
+      "pregnancy_no": "No",
+      "contraception_label": "Contraception method",
+      "contraception_placeholder": "Optional",
+      "conditions_label": "Diagnosed conditions",
+      "conditions_placeholder": "One per line: Condition name | diagnosed or unsure",
+      "default_condition_status": "diagnosed",
+      "save_btn": "Save",
+      "clear_btn": "Clear",
+      "privacy_note": "Personal profile details stay in your browser; cycles and symptoms are stored on the server under your device key."
+    },
+    "feedback": {
+      "select_cycle_date": "Please pick the first day of bleeding.",
+      "select_symptom_date": "Please pick a date.",
+      "enter_symptom_name": "Please enter a symptom name.",
+      "cycle_added": "Cycle added successfully.",
+      "cycle_deleted": "Cycle deleted.",
+      "symptom_added": "Symptom logged successfully.",
+      "symptom_deleted": "Symptom entry deleted.",
+      "settings_saved": "Personal profile saved.",
+      "settings_cleared": "Personal profile cleared.",
+      "all_deleted": "All your recorded data has been deleted.",
+      "confirm_delete_cycle": "Delete this recorded cycle?",
+      "confirm_delete_symptom": "Delete this symptom entry?",
+      "confirm_delete_all": "All your recorded cycles and symptoms will be permanently deleted. Are you sure?",
+      "confirm_yes": "Yes, delete",
+      "confirm_cancel": "Cancel",
+      "csv_exported": "Log exported successfully.",
+      "load_error": "Could not load data",
+      "action_error": "Could not complete action"
+    },
+    "landing": {
+      "nav_home": "Home",
+      "nav_features": "Features",
+      "nav_phases": "Cycle Phases",
+      "nav_safety": "Safety Engine",
+      "nav_faq": "FAQ",
+      "nav_app": "Assistant & Tracker",
+      "toggle_view_landing": "Landing Page",
+      "toggle_view_app": "App Mode Only",
+      "hero_badge": "✦ Your Safe, Intelligent Menstrual Health Companion",
+      "hero_title": "Understand Your Cycle with Confidence, Privacy & Medical Safety",
+      "hero_subtitle": "Accurate cycle and symptom tracking, offline health insights, and a bilingual educational assistant grounded exclusively in approved medical sources with instant crisis protection.",
+      "cta_start_chat": "Start Chatting Now →",
+      "cta_open_tracker": "Log Your First Cycle 📖",
+      "cta_explore": "Explore Features ↓",
+      "stat_privacy_val": "100%",
+      "stat_privacy_label": "Privacy & Instant Erase",
+      "stat_layers_val": "6 Layers",
+      "stat_layers_label": "Deterministic Safety Gate",
+      "stat_countries_val": "23 Countries",
+      "stat_countries_label": "Verified Local Helplines",
+      "stat_edu_val": "0 Diagnosis",
+      "stat_edu_label": "Safe Education, No Prescriptions",
+      "preview_card_title": "Smart Cycle Indicator",
+      "preview_card_sub": "Day 14 · Estimated Ovulation Window",
+      "preview_average": "Average cycle: 28 days",
+      "preview_pill_1": "📊 Local insights working offline",
+      "preview_pill_2": "🛡️ Pre-model urgent care shield",
+      "preview_pill_3": "🔒 Device-isolated private records",
+      "features_badge": "Core Capabilities",
+      "features_title": "Everything You Need to Understand Your Body in One Place",
+      "features_subtitle": "CycleCare combines effortless daily tracking with rigorous medical safety and privacy standards.",
+      "f1_title": "Intelligent Cycle Tracking",
+      "f1_desc": "Log the first day of bleeding and duration; cycle length is automatically computed from real date gaps while filtering out entry errors.",
+      "f2_title": "Daily Symptom & Severity Journal",
+      "f2_desc": "Record daily symptoms and rate severity from 1 to 5 with one-tap chips to spot repeated severe patterns across 90 days.",
+      "f3_title": "Offline Medical Insights",
+      "f3_desc": "A deterministic rules engine analyses your logged records locally and explains every finding in plain language without internet access.",
+      "f4_title": "Source-Grounded Educational AI",
+      "f4_desc": "Educational answers strictly grounded in approved medical chunks, blocking any diagnosis, dosage advice, or false reassurance.",
+      "f5_title": "Instant Urgent-Care Shield",
+      "f5_desc": "A pre-model filter detects physical or mental-health warning signs immediately and displays your country's helpline with BiDi isolation.",
+      "f6_title": "PDF & Excel Report Export",
+      "f6_desc": "Download a shaped Arabic/English PDF report or UTF-8 BOM CSV spreadsheet in one click to share with your doctor.",
+      "phases_badge": "Interactive Guide",
+      "phases_title": "Explore the Four Phases of the Menstrual Cycle",
+      "phases_subtitle": "Select each phase to learn about the natural hormonal and physical changes across your cycle.",
+      "phase_1_name": "1. Menstrual Phase",
+      "phase_1_days": "Days 1 – 7 approx.",
+      "phase_1_desc": "Starts on the first day of actual bleeding as the uterine lining sheds. Typical bleeding duration varies and commonly lasts up to 7 days.",
+      "phase_2_name": "2. Follicular Phase",
+      "phase_2_days": "Days 1 – 13 approx.",
+      "phase_2_desc": "Runs from day one through ovulation; follicles mature and oestrogen rises gradually to rebuild the uterine lining.",
+      "phase_3_name": "3. Ovulation Phase",
+      "phase_3_days": "Mid-cycle approx.",
+      "phase_3_desc": "A mature egg is released around mid-cycle. Exact timing varies from cycle to cycle and cannot be guaranteed by calendar counting alone.",
+      "phase_4_name": "4. Luteal Phase",
+      "phase_4_days": "Post-ovulation until next period",
+      "phase_4_desc": "Progesterone rises after ovulation; premenstrual symptoms may appear one to two weeks before bleeding and ease once the period starts.",
+      "safety_badge": "Safety Architecture",
+      "safety_title": "6 Layers of Deterministic Protection on Every Request",
+      "safety_subtitle": "CycleCare never relies on a language model alone; every request passes through deterministic safety gates before and after generation.",
+      "s1_title": "Real Record Merge",
+      "s1_desc": "Averages and cycle gaps are computed from actual SQLite dates rather than manual estimates.",
+      "s2_title": "Deterministic Rules Engine",
+      "s2_desc": "Pure Python rules classify patterns and severity levels with transparent numerical evidence.",
+      "s3_title": "Pre-Model Urgent Filter",
+      "s3_desc": "Physical and crisis red flags trigger immediate verified helpline instructions without calling the LLM.",
+      "s4_title": "Approved-Only RAG Retrieval",
+      "s4_desc": "Answers are restricted to approved medical chunks; unverified general knowledge is never used.",
+      "s5_title": "Medical & Linguistic Validator",
+      "s5_desc": "Blocks diagnostic attribution ('you have…'), medication dosing, and unapproved source citations.",
+      "s6_title": "Zero-PII Audit Trail",
+      "s6_desc": "Logs rule codes, prompt versions, and source IDs for clinical quality assurance without storing personal identity.",
+      "faq_badge": "Frequently Asked Questions",
+      "faq_title": "Everything You Want to Know About CycleCare",
+      "faq_q1": "Does the app diagnose medical conditions or prescribe treatments?",
+      "faq_a1": "No. CycleCare is strictly an educational and personal tracking tool; it never diagnoses conditions or prescribes medications, and does not replace a doctor.",
+      "faq_q2": "How is my data stored and can I delete it completely?",
+      "faq_a2": "Cycles and symptoms are stored under a random device key, while profile context stays in your browser. You can permanently erase all data anytime via 'Delete all my data'.",
+      "faq_q3": "Do cycle tracking and medical insights work offline?",
+      "faq_a3": "Yes. Logging cycles and symptoms, computing averages, generating medical insights, and exporting CSV/PDF reports work 100% locally without an external AI model.",
+      "faq_q4": "How can I use CycleCare to prepare for a doctor's visit?",
+      "faq_a4": "Switch to 'Summary' mode to generate a structured card of observed patterns and suggested questions for your doctor, or export a PDF/CSV report of your logs.",
+      "workspace_badge": "Live Interactive Studio",
+      "workspace_title": "Try the Smart Assistant & Log Your Cycle Now",
+      "workspace_subtitle": "Tap any quick suggestion chip below to ask a question, or open your cycle and symptom log via 📖.",
+      "footer_copy": "CycleCare AI — Safe Educational Menstrual Health Platform · All rights reserved"
+    },
+    "auth": {
+      "btn_guest": "Account / Sign In",
+      "panel_title": "My Account, Privacy & Security",
+      "tab_login": "Sign In",
+      "tab_register": "Create Account",
+      "username_label": "Username or Email",
+      "username_placeholder": "e.g. nour@example.com",
+      "display_name_label": "Preferred Name (optional)",
+      "display_name_placeholder": "e.g. Nour",
+      "password_label": "Password (at least 6 characters)",
+      "password_placeholder": "••••••••",
+      "migrate_label": "Automatically migrate my current device cycles & symptoms to this account",
+      "login_btn": "Sign In to My Account",
+      "register_btn": "Create Account & Save Data",
+      "guest_notice": "You are currently in anonymous local mode. Create an account or sign in to permanently save your cycles, symptoms, and profile.",
+      "active_badge": "Signed in · Permanent data sync active",
+      "logout_btn": "Sign Out",
+      "security_heading": "App Lock, Disguise Mode & Privacy",
+      "pin_label": "App Lock PIN (4 digits)",
+      "pin_placeholder": "e.g. 2580",
+      "save_pin_btn": "Enable PIN Lock",
+      "lock_now_btn": "Lock Screen Now 🔒",
+      "clear_pin_btn": "Remove PIN",
+      "disguise_label": "Enable Disguise Mode (rename app & icon to 'My Daily Notes 📝')",
+      "disguise_name": "My Daily Notes",
+      "consent_ai_label": "Explicit consent to share cycle context with the AI assistant (unchecking disables AI while keeping tracking active)",
+      "lock_title": "App Locked for Your Privacy",
+      "lock_subtitle": "Enter your 4-digit PIN to continue.",
+      "unlock_btn": "Unlock",
+      "login_success": "Signed in and restored your saved data.",
+      "register_success": "Account created and your data is now saved.",
+      "logout_success": "Signed out. Switched to local mode.",
+      "pin_saved": "Security and disguise settings updated.",
+      "pin_invalid": "Incorrect PIN code.",
+      "auth_error": "Please check your username and password (at least 6 characters)."
+    },
+    "tabs": {
+      "today": "Today",
+      "calendar": "Calendar",
+      "insights": "Insights",
+      "assistant": "Assistant",
+      "me": "Me",
+      "emergency_btn": "SOS"
+    },
+    "today_screen": {
+      "title": "Quick Daily Log (in under 10 seconds)",
+      "progress_label": "Logged {answered} of 5 core questions today",
+      "skip_btn": "Skip",
+      "skipped_badge": "Skipped (never counted as No)",
+      "more_details_toggle": "Add More Details (contextual)",
+      "bleeding_section_title": "Bleeding Day Details",
+      "non_bleeding_section_title": "Non-Bleeding Day Check-in",
+      "lifestyle_section_title": "Daily Lifestyle (optional)",
+      "safety_section_title": "Quick Daily Safety Check",
+      "qotd_badge": "Question of the Day",
+      "why_we_ask_btn": "Why do we ask?",
+      "save_today_btn": "Save Today's Log ✓",
+      "delete_today_btn": "Delete Today's Log",
+      "calendar_legend_bleeding": "Bleeding day",
+      "calendar_legend_spotting": "Spotting",
+      "calendar_legend_symptoms": "Logged symptoms",
+      "calendar_legend_unlogged": "Not logged",
+      "sensitive_toggle_label": "Show optional sensitive questions",
+      "lifestyle_toggle_label": "Show optional lifestyle questions",
+      "yes_btn": "Yes",
+      "no_btn": "No",
+      "unknown_btn": "Not sure",
+      "autosaved_badge": "Auto-saved ✓",
+      "offline_queued_badge": "Saved offline (will sync when online)",
+      "prev_cycle_comparison": "On the same day of your previous cycle: {summary}",
+      "onboarding_wizard_title": "Quick 3-Step Setup (optional)",
+      "onboarding_skip_all": "Skip all",
+      "onboarding_finish_btn": "Save & Start ✓",
+      "calendar_prev_month": "Previous month",
+      "calendar_next_month": "Next month",
+      "calendar_today_btn": "Today",
+      "calendar_legend_predicted": "Predicted window",
+      "library_rec_title": "Approved articles related to today's log",
+      "clinician_shadow_title": "Clinician Review Mode (Shadow Mode — Pending Review)",
+      "trend_chart_title": "Pain & Energy Trend Across Logged Days",
+      "clear_chat_btn": "Clear chat",
+      "reminder_toggle_label": "Enable lock-screen-safe daily reminder ('Your daily minute is ready 📝')",
+      "encrypted_note_badge": "Locally encrypted note with PIN 🔒"
+    }
+  },
+  "symptoms": {
+    "catalog": {
+      "cramps": "Cramps",
+      "lower_back_pain": "Lower back pain",
+      "pelvic_pain": "Pelvic pain",
+      "headache": "Headache",
+      "migraine": "Migraine",
+      "fatigue": "Fatigue",
+      "bloating": "Bloating",
+      "nausea": "Nausea",
+      "gi_changes": "Diarrhea or constipation",
+      "acne": "Acne",
+      "mood_swings": "Mood swings",
+      "anxiety": "Anxiety",
+      "sadness": "Sadness",
+      "breast_pain": "Breast tenderness",
+      "cravings": "Food cravings",
+      "insomnia": "Insomnia",
+      "hot_flashes": "Hot flashes or sweating",
+      "dyspareunia": "Pain during intercourse",
+      "dysuria": "Painful urination",
+      "fever": "High body temperature (fever)"
+    }
+  },
+  "questions": {
+    "ob": {
+      "goal": {
+        "label": "What is your primary goal right now?",
+        "why": "Helps tailor the calendar and daily questions to your current life stage.",
+        "options": {
+          "track": "Cycle tracking",
+          "ttc": "Trying to conceive",
+          "avoid_pregnancy": "Avoiding pregnancy (educational)",
+          "pregnant": "Currently pregnant",
+          "postpartum": "Postpartum",
+          "perimenopause": "Perimenopause"
+        }
+      },
+      "age_band": {
+        "label": "What is your age group?",
+        "why": "Typical cycle ranges differ between adolescents and adults.",
+        "options": {
+          "under_18": "Under 18",
+          "18_24": "18 to 24",
+          "25_34": "25 to 34",
+          "35_44": "35 to 44",
+          "45_plus": "45+"
+        }
+      },
+      "last_period_start": {
+        "label": "When did your last period start (first day of bleeding)?",
+        "why": "Used to calculate your current cycle day and estimate your next window.",
+        "options": {}
+      },
+      "menarche_age": {
+        "label": "At what age did you get your first period?",
+        "why": "Optional background context for your health summary.",
+        "options": {}
+      },
+      "currently_bleeding": {
+        "label": "Are you bleeding today?",
+        "why": "Shows relevant bleeding-day questions for today.",
+        "options": {}
+      },
+      "cycle_len_typical": {
+        "label": "Roughly how many days is your typical cycle? (or Not sure)",
+        "why": "Used as an initial baseline until 3 cycles are logged.",
+        "options": {}
+      },
+      "cycle_len_variation": {
+        "label": "By how many days does your cycle usually vary?",
+        "why": "Helps understand your typical cycle regularity.",
+        "options": {
+          "0_2": "0 to 2 days",
+          "3_7": "3 to 7 days",
+          "more_than_7": "More than 7 days",
+          "unknown": "Not sure"
+        }
+      },
+      "bleeding_len_typical": {
+        "label": "How many days does bleeding usually last?",
+        "why": "Reference baseline for your typical bleeding duration.",
+        "options": {}
+      },
+      "pregnancy_status": {
+        "label": "Is there a possibility of pregnancy right now?",
+        "why": "Updates safety alerts to immediately flag pregnancy-related warning signs.",
+        "options": {
+          "no": "No",
+          "possible": "Possible pregnancy",
+          "confirmed": "Confirmed pregnancy"
+        }
+      },
+      "contraception": {
+        "label": "Are you using a contraception method?",
+        "why": "Certain methods (like IUDs or pills) affect bleeding and spotting patterns.",
+        "options": {
+          "none": "None",
+          "pills": "Pills",
+          "hormonal_iud": "Hormonal IUD",
+          "copper_iud": "Copper IUD",
+          "injection": "Injection",
+          "condom": "Condom",
+          "other": "Other"
+        }
+      },
+      "conditions": {
+        "label": "Do you have any diagnosed or suspected conditions?",
+        "why": "Included as context in your doctor report without diagnosing anything.",
+        "options": {
+          "pcos": "PCOS",
+          "endometriosis": "Endometriosis",
+          "fibroids": "Uterine fibroids",
+          "thyroid": "Thyroid disorder",
+          "anemia": "Anemia",
+          "bleeding_disorder": "Bleeding or clotting disorder"
+        }
+      },
+      "meds_affecting_bleeding": {
+        "label": "Do you take regular medications that affect bleeding (blood thinners, hormones)?",
+        "why": "Certain medications affect flow volume and help contextualize your doctor report.",
+        "options": {
+          "blood_thinners": "Blood thinners",
+          "hormones": "Hormonal therapy",
+          "nsaid_regular": "Regular NSAIDs",
+          "other": "Other"
+        }
+      },
+      "family_bleeding": {
+        "label": "Is there a family history of heavy bleeding or blood disorders?",
+        "why": "Optional background context helpful for your doctor report.",
+        "options": {
+          "yes": "Yes",
+          "no": "No",
+          "unknown": "Not sure"
+        }
+      }
+    },
+    "d": {
+      "bleeding": {
+        "label": "Any bleeding today?",
+        "options": {
+          "none": "No",
+          "spotting": "Spotting",
+          "light": "Light",
+          "medium": "Medium",
+          "heavy": "Heavy"
+        }
+      },
+      "pain": {
+        "label": "Pain level today? (0 to 5)",
+        "blocks_life": "Does pain stop you from work, study, or daily life?",
+        "options": {
+          "0": "0 None",
+          "1": "1 Minimal",
+          "2": "2 Mild",
+          "3": "3 Moderate",
+          "4": "4 Strong",
+          "5": "5 Very severe"
+        }
+      },
+      "symptoms": {
+        "label": "Symptoms today? (Tap chips & set severity 1–5)"
+      },
+      "mood": {
+        "label": "How is your mood today?",
+        "options": {
+          "great": "😊 Great",
+          "good": "🙂 Good",
+          "neutral": "😐 Okay",
+          "low": "😔 Low",
+          "stressed": "😣 Stressed"
+        },
+        "tags": {
+          "anxiety": "Anxiety",
+          "sadness": "Sadness",
+          "irritability": "Irritability",
+          "calm": "Calm"
+        }
+      },
+      "energy": {
+        "label": "Energy level today? (1 to 5)",
+        "options": {
+          "1": "1 Very low",
+          "2": "2 Low",
+          "3": "3 Moderate",
+          "4": "4 Good",
+          "5": "5 High"
+        }
+      }
+    },
+    "b": {
+      "pad_count": {
+        "label": "How many pads or tampons did you change today?",
+        "options": {
+          "1": "1",
+          "2": "2",
+          "3": "3",
+          "4": "4",
+          "5": "5",
+          "6_plus": "6+"
+        }
+      },
+      "soak_hourly": {
+        "label": "Did you soak through a pad/tampon every hour for 2+ consecutive hours?"
+      },
+      "clots": {
+        "label": "Did you notice blood clots?",
+        "options": {
+          "none": "No",
+          "small": "Small",
+          "large": "Large (larger than a coin)"
+        }
+      },
+      "dizzy": {
+        "label": "Did you feel dizzy, lightheaded, or have palpitations with bleeding?"
+      },
+      "color": {
+        "label": "Bleeding color? (optional)",
+        "options": {
+          "bright_red": "Bright red",
+          "dark_red": "Dark red",
+          "brown": "Brown"
+        }
+      }
+    },
+    "n": {
+      "discharge": {
+        "label": "Discharge today?",
+        "options": {
+          "dry": "Dry",
+          "creamy": "Creamy",
+          "eggwhite": "Clear stretchy",
+          "heavy": "Heavy",
+          "unusual_odor": "Unusual odor"
+        }
+      },
+      "intermenstrual": {
+        "label": "Any bleeding or spotting between periods?"
+      },
+      "post_intercourse_bleeding": {
+        "label": "Any bleeding after intercourse? (optional)"
+      },
+      "intercourse": {
+        "label": "Intercourse today? (optional)"
+      },
+      "ovulation_test": {
+        "label": "Ovulation test result today?",
+        "options": {
+          "positive": "Positive",
+          "negative": "Negative",
+          "not_taken": "Not taken"
+        }
+      },
+      "pregnancy_test": {
+        "label": "Pregnancy test result today?",
+        "options": {
+          "positive": "Positive",
+          "negative": "Negative",
+          "not_taken": "Not taken"
+        }
+      },
+      "bbt": {
+        "label": "Basal body temperature (BBT)? (optional)"
+      }
+    },
+    "l": {
+      "sleep_hours": {
+        "label": "Hours of sleep?",
+        "options": {
+          "5": "5h or less",
+          "6": "6h",
+          "7": "7h",
+          "8": "8h",
+          "9": "9h+"
+        }
+      },
+      "water_ml": {
+        "label": "Water intake today (ml)?",
+        "options": {
+          "500": "500 ml",
+          "1000": "1000 ml",
+          "1500": "1500 ml",
+          "2000": "2000 ml",
+          "2500": "2500+ ml"
+        }
+      },
+      "exercise": {
+        "label": "Physical activity today?",
+        "options": {
+          "none": "None",
+          "walk": "Walking",
+          "light": "Light",
+          "moderate": "Moderate",
+          "intense": "Intense"
+        }
+      },
+      "stress": {
+        "label": "Stress level today? (1 to 5)",
+        "options": {
+          "1": "1 Calm",
+          "2": "2 Mild",
+          "3": "3 Moderate",
+          "4": "4 High",
+          "5": "5 Very high"
+        }
+      },
+      "medications": {
+        "label": "Medications or supplements taken today (from your list)?"
+      }
+    },
+    "s": {
+      "daily_safety": {
+        "label": "Are you experiencing any of these today?",
+        "none": "None of these — I am okay ✓"
+      },
+      "flags": {
+        "heavy_soak": "Heavy bleeding soaking a pad/tampon every hour",
+        "sudden_severe_pain": "Sudden, severe abdominal or pelvic pain",
+        "fainting_dizziness": "Fainting or severe dizziness",
+        "fever_pelvic_pain": "High fever with pelvic pain",
+        "pregnancy_bleeding_or_fetal": "Bleeding/severe pain with pregnancy, or reduced fetal movement",
+        "self_harm_thoughts": "Thoughts of self-harm or overwhelming distress"
+      }
+    }
   }
 }

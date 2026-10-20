@@ -42,7 +42,11 @@ def main() -> None:
                         help="عدد الطلبات الأولى التي تردّ نصًا غير JSON")
     args = parser.parse_args()
 
-    server = FakeGroq(port=args.port, scenarios=build_scenarios(args.fail_first, args.bad_json))
+    server = FakeGroq(
+        port=args.port,
+        scenarios=build_scenarios(args.fail_first, args.bad_json),
+        smart_preview=True,
+    )
     server.start()
     print(f"fake Groq listening on {server.base_url}")
     print("استخدمي: GROQ_API_KEY=dummy GROQ_BASE_URL=" + server.base_url)

@@ -40,8 +40,29 @@ def _normalize(text: str) -> str:
     return text.lower().strip()
 
 
+_COLLOQUIAL_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "بيريود": ("دورة", "الدورة", "حيض"),
+    "البيريود": ("دورة", "الدورة", "حيض"),
+    "مغص": ("ألم", "تقلصات", "الدورة"),
+    "وجع": ("ألم", "تقلصات", "الدورة"),
+    "بتتاخر": ("تأخر", "الدورة", "عدم", "انتظام"),
+    "بتتأخر": ("تأخر", "الدورة", "عدم", "انتظام"),
+    "اتاخرت": ("تأخر", "الدورة", "انقطاع"),
+    "اتأخرت": ("تأخر", "الدورة", "انقطاع"),
+    "متاخره": ("تأخر", "الدورة", "انقطاع"),
+    "متأخرة": ("تأخر", "الدورة", "انقطاع"),
+    "غايبه": ("انقطاع", "تأخر", "الدورة"),
+    "غايبة": ("انقطاع", "تأخر", "الدورة"),
+}
+
+
 def _tokens(text: str) -> set[str]:
-    return {t for t in _normalize(text).split() if len(t) > 1}
+    base = {t for t in _normalize(text).split() if len(t) > 1}
+    expanded = set(base)
+    for tok in base:
+        for syn in _COLLOQUIAL_SYNONYMS.get(tok, ()):
+            expanded.update(_normalize(syn).split())
+    return expanded
 
 
 def _valid_iso_date(value: str) -> bool:

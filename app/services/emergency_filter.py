@@ -34,6 +34,8 @@ MEDICAL_PATTERNS: list[str] = [
     "وجع شديد", "وجع قوي", "ضيق تنفس", "صعوبه تنفس", "صعوبه في التنفس",
     "الم في الصدر", "وجع صدر", "الم بالصدر", "الم الصدر",
     "حمل خارج الرحم", "خارج الرحم", "تسمم حمل", "مخاض", "تشنجات",
+    "حركه الجنين قلت", "قله حركه الجنين", "توقف حركه الجنين", "الجنين مش بيتحرك",
+    "مبحسش بحركه الجنين", "انخفاض حركه الجنين", "نزول ميه الراس",
     "ارتفاع حراره شديد", "حمى شديده", "حراره عاليه",
     "نزيف بعد انقطاع الطمث", "نزيف بعد سن الياس", "نزيف بعد الولاده",
     # عامية مصرية
@@ -51,6 +53,8 @@ MEDICAL_PATTERNS: list[str] = [
     "chest pain", "trouble breathing", "shortness of breath", "can't breathe",
     "cant breathe", "shoulder pain", "emergency", "unbearable pain",
     "bleeding heavily", "blood clots",
+    "reduced fetal movement", "decreased fetal movement", "no fetal movement",
+    "baby not moving", "baby stopped moving",
 ]
 
 # حمل + نزيف/دم = طارئ نسائي (احتمال حمل خارج الرحم أو إجهاض).

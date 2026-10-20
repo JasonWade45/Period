@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "دورتي — CycleCare",
+    "slug": "cyclecare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "extra": {
+      "supportsRTL": true,
+      "forcesRTL": true
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.cyclecare.mobile",
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "ar",
+        "NSFaceIDUsageDescription": "يُستخدم Face ID لقفل التطبيق وحماية خصوصية بياناتكِ الصحية على جهازكِ فقط."
+      }
+    },
+    "android": {
+      "package": "app.cyclecare.mobile",
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    }
+  }
+}
