@@ -1,0 +1,513 @@
+{
+  "version": "1.0",
+  "onboarding": [
+    {
+      "id": "ob.goal",
+      "i18n_key": "questions.ob.goal.label",
+      "why_key": "questions.ob.goal.why",
+      "answer_type": "single_choice",
+      "options": ["track", "ttc", "avoid_pregnancy", "pregnant", "postpartum", "perimenopause"],
+      "when": "onboarding_initial",
+      "initial_step": true,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["LIFE_MODE"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.age_band",
+      "i18n_key": "questions.ob.age_band.label",
+      "why_key": "questions.ob.age_band.why",
+      "answer_type": "single_choice",
+      "options": ["under_18", "18_24", "25_34", "35_44", "45_plus"],
+      "when": "onboarding_initial",
+      "initial_step": true,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["LONG_CYCLE", "SHORT_CYCLE", "IRREGULAR_CYCLE"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.last_period_start",
+      "i18n_key": "questions.ob.last_period_start.label",
+      "why_key": "questions.ob.last_period_start.why",
+      "answer_type": "date",
+      "when": "onboarding_initial",
+      "initial_step": true,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["MISSED_PERIOD", "LONG_CYCLE", "SHORT_CYCLE"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.menarche_age",
+      "i18n_key": "questions.ob.menarche_age.label",
+      "why_key": "questions.ob.menarche_age.why",
+      "answer_type": "number",
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.currently_bleeding",
+      "i18n_key": "questions.ob.currently_bleeding.label",
+      "why_key": "questions.ob.currently_bleeding.why",
+      "answer_type": "boolean",
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["TODAY_STATE"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.cycle_len_typical",
+      "i18n_key": "questions.ob.cycle_len_typical.label",
+      "why_key": "questions.ob.cycle_len_typical.why",
+      "answer_type": "number_or_unknown",
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["INITIAL_PREDICTION"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.cycle_len_variation",
+      "i18n_key": "questions.ob.cycle_len_variation.label",
+      "why_key": "questions.ob.cycle_len_variation.why",
+      "answer_type": "single_choice",
+      "options": ["0_2", "3_7", "more_than_7", "unknown"],
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["IRREGULAR_CYCLE"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.bleeding_len_typical",
+      "i18n_key": "questions.ob.bleeding_len_typical.label",
+      "why_key": "questions.ob.bleeding_len_typical.why",
+      "answer_type": "number",
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["PROLONGED_BLEEDING"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.pregnancy_status",
+      "i18n_key": "questions.ob.pregnancy_status.label",
+      "why_key": "questions.ob.pregnancy_status.why",
+      "answer_type": "single_choice",
+      "options": ["no", "possible", "confirmed"],
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": true,
+      "feeds_rules": ["PREGNANCY_WARNING", "MISSED_PERIOD"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.contraception",
+      "i18n_key": "questions.ob.contraception.label",
+      "why_key": "questions.ob.contraception.why",
+      "answer_type": "single_choice",
+      "options": ["none", "pills", "hormonal_iud", "copper_iud", "injection", "condom", "other"],
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["INTERMENSTRUAL_BLEEDING", "PROLONGED_BLEEDING"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.conditions",
+      "i18n_key": "questions.ob.conditions.label",
+      "why_key": "questions.ob.conditions.why",
+      "answer_type": "multi_choice_with_status",
+      "options": ["pcos", "endometriosis", "fibroids", "thyroid", "anemia", "bleeding_disorder"],
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.meds_affecting_bleeding",
+      "i18n_key": "questions.ob.meds_affecting_bleeding.label",
+      "why_key": "questions.ob.meds_affecting_bleeding.why",
+      "answer_type": "boolean_with_list",
+      "options": ["blood_thinners", "hormones", "nsaid_regular", "other"],
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["HEAVY_SOAKING", "PROLONGED_BLEEDING"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "ob.family_bleeding",
+      "i18n_key": "questions.ob.family_bleeding.label",
+      "why_key": "questions.ob.family_bleeding.why",
+      "answer_type": "single_choice",
+      "options": ["yes", "no", "unknown"],
+      "when": "question_of_the_day",
+      "initial_step": false,
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["ANEMIA_PATTERN"],
+      "clinician_status": "approved"
+    }
+  ],
+  "daily_core": [
+    {
+      "id": "d.bleeding",
+      "field": "bleeding_level",
+      "i18n_key": "questions.d.bleeding.label",
+      "answer_type": "single_chip",
+      "options": ["none", "spotting", "light", "medium", "heavy"],
+      "when": "always",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["PROLONGED_BLEEDING", "INTERMENSTRUAL_BLEEDING", "CYCLE_DERIVATION"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "d.pain",
+      "field": "pain_score",
+      "secondary_field": "pain_blocks_life",
+      "i18n_key": "questions.d.pain.label",
+      "secondary_i18n_key": "questions.d.pain.blocks_life",
+      "answer_type": "scale_0_5_plus_boolean",
+      "options": ["0", "1", "2", "3", "4", "5"],
+      "when": "always",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["SEVERE_PAIN_FUNCTIONAL"],
+      "clinician_status": "TODO(clinician)"
+    },
+    {
+      "id": "d.symptoms",
+      "field": "symptoms",
+      "i18n_key": "questions.d.symptoms.label",
+      "answer_type": "symptom_chips_with_severity",
+      "when": "always",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["REPEATED_SEVERE_SYMPTOMS", "SYMPTOM_PHASE_CORRELATION"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "d.mood",
+      "field": "mood",
+      "secondary_field": "mood_tags",
+      "i18n_key": "questions.d.mood.label",
+      "answer_type": "icon_5_plus_tags",
+      "options": ["great", "good", "neutral", "low", "stressed"],
+      "tags": ["anxiety", "sadness", "irritability", "calm"],
+      "when": "always",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["SYMPTOM_PHASE_CORRELATION"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "d.energy",
+      "field": "energy",
+      "i18n_key": "questions.d.energy.label",
+      "answer_type": "scale_1_5",
+      "options": ["1", "2", "3", "4", "5"],
+      "when": "always",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["ANEMIA_PATTERN"],
+      "clinician_status": "approved"
+    }
+  ],
+  "daily_bleeding": [
+    {
+      "id": "b.pad_count",
+      "field": "pad_count",
+      "i18n_key": "questions.b.pad_count.label",
+      "answer_type": "counter_buttons",
+      "options": ["1", "2", "3", "4", "5", "6_plus"],
+      "when": "bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["HEAVY_SOAKING", "ANEMIA_PATTERN"],
+      "clinician_status": "TODO(clinician)"
+    },
+    {
+      "id": "b.soak_hourly",
+      "field": "soak_hourly",
+      "i18n_key": "questions.b.soak_hourly.label",
+      "answer_type": "boolean",
+      "when": "bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["HEAVY_SOAKING"],
+      "clinician_status": "TODO(clinician)"
+    },
+    {
+      "id": "b.clots",
+      "field": "clots",
+      "i18n_key": "questions.b.clots.label",
+      "answer_type": "single_chip",
+      "options": ["none", "small", "large"],
+      "when": "bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["HEAVY_SOAKING", "ANEMIA_PATTERN"],
+      "clinician_status": "TODO(clinician)"
+    },
+    {
+      "id": "b.dizzy",
+      "field": "dizzy",
+      "i18n_key": "questions.b.dizzy.label",
+      "answer_type": "boolean",
+      "when": "bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["ANEMIA_PATTERN"],
+      "clinician_status": "TODO(clinician)"
+    },
+    {
+      "id": "b.color",
+      "field": "bleeding_color",
+      "i18n_key": "questions.b.color.label",
+      "answer_type": "single_chip",
+      "options": ["bright_red", "dark_red", "brown"],
+      "when": "bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    }
+  ],
+  "daily_non_bleeding": [
+    {
+      "id": "n.discharge",
+      "field": "discharge",
+      "i18n_key": "questions.n.discharge.label",
+      "answer_type": "single_chip",
+      "options": ["dry", "creamy", "eggwhite", "heavy", "unusual_odor"],
+      "when": "non_bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "n.intermenstrual",
+      "field": "intermenstrual",
+      "i18n_key": "questions.n.intermenstrual.label",
+      "answer_type": "boolean",
+      "when": "non_bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["INTERMENSTRUAL_BLEEDING"],
+      "clinician_status": "TODO(clinician)"
+    },
+    {
+      "id": "n.post_intercourse_bleeding",
+      "field": "post_intercourse_bleeding",
+      "i18n_key": "questions.n.post_intercourse_bleeding.label",
+      "answer_type": "boolean",
+      "when": "non_bleeding_day",
+      "skippable": true,
+      "sensitive": true,
+      "feeds_rules": ["POST_COITAL_BLEEDING"],
+      "clinician_status": "TODO(clinician)"
+    },
+    {
+      "id": "n.intercourse",
+      "field": "intercourse",
+      "secondary_field": "contraception_used",
+      "i18n_key": "questions.n.intercourse.label",
+      "answer_type": "boolean_plus_protection",
+      "when": "non_bleeding_day",
+      "skippable": true,
+      "sensitive": true,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "n.ovulation_test",
+      "field": "ovulation_test",
+      "i18n_key": "questions.n.ovulation_test.label",
+      "answer_type": "single_chip",
+      "options": ["positive", "negative", "not_taken"],
+      "when": "non_bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "n.pregnancy_test",
+      "field": "pregnancy_test",
+      "i18n_key": "questions.n.pregnancy_test.label",
+      "answer_type": "single_chip",
+      "options": ["positive", "negative", "not_taken"],
+      "when": "non_bleeding_day",
+      "skippable": true,
+      "sensitive": true,
+      "feeds_rules": ["PREGNANCY_WARNING", "LIFE_MODE"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "n.bbt",
+      "field": "bbt",
+      "i18n_key": "questions.n.bbt.label",
+      "answer_type": "number",
+      "when": "non_bleeding_day",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    }
+  ],
+  "daily_lifestyle": [
+    {
+      "id": "l.sleep_hours",
+      "field": "sleep_hours",
+      "i18n_key": "questions.l.sleep_hours.label",
+      "answer_type": "number_chips",
+      "options": ["5", "6", "7", "8", "9"],
+      "when": "lifestyle_enabled",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "l.water_ml",
+      "field": "water_ml",
+      "i18n_key": "questions.l.water_ml.label",
+      "answer_type": "number_chips",
+      "options": ["500", "1000", "1500", "2000", "2500"],
+      "when": "lifestyle_enabled",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "l.exercise",
+      "field": "exercise",
+      "i18n_key": "questions.l.exercise.label",
+      "answer_type": "single_chip",
+      "options": ["none", "walk", "light", "moderate", "intense"],
+      "when": "lifestyle_enabled",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "l.stress",
+      "field": "stress",
+      "i18n_key": "questions.l.stress.label",
+      "answer_type": "scale_1_5",
+      "options": ["1", "2", "3", "4", "5"],
+      "when": "lifestyle_enabled",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    },
+    {
+      "id": "l.medications",
+      "field": "medications",
+      "i18n_key": "questions.l.medications.label",
+      "answer_type": "user_list_toggle",
+      "when": "lifestyle_enabled",
+      "skippable": true,
+      "sensitive": false,
+      "feeds_rules": ["CONTEXT"],
+      "clinician_status": "approved"
+    }
+  ],
+  "daily_safety": {
+    "id": "s.daily_safety",
+    "field": "flags",
+    "i18n_key": "questions.s.daily_safety.label",
+    "none_option_key": "questions.s.daily_safety.none",
+    "when": "always",
+    "skippable": true,
+    "clinician_status": "approved",
+    "items": [
+      {
+        "id": "flag.heavy_soak",
+        "i18n_key": "questions.s.flags.heavy_soak",
+        "kind": "medical_emergency",
+        "when": "always",
+        "sensitive": false
+      },
+      {
+        "id": "flag.sudden_severe_pain",
+        "i18n_key": "questions.s.flags.sudden_severe_pain",
+        "kind": "medical_emergency",
+        "when": "always",
+        "sensitive": false
+      },
+      {
+        "id": "flag.fainting_dizziness",
+        "i18n_key": "questions.s.flags.fainting_dizziness",
+        "kind": "medical_emergency",
+        "when": "always",
+        "sensitive": false
+      },
+      {
+        "id": "flag.fever_pelvic_pain",
+        "i18n_key": "questions.s.flags.fever_pelvic_pain",
+        "kind": "medical_emergency",
+        "when": "always",
+        "sensitive": false
+      },
+      {
+        "id": "flag.pregnancy_bleeding_or_fetal",
+        "i18n_key": "questions.s.flags.pregnancy_bleeding_or_fetal",
+        "kind": "medical_emergency",
+        "when": "pregnant_or_possible",
+        "sensitive": false
+      },
+      {
+        "id": "flag.self_harm_thoughts",
+        "i18n_key": "questions.s.flags.self_harm_thoughts",
+        "kind": "crisis",
+        "when": "always",
+        "sensitive": true
+      }
+    ]
+  },
+  "symptom_catalog": [
+    {"id": "cramps", "i18n_key": "symptoms.catalog.cramps", "sensitive": false, "clinician_status": "approved"},
+    {"id": "lower_back_pain", "i18n_key": "symptoms.catalog.lower_back_pain", "sensitive": false, "clinician_status": "approved"},
+    {"id": "pelvic_pain", "i18n_key": "symptoms.catalog.pelvic_pain", "sensitive": false, "clinician_status": "approved"},
+    {"id": "headache", "i18n_key": "symptoms.catalog.headache", "sensitive": false, "clinician_status": "approved"},
+    {"id": "migraine", "i18n_key": "symptoms.catalog.migraine", "sensitive": false, "clinician_status": "approved"},
+    {"id": "fatigue", "i18n_key": "symptoms.catalog.fatigue", "sensitive": false, "clinician_status": "approved"},
+    {"id": "bloating", "i18n_key": "symptoms.catalog.bloating", "sensitive": false, "clinician_status": "approved"},
+    {"id": "nausea", "i18n_key": "symptoms.catalog.nausea", "sensitive": false, "clinician_status": "approved"},
+    {"id": "gi_changes", "i18n_key": "symptoms.catalog.gi_changes", "sensitive": false, "clinician_status": "approved"},
+    {"id": "acne", "i18n_key": "symptoms.catalog.acne", "sensitive": false, "clinician_status": "approved"},
+    {"id": "mood_swings", "i18n_key": "symptoms.catalog.mood_swings", "sensitive": false, "clinician_status": "approved"},
+    {"id": "anxiety", "i18n_key": "symptoms.catalog.anxiety", "sensitive": false, "clinician_status": "approved"},
+    {"id": "sadness", "i18n_key": "symptoms.catalog.sadness", "sensitive": false, "clinician_status": "approved"},
+    {"id": "breast_pain", "i18n_key": "symptoms.catalog.breast_pain", "sensitive": false, "clinician_status": "approved"},
+    {"id": "cravings", "i18n_key": "symptoms.catalog.cravings", "sensitive": false, "clinician_status": "approved"},
+    {"id": "insomnia", "i18n_key": "symptoms.catalog.insomnia", "sensitive": false, "clinician_status": "approved"},
+    {"id": "hot_flashes", "i18n_key": "symptoms.catalog.hot_flashes", "sensitive": false, "clinician_status": "approved"},
+    {"id": "dyspareunia", "i18n_key": "symptoms.catalog.dyspareunia", "sensitive": true, "clinician_status": "TODO(clinician)"},
+    {"id": "dysuria", "i18n_key": "symptoms.catalog.dysuria", "sensitive": false, "clinician_status": "TODO(clinician)"},
+    {"id": "fever", "i18n_key": "symptoms.catalog.fever", "sensitive": false, "clinician_status": "TODO(clinician)"}
+  ]
+}

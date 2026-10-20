@@ -448,6 +448,372 @@
       "assistant": "Assistant",
       "me": "Me",
       "emergency_btn": "SOS"
+    },
+    "today_screen": {
+      "title": "Quick Daily Log (in under 10 seconds)",
+      "progress_label": "Logged {answered} of 5 core questions today",
+      "skip_btn": "Skip",
+      "skipped_badge": "Skipped (never counted as No)",
+      "more_details_toggle": "Add More Details (contextual)",
+      "bleeding_section_title": "Bleeding Day Details",
+      "non_bleeding_section_title": "Non-Bleeding Day Check-in",
+      "lifestyle_section_title": "Daily Lifestyle (optional)",
+      "safety_section_title": "Quick Daily Safety Check",
+      "qotd_badge": "Question of the Day",
+      "why_we_ask_btn": "Why do we ask?",
+      "save_today_btn": "Save Today's Log ✓",
+      "delete_today_btn": "Delete Today's Log",
+      "calendar_legend_bleeding": "Bleeding day",
+      "calendar_legend_spotting": "Spotting",
+      "calendar_legend_symptoms": "Logged symptoms",
+      "calendar_legend_unlogged": "Not logged",
+      "sensitive_toggle_label": "Show optional sensitive questions",
+      "lifestyle_toggle_label": "Show optional lifestyle questions",
+      "yes_btn": "Yes",
+      "no_btn": "No",
+      "unknown_btn": "Not sure",
+      "autosaved_badge": "Auto-saved ✓",
+      "offline_queued_badge": "Saved offline (will sync when online)",
+      "prev_cycle_comparison": "On the same day of your previous cycle: {summary}",
+      "onboarding_wizard_title": "Quick 3-Step Setup (optional)",
+      "onboarding_skip_all": "Skip all",
+      "onboarding_finish_btn": "Save & Start ✓",
+      "calendar_prev_month": "Previous month",
+      "calendar_next_month": "Next month",
+      "calendar_today_btn": "Today",
+      "calendar_legend_predicted": "Predicted window",
+      "library_rec_title": "Approved articles related to today's log",
+      "clinician_shadow_title": "Clinician Review Mode (Shadow Mode — Pending Review)",
+      "trend_chart_title": "Pain & Energy Trend Across Logged Days",
+      "clear_chat_btn": "Clear chat",
+      "reminder_toggle_label": "Enable lock-screen-safe daily reminder ('Your daily minute is ready 📝')",
+      "encrypted_note_badge": "Locally encrypted note with PIN 🔒"
+    }
+  },
+  "symptoms": {
+    "catalog": {
+      "cramps": "Cramps",
+      "lower_back_pain": "Lower back pain",
+      "pelvic_pain": "Pelvic pain",
+      "headache": "Headache",
+      "migraine": "Migraine",
+      "fatigue": "Fatigue",
+      "bloating": "Bloating",
+      "nausea": "Nausea",
+      "gi_changes": "Diarrhea or constipation",
+      "acne": "Acne",
+      "mood_swings": "Mood swings",
+      "anxiety": "Anxiety",
+      "sadness": "Sadness",
+      "breast_pain": "Breast tenderness",
+      "cravings": "Food cravings",
+      "insomnia": "Insomnia",
+      "hot_flashes": "Hot flashes or sweating",
+      "dyspareunia": "Pain during intercourse",
+      "dysuria": "Painful urination",
+      "fever": "High body temperature (fever)"
+    }
+  },
+  "questions": {
+    "ob": {
+      "goal": {
+        "label": "What is your primary goal right now?",
+        "why": "Helps tailor the calendar and daily questions to your current life stage.",
+        "options": {
+          "track": "Cycle tracking",
+          "ttc": "Trying to conceive",
+          "avoid_pregnancy": "Avoiding pregnancy (educational)",
+          "pregnant": "Currently pregnant",
+          "postpartum": "Postpartum",
+          "perimenopause": "Perimenopause"
+        }
+      },
+      "age_band": {
+        "label": "What is your age group?",
+        "why": "Typical cycle ranges differ between adolescents and adults.",
+        "options": {
+          "under_18": "Under 18",
+          "18_24": "18 to 24",
+          "25_34": "25 to 34",
+          "35_44": "35 to 44",
+          "45_plus": "45+"
+        }
+      },
+      "last_period_start": {
+        "label": "When did your last period start (first day of bleeding)?",
+        "why": "Used to calculate your current cycle day and estimate your next window.",
+        "options": {}
+      },
+      "menarche_age": {
+        "label": "At what age did you get your first period?",
+        "why": "Optional background context for your health summary.",
+        "options": {}
+      },
+      "currently_bleeding": {
+        "label": "Are you bleeding today?",
+        "why": "Shows relevant bleeding-day questions for today.",
+        "options": {}
+      },
+      "cycle_len_typical": {
+        "label": "Roughly how many days is your typical cycle? (or Not sure)",
+        "why": "Used as an initial baseline until 3 cycles are logged.",
+        "options": {}
+      },
+      "cycle_len_variation": {
+        "label": "By how many days does your cycle usually vary?",
+        "why": "Helps understand your typical cycle regularity.",
+        "options": {
+          "0_2": "0 to 2 days",
+          "3_7": "3 to 7 days",
+          "more_than_7": "More than 7 days",
+          "unknown": "Not sure"
+        }
+      },
+      "bleeding_len_typical": {
+        "label": "How many days does bleeding usually last?",
+        "why": "Reference baseline for your typical bleeding duration.",
+        "options": {}
+      },
+      "pregnancy_status": {
+        "label": "Is there a possibility of pregnancy right now?",
+        "why": "Updates safety alerts to immediately flag pregnancy-related warning signs.",
+        "options": {
+          "no": "No",
+          "possible": "Possible pregnancy",
+          "confirmed": "Confirmed pregnancy"
+        }
+      },
+      "contraception": {
+        "label": "Are you using a contraception method?",
+        "why": "Certain methods (like IUDs or pills) affect bleeding and spotting patterns.",
+        "options": {
+          "none": "None",
+          "pills": "Pills",
+          "hormonal_iud": "Hormonal IUD",
+          "copper_iud": "Copper IUD",
+          "injection": "Injection",
+          "condom": "Condom",
+          "other": "Other"
+        }
+      },
+      "conditions": {
+        "label": "Do you have any diagnosed or suspected conditions?",
+        "why": "Included as context in your doctor report without diagnosing anything.",
+        "options": {
+          "pcos": "PCOS",
+          "endometriosis": "Endometriosis",
+          "fibroids": "Uterine fibroids",
+          "thyroid": "Thyroid disorder",
+          "anemia": "Anemia",
+          "bleeding_disorder": "Bleeding or clotting disorder"
+        }
+      },
+      "meds_affecting_bleeding": {
+        "label": "Do you take regular medications that affect bleeding (blood thinners, hormones)?",
+        "why": "Certain medications affect flow volume and help contextualize your doctor report.",
+        "options": {
+          "blood_thinners": "Blood thinners",
+          "hormones": "Hormonal therapy",
+          "nsaid_regular": "Regular NSAIDs",
+          "other": "Other"
+        }
+      },
+      "family_bleeding": {
+        "label": "Is there a family history of heavy bleeding or blood disorders?",
+        "why": "Optional background context helpful for your doctor report.",
+        "options": {
+          "yes": "Yes",
+          "no": "No",
+          "unknown": "Not sure"
+        }
+      }
+    },
+    "d": {
+      "bleeding": {
+        "label": "Any bleeding today?",
+        "options": {
+          "none": "No",
+          "spotting": "Spotting",
+          "light": "Light",
+          "medium": "Medium",
+          "heavy": "Heavy"
+        }
+      },
+      "pain": {
+        "label": "Pain level today? (0 to 5)",
+        "blocks_life": "Does pain stop you from work, study, or daily life?",
+        "options": {
+          "0": "0 None",
+          "1": "1 Minimal",
+          "2": "2 Mild",
+          "3": "3 Moderate",
+          "4": "4 Strong",
+          "5": "5 Very severe"
+        }
+      },
+      "symptoms": {
+        "label": "Symptoms today? (Tap chips & set severity 1–5)"
+      },
+      "mood": {
+        "label": "How is your mood today?",
+        "options": {
+          "great": "😊 Great",
+          "good": "🙂 Good",
+          "neutral": "😐 Okay",
+          "low": "😔 Low",
+          "stressed": "😣 Stressed"
+        },
+        "tags": {
+          "anxiety": "Anxiety",
+          "sadness": "Sadness",
+          "irritability": "Irritability",
+          "calm": "Calm"
+        }
+      },
+      "energy": {
+        "label": "Energy level today? (1 to 5)",
+        "options": {
+          "1": "1 Very low",
+          "2": "2 Low",
+          "3": "3 Moderate",
+          "4": "4 Good",
+          "5": "5 High"
+        }
+      }
+    },
+    "b": {
+      "pad_count": {
+        "label": "How many pads or tampons did you change today?",
+        "options": {
+          "1": "1",
+          "2": "2",
+          "3": "3",
+          "4": "4",
+          "5": "5",
+          "6_plus": "6+"
+        }
+      },
+      "soak_hourly": {
+        "label": "Did you soak through a pad/tampon every hour for 2+ consecutive hours?"
+      },
+      "clots": {
+        "label": "Did you notice blood clots?",
+        "options": {
+          "none": "No",
+          "small": "Small",
+          "large": "Large (larger than a coin)"
+        }
+      },
+      "dizzy": {
+        "label": "Did you feel dizzy, lightheaded, or have palpitations with bleeding?"
+      },
+      "color": {
+        "label": "Bleeding color? (optional)",
+        "options": {
+          "bright_red": "Bright red",
+          "dark_red": "Dark red",
+          "brown": "Brown"
+        }
+      }
+    },
+    "n": {
+      "discharge": {
+        "label": "Discharge today?",
+        "options": {
+          "dry": "Dry",
+          "creamy": "Creamy",
+          "eggwhite": "Clear stretchy",
+          "heavy": "Heavy",
+          "unusual_odor": "Unusual odor"
+        }
+      },
+      "intermenstrual": {
+        "label": "Any bleeding or spotting between periods?"
+      },
+      "post_intercourse_bleeding": {
+        "label": "Any bleeding after intercourse? (optional)"
+      },
+      "intercourse": {
+        "label": "Intercourse today? (optional)"
+      },
+      "ovulation_test": {
+        "label": "Ovulation test result today?",
+        "options": {
+          "positive": "Positive",
+          "negative": "Negative",
+          "not_taken": "Not taken"
+        }
+      },
+      "pregnancy_test": {
+        "label": "Pregnancy test result today?",
+        "options": {
+          "positive": "Positive",
+          "negative": "Negative",
+          "not_taken": "Not taken"
+        }
+      },
+      "bbt": {
+        "label": "Basal body temperature (BBT)? (optional)"
+      }
+    },
+    "l": {
+      "sleep_hours": {
+        "label": "Hours of sleep?",
+        "options": {
+          "5": "5h or less",
+          "6": "6h",
+          "7": "7h",
+          "8": "8h",
+          "9": "9h+"
+        }
+      },
+      "water_ml": {
+        "label": "Water intake today (ml)?",
+        "options": {
+          "500": "500 ml",
+          "1000": "1000 ml",
+          "1500": "1500 ml",
+          "2000": "2000 ml",
+          "2500": "2500+ ml"
+        }
+      },
+      "exercise": {
+        "label": "Physical activity today?",
+        "options": {
+          "none": "None",
+          "walk": "Walking",
+          "light": "Light",
+          "moderate": "Moderate",
+          "intense": "Intense"
+        }
+      },
+      "stress": {
+        "label": "Stress level today? (1 to 5)",
+        "options": {
+          "1": "1 Calm",
+          "2": "2 Mild",
+          "3": "3 Moderate",
+          "4": "4 High",
+          "5": "5 Very high"
+        }
+      },
+      "medications": {
+        "label": "Medications or supplements taken today (from your list)?"
+      }
+    },
+    "s": {
+      "daily_safety": {
+        "label": "Are you experiencing any of these today?",
+        "none": "None of these — I am okay ✓"
+      },
+      "flags": {
+        "heavy_soak": "Heavy bleeding soaking a pad/tampon every hour",
+        "sudden_severe_pain": "Sudden, severe abdominal or pelvic pain",
+        "fainting_dizziness": "Fainting or severe dizziness",
+        "fever_pelvic_pain": "High fever with pelvic pain",
+        "pregnancy_bleeding_or_fetal": "Bleeding/severe pain with pregnancy, or reduced fetal movement",
+        "self_harm_thoughts": "Thoughts of self-harm or overwhelming distress"
+      }
     }
   }
 }

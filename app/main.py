@@ -33,6 +33,7 @@ from .schemas import (
     ProfilePayload,
     RefreshRequest,
     RegisterRequest,
+    SafetyCheckRequest,
     Severity,
     SummaryResponse,
     SymptomIn,
@@ -44,7 +45,12 @@ from .routers.ai import router as ai_router
 from .services import audit
 from .services.ai_pipeline import AiPipeline, PipelineDeps
 from .services.auth import AuthError, TokenClaims, verify_access_token
-from .services.emergency_filter import build_fixed_reply, ensure_emergency_text, run_filter
+from .services.emergency_filter import (
+    FilterResult,
+    build_fixed_reply,
+    ensure_emergency_text,
+    run_filter,
+)
 from .services.emergency_numbers import EmergencyNumbers
 from .services.export_ar import (
     ExportContext,
@@ -52,6 +58,7 @@ from .services.export_ar import (
     build_doctor_report_sections,
     build_report_pdf,
     cycles_to_csv,
+    daily_logs_to_csv,
     report_sections_from_cycles,
     symptoms_to_csv,
 )
@@ -59,8 +66,13 @@ from .services.library import filter_approved_articles
 from .services.llm import LLMClient
 from .services.prediction import predict_next_cycle_window
 from .services.prompt_builder import PromptBuilder, scrub_conversation_history
+from .services.question_catalog import get_contextual_questions
 from .services.rag import KeywordRag
-from .services.rules_engine import compute_all_findings, max_severity
+from .services.rules_engine import (
+    compute_all_findings,
+    compute_shadow_findings,
+    max_severity,
+)
 from .services.security import api_key_header, key_fingerprint, limiter
 from .services.store import Store, StoreError
 from .services.validator import validate
@@ -415,6 +427,49 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
             headers={"Retry-After": str(decision.retry_after_seconds)},
         )
 
+    # 2ب) التحقق من الموافقة الصريحة قبل إرسال أي سياق للمزوّد الخارجي (البند 5.2.11)
+    if req.user_key:
+        user_consents = _store.get_consents(req.user_key)
+        ai_consent = next((c for c in user_consents if c["consent_type"] == "ai_assistant"), None)
+        if ai_consent is not None and not ai_consent["granted"]:
+            rule_codes = [f.rule_code for f in findings]
+            if req.mode == "summary":
+                response = SummaryResponse(
+                    overview=NOT_CONFIGURED_ANSWER,
+                    what_this_does_not_mean="هذا النمط لا يحدد حالة طبية.",
+                    questions_for_doctor=["ما تقييم طبيبة لدوراتي المسجّلة؟"],
+                    sources_used=[],
+                    prompt_version=settings.prompt_version,
+                    rule_codes=rule_codes,
+                )
+            else:
+                response = ChatResponse(
+                    answer=NOT_CONFIGURED_ANSWER,
+                    sources_used=[],
+                    needs_doctor=max_severity(findings).at_least(Severity.MEDICAL_REVIEW),
+                    emergency=False,
+                    crisis=False,
+                    missing_info=[],
+                    prompt_version=settings.prompt_version,
+                    rule_codes=rule_codes,
+                )
+            _write_audit(AuditEntry(
+                user_id=key_fingerprint(req.user_key or ""),
+                mode=req.mode,
+                prompt_version=settings.prompt_version,
+                findings=findings,
+                sources_ids=[],
+                used_model=False,
+                emergency=False,
+                crisis=False,
+                needs_doctor=bool(getattr(response, "needs_doctor", False)),
+                llm_error="ai_assistant_consent_revoked",
+                latency_ms=int((time.monotonic() - started) * 1000),
+                request_excerpt="",
+                response=json.loads(response.model_dump_json()),
+            ))
+            return response
+
     # 3) استرجاع المصادر
     sources = _rag.retrieve(req.message, settings.rag_top_k)
     if not sources and req.mode == "summary":
@@ -625,7 +680,7 @@ def _run_pipeline(req: ChatRequest) -> ChatResponse | SummaryResponse:
         fallback=fallback,
         llm_error=llm_error,
         latency_ms=int((time.monotonic() - started) * 1000),
-        request_excerpt=req.message[:300],
+        request_excerpt="",
         response=json.loads(response.model_dump_json()),
     ))
     return response
@@ -965,21 +1020,30 @@ def insights(user_key: str | None = None, request: Request = None) -> InsightsRe
 
     تعمل بالكامل بلا إنترنت وبلا مفتاح — وهذا مقصود: التحليل الأساسي للتتبّع
     يجب ألا يتوقف على توفّر مزوّد خارجي.
+    القواعد المقترحة الجديدة (TODO(clinician)) تُحسب في shadow_findings ولا تُدمج
+    في findings المعروضة قبل اعتماد الطبيبة.
     """
     ukey = _resolve_user_key(user_key, request)
     stats = _store.cycle_stats(ukey)
     symptoms = _store.list_symptoms(ukey, limit=200, since_days=180)
+    daily_logs = _store.list_daily_logs(ukey, limit=180)
+    profile = _store.get_profile(ukey)
     ctx = UserContext(
+        age=profile.get("age"),
+        contraception=profile.get("contraception"),
+        pregnancy_status=profile.get("pregnancy_status"),
         cycles_recorded=stats["cycles_recorded"],
         avg_cycle_days=stats["avg_cycle_days"],
         cycle_gaps=stats["cycle_gaps"],
         last_cycles=stats["last_cycles"],
     )
-    findings = compute_all_findings(ctx, symptoms)
+    findings = compute_all_findings(ctx, symptoms, daily_logs, include_shadow=False)
+    shadow = compute_shadow_findings(ctx, daily_logs)
     return InsightsResponse(
         findings=findings,
+        shadow_findings=shadow,
         glossary={f.rule_code: _rules_glossary[f.rule_code]
-                  for f in findings if f.rule_code in _rules_glossary},
+                  for f in (findings + shadow) if f.rule_code in _rules_glossary},
         cycles_recorded=stats["cycles_recorded"],
         avg_cycle_days=stats["avg_cycle_days"],
         needs_doctor=max_severity(findings).at_least(Severity.MEDICAL_REVIEW),
@@ -1029,9 +1093,158 @@ def save_daily_log(
 ) -> dict[str, Any]:
     ukey = _resolve_user_key(user_key, request)
     try:
-        return _store.upsert_daily_log(ukey, body.log_date, body.model_dump(exclude_unset=True))
+        return _store.upsert_daily_log(
+            ukey,
+            body.log_date,
+            body.model_dump(exclude_unset=True),
+            today_local=body.today_local,
+        )
     except StoreError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.delete("/v1/daily-logs/{log_date}", dependencies=[Depends(api_key_header)])
+def soft_delete_daily_log(
+    log_date: str,
+    user_key: str | None = None,
+    request: Request = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    ukey = _resolve_user_key(user_key, request)
+    try:
+        if not _store.soft_delete_daily_log(ukey, log_date):
+            raise HTTPException(status_code=404, detail="السجل اليومي غير موجود")
+    except StoreError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"deleted": log_date, "undo_window_seconds": 10}
+
+
+@app.post("/v1/daily-logs/{log_date}/undo", dependencies=[Depends(api_key_header)])
+def restore_daily_log(
+    log_date: str,
+    user_key: str | None = None,
+    request: Request = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    ukey = _resolve_user_key(user_key, request)
+    try:
+        restored = _store.restore_daily_log(ukey, log_date)
+    except StoreError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if restored is None:
+        raise HTTPException(status_code=404, detail="لا يوجد سجل محذوف لاستعادته")
+    return restored
+
+
+@app.get("/v1/questions", dependencies=[Depends(api_key_header)])
+def get_contextual_questions_endpoint(
+    user_key: str | None = None,
+    log_date: str | None = None,
+    bleeding_level: str | None = None,
+    locale: str | None = None,
+    request: Request = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """يعيد كتالوج الأسئلة السياقية وقائمة الأعراض لليوم المحدد حسب حالة المستخدمة."""
+    ukey = _resolve_user_key(user_key, request) if (user_key or _extract_bearer_claims(request)) else "anonymous"
+    prof = _store.get_profile(ukey) if ukey != "anonymous" else {}
+    target_day = log_date or date.today().isoformat()
+    day_log = _store.get_daily_log(ukey, target_day) if ukey != "anonymous" else None
+    eff_bleeding = bleeding_level or (day_log.get("bleeding_level") if day_log else None)
+    if not eff_bleeding and prof.get("currently_bleeding") and target_day == date.today().isoformat():
+        eff_bleeding = "medium"
+    eff_locale = locale or (request.headers.get("accept-language") if request else None)
+    return get_contextual_questions(
+        locale=eff_locale,
+        bleeding_level=eff_bleeding,
+        pregnancy_status=prof.get("pregnancy_status"),
+        show_sensitive=bool(prof.get("show_sensitive_questions", False)),
+        enable_lifestyle=bool(prof.get("enable_lifestyle_questions", True)),
+        answered_onboarding=prof.get("answered", []),
+        skipped_onboarding=prof.get("skipped", []),
+        target_date=target_day,
+    )
+
+
+@app.post("/v1/safety-check")
+def evaluate_daily_safety_check(
+    body: SafetyCheckRequest,
+    user_key: str | None = None,
+    request: Request = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """فحص السلامة اليومي الحتمي (البند 4.6): يفعّل مسار الطوارئ/الأزمة فورًا وبلا أي استدعاء للموديل."""
+    from .i18n import resolve_locale
+
+    started = time.monotonic()
+    ukey = "anonymous"
+    try:
+        ukey = _resolve_user_key(user_key, request)
+    except HTTPException:
+        pass
+
+    prof = _store.get_profile(ukey) if ukey != "anonymous" else {}
+    country = body.country_code or prof.get("country_code") or settings.country_code
+    emergency = _emergency_info(country, _emergency_override(), settings.crisis_line)
+    locale = resolve_locale(body.language_hint or (request.headers.get("accept-language") if request else None))
+
+    clean_flags = [f.strip() for f in (body.flags or []) if f and f.strip() != "flag.none"]
+    if not clean_flags:
+        return {
+            "triggered": False,
+            "emergency": False,
+            "crisis": False,
+            "answer": "",
+            "events_recorded": 0,
+        }
+
+    recorded_events = []
+    has_crisis = False
+    for flag_code in clean_flags:
+        try:
+            ev = _store.record_safety_event(ukey, body.log_date, flag_code)
+            recorded_events.append(ev)
+            if ev["kind"] == "crisis":
+                has_crisis = True
+        except StoreError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    f_kind = "crisis" if has_crisis else "medical"
+    filt_res = FilterResult(kind=f_kind, matched=clean_flags[0], source="daily_safety_check")
+    answer = build_fixed_reply(filt_res, emergency, locale=locale)
+    payload = EmergencyPayload(
+        kind=f_kind,
+        number=emergency.number,
+        number_verified=emergency.verified,
+        country_code=emergency.country_code,
+        crisis_line=emergency.crisis_line if has_crisis else "",
+        instruction=answer.split("\n")[0],
+    )
+    resp = ChatResponse(
+        answer=answer,
+        sources_used=[],
+        needs_doctor=True,
+        emergency=True,
+        crisis=has_crisis,
+        missing_info=[],
+        prompt_version=settings.prompt_version,
+        rule_codes=[],
+        emergency_payload=payload,
+    )
+    _write_audit(AuditEntry(
+        user_id=key_fingerprint(ukey),
+        mode="safety_check",
+        prompt_version=settings.prompt_version,
+        findings=[],
+        sources_ids=[],
+        used_model=False,
+        emergency=True,
+        crisis=has_crisis,
+        needs_doctor=True,
+        latency_ms=int((time.monotonic() - started) * 1000),
+        request_excerpt="",
+        response=json.loads(resp.model_dump_json()),
+    ))
+    out = json.loads(resp.model_dump_json())
+    out["triggered"] = True
+    out["events_recorded"] = len(recorded_events)
+    return out
 
 
 @app.post("/v1/daily-logs/copy-yesterday", dependencies=[Depends(api_key_header)])
@@ -1129,16 +1342,20 @@ def export_full_json(user_key: str | None = None, request: Request = None) -> di
     cycles = _store.list_cycles(ukey, limit=500)
     symptoms = _store.list_symptoms(ukey, limit=1000)
     daily_logs = _store.list_daily_logs(ukey, limit=500)
+    log_edits = _store.list_log_edits(ukey)
+    safety_events = _store.list_safety_events(ukey, limit=200)
     profile = _store.get_profile(ukey)
     consents = _store.get_consents(ukey)
     prediction = predict_next_cycle_window(cycles).to_dict()
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "exported_at": date.today().isoformat(),
         "profile": profile,
         "cycles": cycles,
         "daily_logs": daily_logs,
         "symptoms": symptoms,
+        "log_edits": log_edits,
+        "safety_events": safety_events,
         "prediction": prediction,
         "consents": consents,
     }
@@ -1191,6 +1408,21 @@ def export_symptoms_csv(user_key: str | None = None, request: Request = None,  #
     )
 
 
+@app.get("/v1/export/daily-logs.csv", dependencies=[Depends(api_key_header)])
+def export_daily_logs_csv(user_key: str | None = None, request: Request = None,  # type: ignore[assignment]
+                          locale: str | None = None,
+                          digits_style: str | None = None) -> Response:
+    ukey = _resolve_user_key(user_key, request)
+    ctx = _export_context(request, locale, digits_style)
+    rows = _store.list_daily_logs(ukey, limit=500)
+    payload = daily_logs_to_csv(rows, ctx)
+    return Response(
+        content=payload,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="daily-logs.csv"'},
+    )
+
+
 @app.get("/v1/export/report.pdf", dependencies=[Depends(api_key_header)])
 def export_report_pdf(user_key: str | None = None, request: Request = None,  # type: ignore[assignment]
                       locale: str | None = None,
@@ -1201,6 +1433,7 @@ def export_report_pdf(user_key: str | None = None, request: Request = None,  # t
     t = get_translator()
     cycles = _store.list_cycles(ukey, limit=24)
     symptoms = _store.list_symptoms(ukey, limit=100, since_days=180)
+    daily_logs = _store.list_daily_logs(ukey, limit=180)
     stats = _store.cycle_stats(ukey)
     u_ctx = UserContext(
         cycles_recorded=stats["cycles_recorded"],
@@ -1208,8 +1441,8 @@ def export_report_pdf(user_key: str | None = None, request: Request = None,  # t
         cycle_gaps=stats["cycle_gaps"],
         last_cycles=stats["last_cycles"],
     )
-    findings = compute_all_findings(u_ctx, symptoms)
-    sections = build_doctor_report_sections(cycles, symptoms, findings, ctx)
+    findings = compute_all_findings(u_ctx, symptoms, daily_logs, include_shadow=False)
+    sections = build_doctor_report_sections(cycles, symptoms, findings, ctx, daily_logs=daily_logs)
     try:
         pdf_bytes = build_report_pdf(
             sections,

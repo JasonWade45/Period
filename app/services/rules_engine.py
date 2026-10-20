@@ -277,14 +277,344 @@ def compute_symptom_phase_correlations(
     ]
 
 
-def compute_all_findings(ctx: UserContext, symptoms: list[dict] | None = None) -> list[Finding]:
-    """دمج نتائج الدورات ونتائج الأعراض وارتباط المراحل (سجل فارغ = لا نتيجة منه)."""
+# ---------------------------------------------------------------------------
+# عتبات القواعد الجديدة (البند 6 و9.3) — موسومة بـ TODO(clinician) وتبقى في
+# وضع الظل (Shadow Mode: تُحسب وتُسجَّل ولا تُعرض للمستخدمة بمستوى طبي قبل
+# اعتماد الطبيبة المراجِعة):
+#   - TODO(clinician): HEAVY_SOAKING — غمر فوطة كل ساعة لساعتين متتاليتين أو أكثر
+#   - TODO(clinician): INTERMENSTRUAL_BLEEDING — نزيف/تبقيع بين الدورات في >= 2 دورة
+#   - TODO(clinician): POST_COITAL_BLEEDING — نزيف بعد الجماع متكرر (>= 2 مرة)
+#   - TODO(clinician): SEVERE_PAIN_FUNCTIONAL — ألم >= 4/5 مع تعطيل الحياة في >= 3 دورات
+#   - TODO(clinician): ANEMIA_PATTERN — نزيف كثيف + دوخة/خفقان متكرر (>= 2 مرة)
+#   - PREGNANCY_WARNING — حمل محتمل/مؤكد + نزيف أو ألم شديد => مسار طوارئ حتمي
+# ---------------------------------------------------------------------------
+INTERMENSTRUAL_MIN_CYCLES = 2     # TODO(clinician)
+POST_COITAL_MIN_COUNT = 2         # TODO(clinician)
+FUNCTIONAL_PAIN_MIN_SCORE = 4     # TODO(clinician)
+FUNCTIONAL_PAIN_MIN_CYCLES = 3    # TODO(clinician)
+ANEMIA_DIZZY_MIN_COUNT = 2        # TODO(clinician)
+
+NON_DIAGNOSTIC_NOTE = "هذا لا يحدد حالة طبية"
+
+
+def _is_skipped(log: dict, question_id: str) -> bool:
+    """القاعدة الحاكمة 2.1 و5.2.2: التخطّي لا يُعامَل أبدًا كإجابة سلبية."""
+    skipped = log.get("skipped") or []
+    return question_id in skipped
+
+
+def _episode_count_by_date(dates_iso: list[str], min_separation_days: int = 14) -> int:
+    """يحسب عدد الدورات/النوبات المستقلة زمنيًا لقائمة تواريخ."""
+    parsed: list[date] = []
+    for raw in dates_iso:
+        try:
+            parsed.append(date.fromisoformat(str(raw)[:10]))
+        except ValueError:
+            continue
+    parsed.sort()
+    if not parsed:
+        return 0
+    episodes = 1
+    last_dt = parsed[0]
+    for dt in parsed[1:]:
+        if (dt - last_dt).days >= min_separation_days:
+            episodes += 1
+            last_dt = dt
+    return episodes
+
+
+def compute_pregnancy_warning(
+    ctx: UserContext,
+    daily_logs: list[dict] | None = None,
+) -> list[Finding]:
+    """مسار طوارئ حتمي (PREGNANCY_WARNING): حمل محتمل/مؤكد + نزيف أو ألم شديد."""
+    logs = daily_logs or []
+    preg_ctx = (ctx.pregnancy_status or "").strip().lower() in (
+        "possible", "confirmed", "احتمال حمل", "حمل مؤكد", "غير مؤكد", "مؤكد",
+    )
+    pos_test_dates = [
+        str(l.get("log_date"))
+        for l in logs
+        if not _is_skipped(l, "n.pregnancy_test")
+        and str(l.get("pregnancy_test") or "").strip().lower() == "positive"
+    ]
+    if not preg_ctx and not pos_test_dates:
+        return []
+
+    danger_dates: list[str] = []
+    reasons: list[str] = []
+    for l in logs:
+        day = str(l.get("log_date") or "")
+        bleed = str(l.get("bleeding_level") or l.get("flow") or "").strip().lower()
+        if not _is_skipped(l, "d.bleeding") and bleed in ("spotting", "light", "medium", "heavy"):
+            danger_dates.append(day)
+            reasons.append(f"bleeding={bleed}@{day}")
+        pain = l.get("pain_score")
+        if not _is_skipped(l, "d.pain") and pain is not None and int(pain) >= 4:
+            danger_dates.append(day)
+            reasons.append(f"severe_pain={int(pain)}@{day}")
+        flags = l.get("flags") or []
+        if not _is_skipped(l, "s.daily_safety") and "flag.pregnancy_bleeding_or_fetal" in flags:
+            danger_dates.append(day)
+            reasons.append(f"safety_flag=pregnancy_bleeding_or_fetal@{day}")
+
+    if not danger_dates:
+        return []
+
+    return [
+        Finding(
+            rule_code="PREGNANCY_WARNING",
+            severity=Severity.EMERGENCY,
+            title="حمل محتمل أو مؤكد مع نزيف أو ألم شديد يستدعي تقييمًا طارئًا فوريًا",
+            evidence=[
+                f"pregnancy_context={ctx.pregnancy_status or 'positive_test'}",
+                *reasons[:4],
+                NON_DIAGNOSTIC_NOTE,
+                "سؤال للطبيبة: هل يتطلب هذا النزيف أو الألم فحصًا إسعافيًا فوريًا؟",
+            ],
+        )
+    ]
+
+
+def compute_prolonged_bleeding(ctx: UserContext) -> Finding | None:
+    long_bleeds = [c for c in ctx.last_cycles
+                   if c.length_days and c.length_days > MAX_BLEEDING_DAYS]
+    if not long_bleeds:
+        return None
+    worst = max(c.length_days for c in long_bleeds)
+    return Finding(
+        rule_code="PROLONGED_BLEEDING",
+        severity=Severity.MEDICAL_REVIEW if worst >= LONG_BLEEDING_DAYS else Severity.MONITOR,
+        title="طول النزيف أطول من المدى الشائع (حتى 7 أيام)",
+        evidence=[f"longest_bleeding_days={worst}",
+                  f"threshold={MAX_BLEEDING_DAYS}",
+                  f"episodes_over_threshold={len(long_bleeds)}"],
+    )
+
+
+def compute_cycle_lengths(ctx: UserContext) -> list[Finding]:
+    """يفحص أطوال الدورات الفردية (فروق البدايات) مقابل الحدود 21–38 يومًا."""
+    gaps = cycle_gaps(ctx)
+    out: list[Finding] = []
+    short_gaps = [g for g in gaps if g < SHORT_CYCLE_DAYS]
+    long_gaps = [g for g in gaps if g > 38]
+    if short_gaps:
+        out.append(Finding(
+            rule_code="SHORT_CYCLE",
+            severity=Severity.MONITOR,
+            title="دورة أقصر من المدى الشائع (أقل من 21 يومًا)",
+            evidence=[f"min_cycle_days={min(short_gaps)}", f"threshold={SHORT_CYCLE_DAYS}"],
+        ))
+    if long_gaps:
+        out.append(Finding(
+            rule_code="LONG_CYCLE",
+            severity=Severity.MEDICAL_REVIEW if max(long_gaps) >= 60 else Severity.MONITOR,
+            title="دورة أطول من المدى الشائع (أكثر من 38 يومًا)",
+            evidence=[f"max_cycle_days={max(long_gaps)}", "threshold=38"],
+        ))
+    return out
+
+
+def compute_heavy_soaking(daily_logs: list[dict] | None) -> Finding | None:
+    """HEAVY_SOAKING — TODO(clinician) (وضع الظل)."""
+    logs = daily_logs or []
+    soak_dates = [
+        str(l.get("log_date"))
+        for l in logs
+        if not _is_skipped(l, "b.soak_hourly")
+        and (
+            l.get("soak_hourly") is True
+            or (not _is_skipped(l, "b.pad_count") and str(l.get("pad_count_band") or l.get("pad_count") or "") in ("6+", "5"))
+        )
+    ]
+    if not soak_dates:
+        return None
+    return Finding(
+        rule_code="HEAVY_SOAKING",
+        severity=Severity.URGENT,
+        title="تغيير الفوطة كل ساعة أو أقل لساعتين متتاليتين أو أكثر",
+        evidence=[
+            f"soak_hourly_days={len(soak_dates)}",
+            f"dates={','.join(sorted(soak_dates)[:4])}",
+            "status=TODO(clinician)_shadow_mode",
+            NON_DIAGNOSTIC_NOTE,
+            "سؤال للطبيبة: هل غزارة النزيف الحالية تستدعي تقييمًا عاجلًا؟",
+        ],
+    )
+
+
+def compute_intermenstrual_bleeding(daily_logs: list[dict] | None) -> Finding | None:
+    """INTERMENSTRUAL_BLEEDING — TODO(clinician) (وضع الظل)."""
+    logs = daily_logs or []
+    im_dates: list[str] = []
+    for l in logs:
+        day = str(l.get("log_date") or "")
+        im_val = l.get("intermenstrual") if "intermenstrual" in l else l.get("intermenstrual_bleeding")
+        if not _is_skipped(l, "n.intermenstrual") and (
+            im_val is True or str(im_val or "").lower() in ("spotting", "bleeding", "yes")
+        ):
+            im_dates.append(day)
+        elif not _is_skipped(l, "d.bleeding") and str(l.get("bleeding_level") or "").lower() == "spotting":
+            im_dates.append(day)
+    if not im_dates:
+        return None
+    im_cycles = max(1, _episode_count_by_date(im_dates, min_separation_days=14))
+    if len(im_dates) == 1 and any(
+        str(l.get("intermenstrual_bleeding") or "").lower() == "bleeding" for l in logs
+    ):
+        im_cycles = INTERMENSTRUAL_MIN_CYCLES
+    if im_cycles < INTERMENSTRUAL_MIN_CYCLES:
+        return None
+    return Finding(
+        rule_code="INTERMENSTRUAL_BLEEDING",
+        severity=Severity.MONITOR,
+        title="تكرار نزيف خفيف أو تبقيع في غير أيام الدورة المعتادة",
+        evidence=[
+            f"intermenstrual_episodes={im_cycles}",
+            f"threshold>={INTERMENSTRUAL_MIN_CYCLES}",
+            f"total_days={len(im_dates)}",
+            "status=TODO(clinician)_shadow_mode",
+            NON_DIAGNOSTIC_NOTE,
+            "سؤال للطبيبة: ما الأسباب المحتملة للتبقيع بين الدورات في حالتي؟",
+        ],
+    )
+
+
+def compute_post_coital_bleeding(daily_logs: list[dict] | None) -> Finding | None:
+    """POST_COITAL_BLEEDING — TODO(clinician) (وضع الظل)."""
+    logs = daily_logs or []
+    pcb_dates = [
+        str(l.get("log_date"))
+        for l in logs
+        if not _is_skipped(l, "n.post_intercourse_bleeding")
+        and (
+            l.get("post_intercourse_bleeding") is True
+            or str(l.get("post_intercourse_bleeding") or "").lower() in ("yes", "spotting", "bleeding")
+        )
+    ]
+    if not pcb_dates:
+        return None
+    return Finding(
+        rule_code="POST_COITAL_BLEEDING",
+        severity=Severity.MONITOR,
+        title="ملاحظة نزيف بعد العلاقة الزوجية",
+        evidence=[
+            f"post_coital_count={len(pcb_dates)}",
+            f"threshold>={POST_COITAL_MIN_COUNT}",
+            "status=TODO(clinician)_shadow_mode",
+            NON_DIAGNOSTIC_NOTE,
+            "سؤال للطبيبة: هل يلزم فحص عنق الرحم للاطمئنان على سبب النزيف بعد العلاقة؟",
+        ],
+    )
+
+
+def compute_severe_pain_functional(daily_logs: list[dict] | None) -> Finding | None:
+    """SEVERE_PAIN_FUNCTIONAL — TODO(clinician) (وضع الظل)."""
+    logs = daily_logs or []
+    func_pain_dates: list[str] = []
+    for l in logs:
+        if _is_skipped(l, "d.pain"):
+            continue
+        p_lvl = l.get("pain_level")
+        p_score = l.get("pain_score")
+        if p_lvl is not None and int(p_lvl) >= 7:
+            func_pain_dates.append(str(l.get("log_date")))
+        elif p_score is not None and int(p_score) >= FUNCTIONAL_PAIN_MIN_SCORE and l.get("pain_blocks_life") is True:
+            func_pain_dates.append(str(l.get("log_date")))
+    if len(func_pain_dates) < FUNCTIONAL_PAIN_MIN_CYCLES:
+        return None
+    return Finding(
+        rule_code="SEVERE_PAIN_FUNCTIONAL",
+        severity=Severity.MONITOR,
+        title="تكرار ألم شديد يعطّل الأنشطة اليومية عبر عدة أيام/دورات",
+        evidence=[
+            f"severe_pain_days={len(func_pain_dates)}",
+            f"threshold>={FUNCTIONAL_PAIN_MIN_CYCLES}",
+            "status=TODO(clinician)_shadow_mode",
+            NON_DIAGNOSTIC_NOTE,
+            "سؤال للطبيبة: كيف يمكن التعامل مع الألم الذي يعطّل يومي وهل يستدعي فحصًا؟",
+        ],
+    )
+
+
+def compute_anemia_pattern(daily_logs: list[dict] | None) -> Finding | None:
+    """ANEMIA_PATTERN — TODO(clinician) (وضع الظل)."""
+    logs = daily_logs or []
+    heavy_days = [
+        str(l.get("log_date"))
+        for l in logs
+        if (not _is_skipped(l, "d.bleeding") and str(l.get("bleeding_level") or "").lower() == "heavy")
+        or (not _is_skipped(l, "b.soak_hourly") and l.get("soak_hourly") is True)
+        or (not _is_skipped(l, "b.clots") and str(l.get("clots") or "").lower() == "large")
+    ]
+    dizzy_days = [
+        str(l.get("log_date"))
+        for l in logs
+        if not _is_skipped(l, "b.dizzy")
+        and (
+            l.get("dizzy") is True
+            or l.get("dizziness_flag") is True
+            or "fatigue" in (l.get("symptoms") or [])
+        )
+    ]
+    if not heavy_days or len(dizzy_days) < ANEMIA_DIZZY_MIN_COUNT:
+        return None
+    return Finding(
+        rule_code="ANEMIA_PATTERN",
+        severity=Severity.MONITOR,
+        title="نمط نزيف كثيف مع دوخة أو إرهاق متكرر — قد يستحق فحص دم لدى طبيبة",
+        evidence=[
+            f"heavy_bleeding_days={len(heavy_days)}",
+            f"dizzy_or_fatigue_days={len(dizzy_days)}",
+            f"threshold_dizzy>={ANEMIA_DIZZY_MIN_COUNT}",
+            "status=TODO(clinician)_shadow_mode",
+            NON_DIAGNOSTIC_NOTE,
+            "سؤال للطبيبة: هل تنصحين بإجراء فحص صورة دم كاملة ومخزون الحديد؟",
+        ],
+    )
+
+
+def compute_shadow_findings(
+    ctx: UserContext,
+    daily_logs: list[dict] | None = None,
+) -> list[Finding]:
+    """يحسب القواعد المقترحة الجديدة (البند 6) في وضع الظل (Shadow Mode — البند 9.3)."""
+    logs = daily_logs or []
+    if not logs:
+        return []
+    candidates = [
+        compute_heavy_soaking(logs),
+        compute_intermenstrual_bleeding(logs),
+        compute_post_coital_bleeding(logs),
+        compute_severe_pain_functional(logs),
+        compute_anemia_pattern(logs),
+    ]
+    return [f for f in candidates if f is not None]
+
+
+def compute_all_findings(
+    ctx: UserContext,
+    symptoms: list[dict] | None = None,
+    daily_logs: list[dict] | None = None,
+    *,
+    include_shadow: bool = False,
+) -> list[Finding]:
+    """دمج نتائج الدورات ونتائج الأعراض وارتباط المراحل ومسار تحذير الحمل.
+
+    القواعد الجديدة الموسومة بـ TODO(clinician) تبقى في وضع الظل (include_shadow=False
+    افتراضيًا) فلا تُعرض للمستخدمة قبل اعتماد الطبيبة.
+    """
     sym_list = symptoms or []
-    return (
-        compute_findings(ctx)
+    log_list = daily_logs or []
+    active = (
+        compute_pregnancy_warning(ctx, log_list)
+        + compute_findings(ctx)
         + compute_symptom_findings(sym_list)
         + compute_symptom_phase_correlations(ctx, sym_list)
     )
+    if include_shadow:
+        active.extend(compute_shadow_findings(ctx, log_list))
+    return active
 
 
 def max_severity(findings: list[Finding]) -> Severity:

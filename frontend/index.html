@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CycleCare — مساعدتك لصحة الدورة</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#e0507a">
   <link rel="stylesheet" href="style.css?v=20261021">
   <link rel="stylesheet" href="rtl.css?v=20261021">
 </head>
@@ -376,7 +378,11 @@
         <button type="submit" id="send-btn" class="flip-rtl" aria-label="إرسال"
                 data-i18n-attr="aria-label" data-i18n="ui.send">➤</button>
       </form>
-      <div class="composer-hint" id="hint" data-i18n="ui.composer_hint">Enter للإرسال · Shift+Enter لسطر جديد</div>
+      <div class="composer-hint" id="hint">
+        <span data-i18n="ui.composer_hint">Enter للإرسال · Shift+Enter لسطر جديد</span>
+        <button type="button" class="why-chip" id="clear-chat-btn" onclick="clearChatHistory()"
+                data-i18n="ui.today_screen.clear_chat_btn">مسح المحادثة</button>
+      </div>
       <div class="lp-footer-copy" data-i18n="ui.landing.footer_copy">
         CycleCare AI — منصة تثقيفية آمنة لصحة الدورة الشهرية · جميع الحقوق محفوظة
       </div>
@@ -391,7 +397,9 @@
         </div>
 
         <div class="tabs" role="tablist">
-          <button class="tab active" id="tab-cycles" role="tab" aria-selected="true"
+          <button class="tab active" id="tab-today" role="tab" aria-selected="true"
+                  onclick="setTrackerTab('today')" data-i18n="ui.tabs.today">اليوم</button>
+          <button class="tab" id="tab-cycles" role="tab" aria-selected="false"
                   onclick="setTrackerTab('cycles')" data-i18n="ui.tracker.tab_cycles">الدورات</button>
           <button class="tab" id="tab-symptoms" role="tab" aria-selected="false"
                   onclick="setTrackerTab('symptoms')" data-i18n="ui.tracker.tab_symptoms">الأعراض</button>
@@ -399,8 +407,105 @@
                   onclick="setTrackerTab('insights')" data-i18n="ui.tracker.tab_insights">الرؤى</button>
         </div>
 
+        <!-- النهارده: تسجيل يومي مهيكل في أقل من 10 ثوانٍ بلا كتابة إجبارية -->
+        <section id="pane-today" class="tab-pane">
+          <!-- معالج التعارف السريع (3 خطوات فقط قابلة للتخطي) -->
+          <div class="form-card qod-card" id="onboarding-wizard-card" hidden>
+            <div class="q-card-head">
+              <strong data-i18n="ui.today_screen.onboarding_wizard_title">تعارف سريع في 3 خطوات (اختياري)</strong>
+              <button type="button" class="skip-chip" onclick="skipAllInitialOnboarding()"
+                      data-i18n="ui.today_screen.onboarding_skip_all">تخطّي الكل</button>
+            </div>
+            <div class="structured-questions-stack" id="onboarding-wizard-body"></div>
+            <div class="settings-actions">
+              <button type="button" class="btn-primary btn-sm" onclick="saveInitialOnboardingWizard()"
+                      data-i18n="ui.today_screen.onboarding_finish_btn">حفظ والبدء ✓</button>
+            </div>
+          </div>
+
+          <div class="today-header-card">
+            <div class="today-header-top">
+              <div>
+                <h3 id="today-screen-heading" data-i18n="ui.today_screen.title">سجل النهارده السريع (في أقل من 10 ثوانٍ)</h3>
+                <span class="badge-pill logged" id="today-autosave-pill" hidden
+                      data-i18n="ui.today_screen.autosaved_badge">تم الحفظ تلقائيًا ✓</span>
+              </div>
+              <label class="today-date-picker-label">
+                <input type="date" id="today-log-date" onchange="loadStructuredDayLog(this.value)">
+              </label>
+            </div>
+
+            <!-- مؤشر تقدّم لطيف غير عقابي (بلا سلاسل متتالية أو عقاب) -->
+            <div class="today-progress-wrap">
+              <div class="today-progress-meta">
+                <span id="today-progress-label">سجّلتِ 0 من 5 أسئلة أساسية اليوم</span>
+                <span class="badge-pill" id="today-cycle-status-pill" data-i18n="ui.today_screen.calendar_legend_unlogged">لم تُسجَّل</span>
+              </div>
+              <div class="today-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0">
+                <div class="today-progress-fill" id="today-progress-fill" style="width: 0%"></div>
+              </div>
+              <p class="why-inline-note" id="today-prev-cycle-banner" hidden></p>
+            </div>
+          </div>
+
+          <!-- شريط التراجع (Undo) لمدة 10 ثوانٍ بعد حذف سجل يوم -->
+          <div class="undo-banner" id="today-undo-banner" hidden>
+            <span data-i18n="ui.tracker.undo_hint">يمكنكِ التراجع خلال 10 ثوانٍ.</span>
+            <button type="button" class="btn-primary btn-sm" onclick="undoDeleteStructuredDayLog()"
+                    data-i18n="ui.tracker.undo_btn">تراجع ↩</button>
+          </div>
+
+          <!-- الأسئلة الخمسة الأساسية -->
+          <div class="structured-questions-stack" id="today-core-questions"></div>
+
+          <!-- قسم قابل للفتح: + زيادة تفاصيل (اختياري) يظهر حسب السياق -->
+          <details class="more-details-accordion" id="today-more-details-wrap">
+            <summary id="today-more-details-summary" data-i18n="ui.today_screen.more_details_toggle">زيادة تفاصيل اليوم (حسب حالتكِ)</summary>
+            <div class="structured-questions-stack" id="today-contextual-questions"></div>
+            <div class="structured-questions-stack" id="today-lifestyle-questions"></div>
+          </details>
+
+          <!-- فحص السلامة اليومي غير المزعج (البند 4.6) -->
+          <div class="form-card safety-check-card" id="today-safety-card">
+            <div class="q-card-head">
+              <strong id="today-safety-title" data-i18n="questions.s.daily_safety.label">في حاجة من دول النهارده؟</strong>
+              <button type="button" class="why-chip" onclick="toggleWhyBox('why-s-safety')"
+                      data-i18n="ui.today_screen.why_we_ask_btn">ليه بنسأل؟</button>
+            </div>
+            <p class="why-inline-note" id="why-s-safety" hidden data-i18n="ui.today_screen.safety_section_title">
+              فحص السلامة اليومي السريع
+            </p>
+            <div class="q-chips-row" id="today-safety-chips"></div>
+          </div>
+
+          <!-- بطاقة «سؤال اليوم» لاستكمال التعارف التدريجي (البند 3.1) -->
+          <div class="form-card qod-card" id="today-qod-card" hidden>
+            <div class="q-card-head">
+              <span class="lp-badge" data-i18n="ui.today_screen.qotd_badge">سؤال اليوم التكميلي</span>
+            </div>
+            <div id="today-qod-body"></div>
+          </div>
+
+          <!-- بطاقة ترشيحات المكتبة التثقيفية المعتمدة حسب سجل اليوم -->
+          <div class="form-card" id="today-library-card" hidden>
+            <div class="q-card-head">
+              <strong data-i18n="ui.today_screen.library_rec_title">مقالات معتمدة مرتبطة بما سجّلتِه اليوم</strong>
+            </div>
+            <div class="structured-questions-stack" id="today-library-list"></div>
+          </div>
+
+          <div class="settings-actions today-actions-bar">
+            <button type="button" class="btn-primary" onclick="saveStructuredDailyLog()"
+                    data-i18n="ui.today_screen.save_today_btn">حفظ سجل النهارده ✓</button>
+            <button type="button" class="btn-ghost" onclick="copyYesterdayLog()"
+                    data-i18n="ui.tracker.copy_yesterday_btn">اليوم يشبه أمس 📋</button>
+            <button type="button" class="btn-ghost danger" id="today-delete-log-btn"
+                    onclick="deleteStructuredDailyLog()" data-i18n="ui.today_screen.delete_today_btn">مسح سجل اليوم</button>
+          </div>
+        </section>
+
         <!-- الدورات -->
-        <section id="pane-cycles" class="tab-pane">
+        <section id="pane-cycles" class="tab-pane" hidden>
           <div class="cycle-visual-card">
             <div class="cycle-ring-wrap no-flip">
               <svg class="cycle-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
@@ -439,6 +544,29 @@
           <div class="cycle-chart-card" id="cycle-chart-card" hidden>
             <h4 class="chart-title" data-i18n="ui.tracker.chart_title">تطور طول الدورات الأخيرة (أيام)</h4>
             <div class="cycle-bars" id="cycle-bars"></div>
+          </div>
+
+          <!-- تقويم شهري مرئي ملوّن حسب شدة النزيف ونقطة للأعراض ووسم «لم تُسجَّل» (البند 7.2) -->
+          <div class="cycle-chart-card calendar-card" id="monthly-calendar-card">
+            <div class="prediction-head">
+              <div class="cal-nav-row">
+                <button type="button" class="why-chip" id="cal-prev-btn" onclick="shiftCalendarMonth(-1)"
+                        data-i18n="ui.today_screen.calendar_prev_month">الشهر السابق</button>
+                <h4 class="chart-title" id="calendar-month-label" data-i18n="ui.tabs.calendar">التقويم</h4>
+                <button type="button" class="why-chip" id="cal-today-btn" onclick="shiftCalendarMonth(0)"
+                        data-i18n="ui.today_screen.calendar_today_btn">اليوم</button>
+                <button type="button" class="why-chip" id="cal-next-btn" onclick="shiftCalendarMonth(1)"
+                        data-i18n="ui.today_screen.calendar_next_month">الشهر التالي</button>
+              </div>
+              <div class="calendar-legend">
+                <span class="cal-legend-item"><i class="cal-dot bleed-heavy"></i> <small data-i18n="ui.today_screen.calendar_legend_bleeding">يوم نزيف</small></span>
+                <span class="cal-legend-item"><i class="cal-dot bleed-light"></i> <small data-i18n="ui.today_screen.calendar_legend_spotting">تبقيع</small></span>
+                <span class="cal-legend-item"><i class="cal-dot has-symptom"></i> <small data-i18n="ui.today_screen.calendar_legend_symptoms">أعراض مسجّلة</small></span>
+                <span class="cal-legend-item"><i class="cal-dot predicted"></i> <small data-i18n="ui.today_screen.calendar_legend_predicted">نافذة متوقعة</small></span>
+                <span class="cal-legend-item"><i class="cal-dot unlogged"></i> <small data-i18n="ui.today_screen.calendar_legend_unlogged">لم تُسجَّل</small></span>
+              </div>
+            </div>
+            <div class="calendar-month-grid" id="calendar-month-grid"></div>
           </div>
 
           <!-- بطاقة التنبؤ بنطاق (Range Prediction) + درجة الثقة + سبب التوقع + زر التصحيح -->
@@ -612,6 +740,16 @@
               data-i18n="ui.settings.conditions_placeholder"></textarea>
           </label>
 
+          <label class="checkbox-row">
+            <input type="checkbox" id="f-sensitive-questions">
+            <span data-i18n="ui.today_screen.sensitive_toggle_label">إظهار الأسئلة الحسّاسة (العلاقة الزوجية / اختبارات الخصوبة)</span>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="f-lifestyle-questions" checked>
+            <span data-i18n="ui.today_screen.lifestyle_toggle_label">تفعيل أسئلة نمط الحياة اليومية (النوم، الماء، التوتر)</span>
+          </label>
+
           <div class="settings-actions">
             <button class="btn-primary" onclick="saveSettings()" data-i18n="ui.settings.save_btn">حفظ</button>
             <button class="btn-ghost" onclick="clearSettings()" data-i18n="ui.settings.clear_btn">مسح</button>
@@ -717,6 +855,11 @@
           <label class="checkbox-row">
             <input type="checkbox" id="consent-ai-checkbox" checked onchange="toggleAiConsent(this.checked)">
             <span data-i18n="ui.auth.consent_ai_label">موافقة صريحة على استخدام سياق الدورة في المساعد الذكي (إلغاء التفعيل يعطّل المساعد مع بقاء التتبّع كاملًا)</span>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="reminder-checkbox" onchange="toggleSafeReminder(this.checked)">
+            <span data-i18n="ui.today_screen.reminder_toggle_label">تفعيل تذكير يومي آمن على شاشة القفل («دقيقتكِ اليومية جاهزة 📝»)</span>
           </label>
         </div>
       </div>

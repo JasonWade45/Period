@@ -223,6 +223,10 @@ function fillSettingsForm(s) {
   document.getElementById("f-contraception").value = s.contraception ?? "";
   document.getElementById("f-conditions").value =
     (s.conditions || []).map((c) => `${c.name} | ${c.status}`).join("\n");
+  const sensEl = document.getElementById("f-sensitive-questions");
+  if (sensEl) sensEl.checked = Boolean(s.show_sensitive_questions);
+  const lifeEl = document.getElementById("f-lifestyle-questions");
+  if (lifeEl) lifeEl.checked = s.enable_lifestyle_questions !== false;
 }
 
 function readSettingsForm() {
@@ -242,6 +246,8 @@ function readSettingsForm() {
     return v === "" ? null : Number(v);
   };
   const goalEl = document.getElementById("f-goal");
+  const sensEl = document.getElementById("f-sensitive-questions");
+  const lifeEl = document.getElementById("f-lifestyle-questions");
 
   return {
     goal: goalEl ? goalEl.value || "track" : "track",
@@ -250,6 +256,8 @@ function readSettingsForm() {
     pregnancy_status: document.getElementById("f-pregnancy").value || null,
     contraception: document.getElementById("f-contraception").value || null,
     conditions,
+    show_sensitive_questions: Boolean(sensEl?.checked),
+    enable_lifestyle_questions: lifeEl ? Boolean(lifeEl.checked) : true,
   };
 }
 
@@ -765,7 +773,7 @@ function toggleTracker() {
 
 function setTrackerTab(tab) {
   state.tab = tab;
-  ["cycles", "symptoms", "insights"].forEach((t) => {
+  ["today", "cycles", "symptoms", "insights"].forEach((t) => {
     const btn = document.getElementById(`tab-${t}`);
     const pane = document.getElementById(`pane-${t}`);
     if (btn) {
@@ -774,11 +782,12 @@ function setTrackerTab(tab) {
     }
     if (pane) pane.hidden = t !== tab;
   });
+  if (tab === "today") loadStructuredDayLog();
   if (tab === "insights") refreshInsights();
 }
 
 async function refreshTracker() {
-  await Promise.all([loadCycles(), loadSymptoms()]);
+  await Promise.all([loadCycles(), loadSymptoms(), loadStructuredDayLog()]);
   if (state.tab === "insights") await refreshInsights();
 }
 
@@ -892,6 +901,7 @@ async function loadPrediction() {
   if (!insuffEl || !detailsEl) return;
   try {
     const pred = await api(`/v1/predictions?user_key=${encodeURIComponent(deviceKey())}`);
+    state.predictionWindow = pred;
     if ((pred.status !== "ok" && pred.status !== "predicted") || !pred.window_start || !pred.window_end) {
       insuffEl.hidden = false;
       detailsEl.hidden = true;
@@ -901,6 +911,7 @@ async function loadPrediction() {
     insuffEl.hidden = true;
     detailsEl.hidden = false;
     winEl.textContent = `${fmtDate(pred.window_start)} – ${fmtDate(pred.window_end)}`;
+    renderMonthlyCalendar(state.allDailyLogs || []);
     if (badgeEl) {
       badgeEl.hidden = false;
       const confMap = {
@@ -943,10 +954,817 @@ async function correctCycleStartFromInput() {
 async function copyYesterdayLog() {
   try {
     await api(`/v1/daily-logs/copy-yesterday?user_key=${encodeURIComponent(deviceKey())}`, "POST", {});
-    await loadSymptoms();
+    await Promise.all([loadSymptoms(), loadStructuredDayLog()]);
     showToast(i18nText("ui.tracker.copied_yesterday", "تم نسخ سجل أمس وأعراضه إلى اليوم."), "ok");
   } catch (e) {
     showToast(e.message, "danger");
+  }
+}
+
+/* ---------------- شاشة «النهارده» والتقويم الشهري المهيكل ---------------- */
+
+const QUESTION_TO_FIELD = {
+  "d.bleeding": "bleeding_level",
+  "d.pain": "pain_score",
+  "d.symptoms": "symptoms",
+  "d.mood": "mood",
+  "d.energy": "energy",
+  "b.pad_count": "pad_count",
+  "b.soak_hourly": "soak_hourly",
+  "b.clots": "clots",
+  "b.dizzy": "dizzy",
+  "b.color": "bleeding_color",
+  "n.discharge": "discharge",
+  "n.intermenstrual": "intermenstrual",
+  "n.post_intercourse_bleeding": "post_intercourse_bleeding",
+  "n.intercourse": "intercourse",
+  "n.ovulation_test": "ovulation_test",
+  "n.pregnancy_test": "pregnancy_test",
+  "n.bbt": "bbt",
+  "l.sleep_hours": "sleep_hours",
+  "l.water_ml": "water_ml",
+  "l.exercise": "exercise",
+  "l.stress": "stress",
+  "l.medications": "medications",
+};
+
+function toggleWhyBox(boxId) {
+  const el = document.getElementById(boxId);
+  if (el) el.hidden = !el.hidden;
+}
+
+async function loadStructuredDayLog(requestedDate) {
+  const dateInput = document.getElementById("today-log-date");
+  const logDate = requestedDate || (dateInput && dateInput.value) || todayIso();
+  if (dateInput) dateInput.value = logDate;
+
+  try {
+    const ukey = encodeURIComponent(deviceKey());
+    const loc = encodeURIComponent(currentLocale());
+    const [logs, qMeta] = await Promise.all([
+      api(`/v1/daily-logs?user_key=${ukey}`),
+      api(`/v1/questions?user_key=${ukey}&log_date=${encodeURIComponent(logDate)}&locale=${loc}`),
+    ]);
+    state.allDailyLogs = Array.isArray(logs) ? logs : [];
+    const found = state.allDailyLogs.find((r) => r.log_date === logDate);
+    state.currentDayLog = found
+      ? JSON.parse(JSON.stringify(found))
+      : {
+          log_date: logDate,
+          symptoms: [],
+          answered: [],
+          skipped: [],
+          field_timestamps: {},
+        };
+    state.questionMeta = qMeta;
+    renderStructuredTodayScreen();
+    renderMonthlyCalendar(state.allDailyLogs);
+  } catch {
+    /* يبقى العرض آمنًا حتى لو تعذّر الاتصال المؤقت */
+  }
+}
+
+function renderStructuredTodayScreen() {
+  const qMeta = state.questionMeta;
+  const draft = state.currentDayLog;
+  if (!qMeta || !draft) return;
+
+  updateTodayProgress(draft);
+
+  const coreBox = document.getElementById("today-core-questions");
+  const ctxBox = document.getElementById("today-contextual-questions");
+  const lifeBox = document.getElementById("today-lifestyle-questions");
+  if (coreBox) {
+    coreBox.innerHTML = "";
+    (qMeta.daily_core || []).forEach((q) => {
+      coreBox.appendChild(buildQuestionCard(q, draft, qMeta.symptom_catalog || []));
+    });
+  }
+
+  const bleedLevel = draft.bleeding_level;
+  const isBleeding = ["light", "medium", "heavy"].includes(bleedLevel);
+  if (ctxBox) {
+    ctxBox.innerHTML = "";
+    const ctxHead = document.createElement("h4");
+    ctxHead.className = "chart-title";
+    ctxHead.textContent = isBleeding
+      ? i18nText("ui.today_screen.bleeding_section_title", "تفاصيل يوم النزيف")
+      : i18nText("ui.today_screen.non_bleeding_section_title", "متابعة أيام غير النزيف");
+    ctxBox.appendChild(ctxHead);
+    const ctxQuestions = isBleeding
+      ? qMeta.bleeding_questions || []
+      : qMeta.non_bleeding_questions || [];
+    ctxQuestions.forEach((q) => {
+      ctxBox.appendChild(buildQuestionCard(q, draft, qMeta.symptom_catalog || []));
+    });
+  }
+
+  if (lifeBox) {
+    lifeBox.innerHTML = "";
+    const lifeHead = document.createElement("h4");
+    lifeHead.className = "chart-title";
+    lifeHead.textContent = i18nText("ui.today_screen.lifestyle_section_title", "نمط الحياة اليومي (اختياري)");
+    lifeBox.appendChild(lifeHead);
+    (qMeta.lifestyle_questions || []).forEach((q) => {
+      lifeBox.appendChild(buildQuestionCard(q, draft, qMeta.symptom_catalog || []));
+    });
+  }
+
+  renderSafetyCheckCard(qMeta.safety_check);
+  renderQuestionOfDayCard(qMeta.question_of_the_day);
+  renderInitialOnboardingWizard(qMeta.onboarding_initial || []);
+  renderPrevCycleComparison(draft, state.allDailyLogs || []);
+  loadContextualLibraryForDay(draft);
+}
+
+const OFFLINE_QUEUE_KEY = "cyclecare_offline_daily_logs_v1";
+const CHAT_HISTORY_KEY = "cyclecare_chat_history_v1";
+const SAFE_REMINDER_KEY = "cyclecare_safe_reminder_v1";
+
+function scheduleAutoSaveStructuredLog() {
+  clearTimeout(state.autoSaveTimer);
+  state.autoSaveTimer = setTimeout(() => {
+    saveStructuredDailyLog(true);
+  }, 450);
+}
+
+function enqueueOfflineDailyLog(payload) {
+  try {
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
+    const filtered = queue.filter((item) => item.log_date !== payload.log_date);
+    filtered.push(payload);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(filtered));
+    const pill = document.getElementById("today-autosave-pill");
+    if (pill) {
+      pill.hidden = false;
+      pill.textContent = i18nText(
+        "ui.today_screen.offline_queued_badge",
+        "محفوظ محليًا (سيُزامَن فور عودة الإنترنت)"
+      );
+    }
+  } catch {
+    /* تجاهل */
+  }
+}
+
+async function flushOfflineDailyLogQueue() {
+  try {
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
+    if (!Array.isArray(queue) || !queue.length) return;
+    const ukey = encodeURIComponent(deviceKey());
+    for (const item of queue) {
+      await api(`/v1/daily-logs?user_key=${ukey}`, "PUT", item);
+    }
+    localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    await loadStructuredDayLog();
+  } catch {
+    /* سيعاد المحاولة لاحقًا */
+  }
+}
+
+window.addEventListener("online", () => {
+  flushOfflineDailyLogQueue();
+});
+
+function renderInitialOnboardingWizard(initialQuestions) {
+  const card = document.getElementById("onboarding-wizard-card");
+  const body = document.getElementById("onboarding-wizard-body");
+  if (!card || !body) return;
+  const doneFlag = localStorage.getItem("cyclecare_onboarding_wizard_done") === "1";
+  if (doneFlag || !initialQuestions.length) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  body.innerHTML = "";
+  state.wizardDraft = state.wizardDraft || {};
+  initialQuestions.slice(0, 3).forEach((q) => {
+    const qBox = document.createElement("div");
+    qBox.className = "q-card";
+    const h = document.createElement("strong");
+    h.textContent = q.label || q.id;
+    qBox.appendChild(h);
+    if (q.answer_type === "date_or_unknown") {
+      const inp = document.createElement("input");
+      inp.type = "date";
+      inp.style.marginTop = "6px";
+      inp.value = state.wizardDraft[q.id] || "";
+      inp.onchange = () => {
+        state.wizardDraft[q.id] = inp.value;
+      };
+      qBox.appendChild(inp);
+    } else {
+      const row = document.createElement("div");
+      row.className = "q-chips-row";
+      row.style.marginTop = "6px";
+      const opts =
+        q.options_localized && q.options_localized.length
+          ? q.options_localized
+          : [
+              { code: true, label: i18nText("ui.today_screen.yes_btn", "نعم") },
+              { code: false, label: i18nText("ui.today_screen.no_btn", "لا") },
+            ];
+      opts.forEach((opt) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `q-chip${state.wizardDraft[q.id] === opt.code ? " active" : ""}`;
+        btn.textContent = opt.label;
+        btn.onclick = () => {
+          state.wizardDraft[q.id] = opt.code;
+          renderInitialOnboardingWizard(initialQuestions);
+        };
+        row.appendChild(btn);
+      });
+      qBox.appendChild(row);
+    }
+    body.appendChild(qBox);
+  });
+}
+
+async function skipAllInitialOnboarding() {
+  localStorage.setItem("cyclecare_onboarding_wizard_done", "1");
+  const card = document.getElementById("onboarding-wizard-card");
+  if (card) card.hidden = true;
+  try {
+    const ukey = encodeURIComponent(deviceKey());
+    const prof = await api(`/v1/profile?user_key=${ukey}`, "GET");
+    const skipped = new Set([...(prof.skipped || []), "ob.goal", "ob.last_period_start", "ob.currently_bleeding"]);
+    await api(`/v1/profile?user_key=${ukey}`, "PUT", {
+      ...prof,
+      skipped: Array.from(skipped),
+    });
+  } catch {
+    /* محفوظ محليًا */
+  }
+}
+
+async function saveInitialOnboardingWizard() {
+  localStorage.setItem("cyclecare_onboarding_wizard_done", "1");
+  const card = document.getElementById("onboarding-wizard-card");
+  if (card) card.hidden = true;
+  const wiz = state.wizardDraft || {};
+  try {
+    const ukey = encodeURIComponent(deviceKey());
+    const prof = await api(`/v1/profile?user_key=${ukey}`, "GET");
+    const answered = new Set(prof.answered || []);
+    const payload = { ...prof };
+    if (wiz["ob.goal"]) {
+      payload.goal = wiz["ob.goal"];
+      answered.add("ob.goal");
+    }
+    if (wiz["ob.last_period_start"]) {
+      payload.last_period_start = wiz["ob.last_period_start"];
+      answered.add("ob.last_period_start");
+      await api(`/v1/cycles?user_key=${ukey}`, "POST", {
+        start_date: wiz["ob.last_period_start"],
+        length_days: 5,
+      });
+    }
+    if (wiz["ob.currently_bleeding"] !== undefined) {
+      payload.currently_bleeding = Boolean(wiz["ob.currently_bleeding"]);
+      answered.add("ob.currently_bleeding");
+    }
+    payload.answered = Array.from(answered);
+    await api(`/v1/profile?user_key=${ukey}`, "PUT", payload);
+    await Promise.all([loadCycles(), loadStructuredDayLog()]);
+    showToast(i18nText("ui.feedback.settings_saved", "تم حفظ بياناتكِ الشخصية."), "ok");
+  } catch (e) {
+    showToast(e.message, "danger");
+  }
+}
+
+function renderPrevCycleComparison(draft, allLogs) {
+  const banner = document.getElementById("today-prev-cycle-banner");
+  if (!banner || !draft || !draft.log_date || !Array.isArray(allLogs) || allLogs.length < 2) {
+    if (banner) banner.hidden = true;
+    return;
+  }
+  const targetDt = new Date(draft.log_date + "T00:00:00");
+  const prevDt = new Date(targetDt.getTime() - 28 * 86400000);
+  const prevIso = prevDt.toISOString().slice(0, 10);
+  const prevLog = allLogs.find((l) => l.log_date === prevIso);
+  if (!prevLog) {
+    banner.hidden = true;
+    return;
+  }
+  const parts = [];
+  if (prevLog.bleeding_level && prevLog.bleeding_level !== "none") {
+    parts.push(prevLog.bleeding_level);
+  }
+  if (prevLog.pain_score != null) {
+    parts.push(`${prevLog.pain_score}/5`);
+  }
+  if (Array.isArray(prevLog.symptoms) && prevLog.symptoms.length) {
+    const syms = prevLog.symptoms.map((s) => (typeof s === "object" ? s.symptom_id : s)).filter(Boolean);
+    if (syms.length) parts.push(syms.slice(0, 2).join(", "));
+  }
+  if (!parts.length) {
+    banner.hidden = true;
+    return;
+  }
+  const tmpl = i18nText("ui.today_screen.prev_cycle_comparison", "في نفس اليوم من دورتكِ السابقة: {summary}");
+  banner.textContent = tmpl.replace("{summary}", parts.join(" · "));
+  banner.hidden = false;
+}
+
+async function loadContextualLibraryForDay(draft) {
+  const card = document.getElementById("today-library-card");
+  const list = document.getElementById("today-library-list");
+  if (!card || !list || !draft) return;
+  const hasTopic =
+    (draft.bleeding_level && draft.bleeding_level !== "none") ||
+    (Array.isArray(draft.symptoms) && draft.symptoms.length);
+  if (!hasTopic) {
+    card.hidden = true;
+    return;
+  }
+  try {
+    const res = await api("/v1/library");
+    const articles = (res && res.articles) || [];
+    if (!articles.length) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    list.innerHTML = "";
+    articles.slice(0, 2).forEach((art) => {
+      const item = document.createElement("div");
+      item.className = "q-card";
+      const h = document.createElement("strong");
+      h.textContent = `${art.title} — ${art.source_name}`;
+      const p = document.createElement("p");
+      p.className = "muted";
+      p.style.fontSize = "12px";
+      p.style.marginTop = "4px";
+      p.textContent = (art.body || "").slice(0, 150) + "…";
+      item.append(h, p);
+      list.appendChild(item);
+    });
+  } catch {
+    card.hidden = true;
+  }
+}
+
+function updateTodayProgress(draft) {
+  const coreIds = ["d.bleeding", "d.pain", "d.symptoms", "d.mood", "d.energy"];
+  const answeredSet = new Set(draft.answered || []);
+  const skippedSet = new Set(draft.skipped || []);
+  let doneCount = 0;
+  coreIds.forEach((qid) => {
+    const field = QUESTION_TO_FIELD[qid];
+    const hasVal =
+      field === "symptoms"
+        ? Array.isArray(draft.symptoms) && draft.symptoms.length > 0
+        : draft[field] !== undefined && draft[field] !== null && draft[field] !== "";
+    if (answeredSet.has(qid) || skippedSet.has(qid) || hasVal) {
+      doneCount += 1;
+    }
+  });
+
+  const labelEl = document.getElementById("today-progress-label");
+  const fillEl = document.getElementById("today-progress-fill");
+  const pillEl = document.getElementById("today-cycle-status-pill");
+  if (labelEl) {
+    const tmpl = i18nText("ui.today_screen.progress_label", "سجّلتِ {answered} من 5 أسئلة أساسية اليوم");
+    labelEl.textContent = tmpl.replace("{answered}", String(doneCount));
+  }
+  if (fillEl) {
+    fillEl.style.width = `${Math.min(100, Math.round((doneCount / 5) * 100))}%`;
+  }
+  if (pillEl) {
+    if (doneCount > 0 || draft.id) {
+      pillEl.classList.add("logged");
+      pillEl.textContent = draft.bleeding_level && draft.bleeding_level !== "none"
+        ? i18nText("ui.today_screen.calendar_legend_bleeding", "يوم نزيف")
+        : "✓";
+    } else {
+      pillEl.classList.remove("logged");
+      pillEl.textContent = i18nText("ui.today_screen.calendar_legend_unlogged", "لم تُسجَّل");
+    }
+  }
+}
+
+function markQuestionAnswered(draft, qid) {
+  draft.answered = Array.from(new Set([...(draft.answered || []), qid]));
+  draft.skipped = (draft.skipped || []).filter((x) => x !== qid);
+  const field = QUESTION_TO_FIELD[qid];
+  if (field) {
+    draft.field_timestamps = draft.field_timestamps || {};
+    draft.field_timestamps[field] = new Date().toISOString();
+  }
+  scheduleAutoSaveStructuredLog();
+}
+
+function toggleQuestionSkip(draft, qid) {
+  const skipped = new Set(draft.skipped || []);
+  const field = QUESTION_TO_FIELD[qid];
+  if (skipped.has(qid)) {
+    skipped.delete(qid);
+  } else {
+    skipped.add(qid);
+    draft.answered = (draft.answered || []).filter((x) => x !== qid);
+    if (field) {
+      draft[field] = field === "symptoms" ? [] : null;
+    }
+  }
+  draft.skipped = Array.from(skipped);
+  renderStructuredTodayScreen();
+  scheduleAutoSaveStructuredLog();
+}
+
+function buildQuestionCard(q, draft, symptomCatalog) {
+  const card = document.createElement("div");
+  const isSkipped = (draft.skipped || []).includes(q.id);
+  card.className = `q-card${isSkipped ? " is-skipped" : ""}`;
+  card.setAttribute("data-qid", q.id);
+
+  const head = document.createElement("div");
+  head.className = "q-card-head";
+  const title = document.createElement("strong");
+  title.textContent = q.label || q.id;
+  const actions = document.createElement("div");
+  actions.className = "q-head-actions";
+
+  const whyId = `why-${q.id.replace(/\./g, "-")}`;
+  if (q.why_text) {
+    const whyBtn = document.createElement("button");
+    whyBtn.type = "button";
+    whyBtn.className = "why-chip";
+    whyBtn.textContent = i18nText("ui.today_screen.why_we_ask_btn", "ليه بنسأل؟");
+    whyBtn.onclick = () => toggleWhyBox(whyId);
+    actions.appendChild(whyBtn);
+  }
+
+  const skipBtn = document.createElement("button");
+  skipBtn.type = "button";
+  skipBtn.className = `skip-chip${isSkipped ? " active" : ""}`;
+  skipBtn.textContent = isSkipped
+    ? i18nText("ui.today_screen.skipped_badge", "تم التخطّي (لا يُحسب كنفي)")
+    : i18nText("ui.today_screen.skip_btn", "تخطّي");
+  skipBtn.onclick = () => toggleQuestionSkip(draft, q.id);
+  actions.appendChild(skipBtn);
+
+  head.append(title, actions);
+  card.appendChild(head);
+
+  if (q.why_text) {
+    const whyP = document.createElement("p");
+    whyP.className = "why-inline-note";
+    whyP.id = whyId;
+    whyP.hidden = true;
+    whyP.textContent = q.why_text;
+    card.appendChild(whyP);
+  }
+
+  const field = QUESTION_TO_FIELD[q.id];
+  const currentVal = field ? draft[field] : null;
+
+  if (q.answer_type === "slider_0_10") {
+    const wrap = document.createElement("div");
+    wrap.className = "q-slider-wrap";
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = "0";
+    slider.max = "10";
+    slider.value = currentVal != null ? String(currentVal) : "0";
+    const valSpan = document.createElement("span");
+    valSpan.className = "q-slider-val ltr-isolate";
+    valSpan.textContent = currentVal != null ? `${currentVal}/10` : "—";
+    slider.oninput = () => {
+      draft[field] = Number(slider.value);
+      valSpan.textContent = `${slider.value}/10`;
+      markQuestionAnswered(draft, q.id);
+      updateTodayProgress(draft);
+    };
+    wrap.append(slider, valSpan);
+    card.appendChild(wrap);
+  } else if (q.answer_type === "symptom_catalog") {
+    const row = document.createElement("div");
+    row.className = "q-chips-row";
+    const selectedSyms = new Set(Array.isArray(draft.symptoms) ? draft.symptoms : []);
+    const isExplicitNone = (draft.answered || []).includes("d.symptoms") && selectedSyms.size === 0;
+
+    const noneChip = document.createElement("button");
+    noneChip.type = "button";
+    noneChip.className = `q-chip${isExplicitNone ? " active" : ""}`;
+    noneChip.textContent = i18nText("questions.d.symptoms.none_today", "مفيش أعراض النهارده");
+    noneChip.onclick = () => {
+      draft.symptoms = [];
+      markQuestionAnswered(draft, q.id);
+      renderStructuredTodayScreen();
+    };
+    row.appendChild(noneChip);
+
+    symptomCatalog.forEach((sym) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `q-chip${selectedSyms.has(sym.code) ? " active" : ""}`;
+      btn.textContent = sym.label || sym.code;
+      btn.onclick = () => {
+        if (selectedSyms.has(sym.code)) selectedSyms.delete(sym.code);
+        else selectedSyms.add(sym.code);
+        draft.symptoms = Array.from(selectedSyms);
+        markQuestionAnswered(draft, q.id);
+        renderStructuredTodayScreen();
+      };
+      row.appendChild(btn);
+    });
+    card.appendChild(row);
+  } else {
+    const row = document.createElement("div");
+    row.className = "q-chips-row";
+    let opts = q.options_localized || [];
+    if (!opts.length && q.answer_type === "boolean_or_unknown") {
+      opts = [
+        { code: true, label: i18nText("ui.today_screen.yes_btn", "نعم") },
+        { code: false, label: i18nText("ui.today_screen.no_btn", "لا") },
+        { code: "unknown", label: i18nText("ui.today_screen.unknown_btn", "مش عارفة") },
+      ];
+    }
+    opts.forEach((opt) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      const isSelected = String(currentVal) === String(opt.code) && !isSkipped;
+      btn.className = `q-chip${isSelected ? " active" : ""}`;
+      btn.textContent = opt.label || String(opt.code);
+      btn.onclick = async () => {
+        draft[field] = q.id === "l.stress" ? Number(opt.code) : opt.code;
+        markQuestionAnswered(draft, q.id);
+        if (q.id === "d.bleeding") {
+          try {
+            const ukey = encodeURIComponent(deviceKey());
+            const loc = encodeURIComponent(currentLocale());
+            state.questionMeta = await api(
+              `/v1/questions?user_key=${ukey}&log_date=${encodeURIComponent(draft.log_date)}&bleeding_level=${encodeURIComponent(opt.code)}&locale=${loc}`
+            );
+          } catch {
+            /* استمرار محلي */
+          }
+        }
+        renderStructuredTodayScreen();
+      };
+      row.appendChild(btn);
+    });
+    card.appendChild(row);
+  }
+
+  return card;
+}
+
+function renderSafetyCheckCard(safetyQ) {
+  const row = document.getElementById("today-safety-chips");
+  if (!row || !safetyQ) return;
+  row.innerHTML = "";
+  (safetyQ.options_localized || []).forEach((opt) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const isNone = opt.code === "none" || opt.code === "flag.none";
+    btn.className = `q-chip${isNone ? "" : " safety-flag"}`;
+    btn.textContent = opt.label;
+    btn.onclick = async () => {
+      row.querySelectorAll(".q-chip").forEach((c) => c.classList.remove("active"));
+      btn.classList.add("active");
+      if (isNone) {
+        await api(`/v1/safety-check?user_key=${encodeURIComponent(deviceKey())}`, "POST", {
+          log_date: state.currentDayLog?.log_date || todayIso(),
+          flags: ["flag.none"],
+        });
+        return;
+      }
+      try {
+        const res = await api(`/v1/safety-check?user_key=${encodeURIComponent(deviceKey())}`, "POST", {
+          log_date: state.currentDayLog?.log_date || todayIso(),
+          flags: [opt.code],
+          country_code: loadSettings().country_code || null,
+          language_hint: currentLocale(),
+        });
+        if (res && res.emergency) {
+          showOverlay(res.crisis ? "crisis" : "medical", res.answer, res.emergency_payload);
+        }
+      } catch (e) {
+        showToast(e.message, "danger");
+      }
+    };
+    row.appendChild(btn);
+  });
+}
+
+function renderQuestionOfDayCard(qod) {
+  const card = document.getElementById("today-qod-card");
+  const body = document.getElementById("today-qod-body");
+  if (!card || !body) return;
+  if (!qod) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  body.innerHTML = "";
+  const title = document.createElement("strong");
+  title.textContent = qod.label || qod.id;
+  const whyP = document.createElement("p");
+  whyP.className = "muted";
+  whyP.style.fontSize = "12px";
+  whyP.style.margin = "4px 0 8px";
+  whyP.textContent = qod.why_text || "";
+  const row = document.createElement("div");
+  row.className = "q-chips-row";
+
+  (qod.options_localized || []).forEach((opt) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "q-chip";
+    btn.textContent = opt.label;
+    btn.onclick = async () => {
+      await answerQuestionOfDay(qod.id, opt.code, false);
+    };
+    row.appendChild(btn);
+  });
+
+  const skipBtn = document.createElement("button");
+  skipBtn.type = "button";
+  skipBtn.className = "skip-chip";
+  skipBtn.textContent = i18nText("ui.today_screen.skip_btn", "تخطّي");
+  skipBtn.onclick = async () => {
+    await answerQuestionOfDay(qod.id, null, true);
+  };
+  row.appendChild(skipBtn);
+
+  body.append(title, whyP, row);
+}
+
+async function answerQuestionOfDay(qid, value, isSkip) {
+  try {
+    const ukey = encodeURIComponent(deviceKey());
+    const prof = await api(`/v1/profile?user_key=${ukey}`, "GET");
+    const answered = new Set(prof.answered || []);
+    const skipped = new Set(prof.skipped || []);
+    if (isSkip) {
+      skipped.add(qid);
+    } else {
+      answered.add(qid);
+    }
+    const payload = {
+      ...prof,
+      answered: Array.from(answered),
+      skipped: Array.from(skipped),
+    };
+    if (!isSkip && qid === "ob.goal") payload.goal = value;
+    if (!isSkip && qid === "ob.age_band") payload.age_band = value;
+    if (!isSkip && qid === "ob.cycle_len_variation") payload.cycle_len_variation = value;
+    if (!isSkip && qid === "ob.pregnancy_status") payload.pregnancy_status = value;
+    if (!isSkip && qid === "ob.contraception") payload.contraception_method = value;
+    if (!isSkip && qid === "ob.family_bleeding") payload.family_bleeding_history = value;
+    await api(`/v1/profile?user_key=${ukey}`, "PUT", payload);
+    await loadStructuredDayLog();
+    showToast(i18nText("ui.feedback.settings_saved", "تم حفظ بياناتكِ الشخصية."), "ok");
+  } catch (e) {
+    showToast(e.message, "danger");
+  }
+}
+
+async function saveStructuredDailyLog(isAutoSave = false) {
+  const draft = state.currentDayLog;
+  if (!draft) return;
+  const payload = {
+    ...draft,
+    today_local: todayIso(),
+  };
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    enqueueOfflineDailyLog(payload);
+    return;
+  }
+  try {
+    const saved = await api(`/v1/daily-logs?user_key=${encodeURIComponent(deviceKey())}`, "PUT", payload);
+    state.currentDayLog = saved;
+    const pill = document.getElementById("today-autosave-pill");
+    if (pill) {
+      pill.hidden = false;
+      pill.textContent = i18nText("ui.today_screen.autosaved_badge", "تم الحفظ تلقائيًا ✓");
+    }
+    if (!isAutoSave) {
+      await Promise.all([loadCycles(), loadSymptoms(), loadStructuredDayLog(draft.log_date)]);
+      showToast(i18nText("ui.today_screen.save_today_btn", "حفظ سجل النهارده ✓"), "ok");
+    } else {
+      loadCycles();
+    }
+  } catch (e) {
+    if (isAutoSave) {
+      enqueueOfflineDailyLog(payload);
+    } else {
+      showToast(e.message, "danger");
+    }
+  }
+}
+
+async function deleteStructuredDailyLog() {
+  const draft = state.currentDayLog;
+  if (!draft || !draft.log_date) return;
+  try {
+    await api(
+      `/v1/daily-logs/${encodeURIComponent(draft.log_date)}?user_key=${encodeURIComponent(deviceKey())}`,
+      "DELETE"
+    );
+    state.lastDeletedLogDate = draft.log_date;
+    const banner = document.getElementById("today-undo-banner");
+    if (banner) {
+      banner.hidden = false;
+      clearTimeout(state.undoTimer);
+      state.undoTimer = setTimeout(() => {
+        banner.hidden = true;
+      }, 10000);
+    }
+    await Promise.all([loadCycles(), loadSymptoms(), loadStructuredDayLog(draft.log_date)]);
+  } catch (e) {
+    showToast(e.message, "danger");
+  }
+}
+
+async function undoDeleteStructuredDayLog() {
+  const logDate = state.lastDeletedLogDate || state.currentDayLog?.log_date;
+  if (!logDate) return;
+  try {
+    await api(
+      `/v1/daily-logs/${encodeURIComponent(logDate)}/undo?user_key=${encodeURIComponent(deviceKey())}`,
+      "POST",
+      {}
+    );
+    const banner = document.getElementById("today-undo-banner");
+    if (banner) banner.hidden = true;
+    await Promise.all([loadCycles(), loadSymptoms(), loadStructuredDayLog(logDate)]);
+    showToast(i18nText("ui.tracker.undo_restored", "تمت استعادة السجل بنجاح."), "ok");
+  } catch (e) {
+    showToast(e.message, "danger");
+  }
+}
+
+function shiftCalendarMonth(delta) {
+  if (delta === 0 || typeof state.calendarMonthOffset !== "number") {
+    state.calendarMonthOffset = 0;
+  } else {
+    state.calendarMonthOffset += delta;
+  }
+  renderMonthlyCalendar(state.allDailyLogs || []);
+}
+
+function renderMonthlyCalendar(logs) {
+  const grid = document.getElementById("calendar-month-grid");
+  const monthLabel = document.getElementById("calendar-month-label");
+  if (!grid) return;
+  const byDate = {};
+  (logs || []).forEach((l) => {
+    byDate[l.log_date] = l;
+  });
+  grid.innerHTML = "";
+
+  const now = new Date(todayIso() + "T00:00:00");
+  const offsetMonths = typeof state.calendarMonthOffset === "number" ? state.calendarMonthOffset : 0;
+  const firstOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offsetMonths, 1));
+  const year = firstOfMonth.getUTCFullYear();
+  const month = firstOfMonth.getUTCMonth();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+
+  if (monthLabel) {
+    try {
+      const loc = currentLocale().indexOf("en") === 0 ? "en-GB" : "ar-EG";
+      monthLabel.textContent = firstOfMonth.toLocaleDateString(loc, { month: "long", year: "numeric" });
+    } catch {
+      monthLabel.textContent = `${year}-${String(month + 1).padStart(2, "0")}`;
+    }
+  }
+
+  const predStart = state.predictionWindow?.window_start || "";
+  const predEnd = state.predictionWindow?.window_end || "";
+
+  for (let dayNum = 1; dayNum <= daysInMonth; dayNum += 1) {
+    const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+    const log = byDate[iso];
+    const cell = document.createElement("button");
+    cell.type = "button";
+    const bleed = log?.bleeding_level;
+    const bleedClass = bleed && bleed !== "none" ? ` bleed-${bleed}` : "";
+    const isPredicted = !bleedClass && predStart && predEnd && iso >= predStart && iso <= predEnd;
+    const predClass = isPredicted ? " predicted" : "";
+    const unloggedClass = !log && !isPredicted ? " unlogged" : "";
+    cell.className = `cal-day-cell${bleedClass}${predClass}${unloggedClass}`;
+    cell.title = log
+      ? `${iso} · ${bleed || "logged"}`
+      : isPredicted
+      ? `${iso} · ${i18nText("ui.today_screen.calendar_legend_predicted", "نافذة متوقعة")}`
+      : `${iso} · ${i18nText("ui.today_screen.calendar_legend_unlogged", "لم تُسجَّل")}`;
+    const numSpan = document.createElement("span");
+    numSpan.className = "ltr-isolate";
+    numSpan.textContent = String(dayNum).padStart(2, "0");
+    cell.appendChild(numSpan);
+    if (log && Array.isArray(log.symptoms) && log.symptoms.length > 0) {
+      const dot = document.createElement("span");
+      dot.className = "cal-sym-dot";
+      cell.appendChild(dot);
+    }
+    cell.onclick = () => {
+      setTrackerTab("today");
+      loadStructuredDayLog(iso);
+    };
+    grid.appendChild(cell);
   }
 }
 
@@ -1197,6 +2015,69 @@ async function refreshInsights() {
 
     if (!(data.findings || []).length) {
       box.innerHTML += `<p class="muted">${i18nText("ui.tracker.insights_empty", "لا نتائج بعد.")}</p>`;
+    }
+
+    // منحنى الألم والطاقة عبر الأيام المسجّلة
+    const logs = (state.allDailyLogs || []).slice(0, 10).reverse();
+    if (logs.length) {
+      const chartWrap = document.createElement("div");
+      chartWrap.className = "trend-chart-wrap";
+      const chartTitle = document.createElement("h4");
+      chartTitle.className = "chart-title";
+      chartTitle.textContent = i18nText(
+        "ui.today_screen.trend_chart_title",
+        "منحنى الألم والطاقة عبر الأيام المسجّلة"
+      );
+      const barsRow = document.createElement("div");
+      barsRow.className = "trend-bars-row";
+      logs.forEach((l) => {
+        const col = document.createElement("div");
+        col.className = "trend-bar-col";
+        const pair = document.createElement("div");
+        pair.className = "trend-bar-pair";
+        const painH = Math.max(6, Math.round(((Number(l.pain_score) || 0) / 5) * 56));
+        const energyH = Math.max(6, Math.round(((Number(l.energy) || 0) / 5) * 56));
+        const pBar = document.createElement("div");
+        pBar.className = "trend-bar-pain";
+        pBar.style.height = `${painH}px`;
+        pBar.title = `P: ${l.pain_score ?? 0}/5`;
+        const eBar = document.createElement("div");
+        eBar.className = "trend-bar-energy";
+        eBar.style.height = `${energyH}px`;
+        eBar.title = `E: ${l.energy ?? 0}/5`;
+        pair.append(pBar, eBar);
+        const dtLbl = document.createElement("small");
+        dtLbl.className = "ltr-isolate";
+        dtLbl.textContent = (l.log_date || "").slice(5);
+        col.append(pair, dtLbl);
+        barsRow.appendChild(col);
+      });
+      chartWrap.append(chartTitle, barsRow);
+      box.appendChild(chartWrap);
+    }
+
+    // قسم وضع مراجعة الطبيبة (Shadow Mode — TODO(clinician))
+    if (Array.isArray(data.shadow_findings) && data.shadow_findings.length > 0) {
+      const details = document.createElement("details");
+      details.className = "shadow-review-box";
+      const sum = document.createElement("summary");
+      sum.textContent = i18nText(
+        "ui.today_screen.clinician_shadow_title",
+        "وضع مراجعة الطبيبة (قواعد قيد المراجعة — Shadow Mode)"
+      );
+      details.appendChild(sum);
+      data.shadow_findings.forEach((sf) => {
+        const sc = document.createElement("div");
+        sc.className = "insight-card";
+        sc.style.marginTop = "8px";
+        const sh = document.createElement("h4");
+        sh.textContent = `${sf.title} — ${sf.rule_code} [TODO(clinician)]`;
+        const sev = document.createElement("small");
+        sev.textContent = `${evPrefix} ${(sf.evidence || []).join(" · ")}`;
+        sc.append(sh, sev);
+        details.appendChild(sc);
+      });
+      box.appendChild(details);
     }
   } catch (e) {
     const errPrefix = i18nText("ui.feedback.load_error", "تعذّر تحميل البيانات");
@@ -1650,13 +2531,52 @@ async function toggleAiConsent(granted) {
   }
 }
 
+function clearChatHistory() {
+  state.history = [];
+  localStorage.removeItem(CHAT_HISTORY_KEY);
+  const c = chatEl();
+  if (c && state.welcomeHtml) {
+    c.innerHTML = state.welcomeHtml;
+  }
+  showToast(i18nText("ui.today_screen.clear_chat_btn", "مسح المحادثة"), "ok");
+}
+
+function toggleSafeReminder(enabled) {
+  const active = Boolean(enabled);
+  localStorage.setItem(SAFE_REMINDER_KEY, active ? "1" : "0");
+  if (active && typeof Notification !== "undefined" && Notification.permission === "default") {
+    Notification.requestPermission().catch(() => null);
+  }
+  showToast(i18nText("ui.auth.pin_saved", "تم تحديث إعدادات القفل والتمويه."), "ok");
+}
+
+function encryptPrivateNote(plainText) {
+  const pin = localStorage.getItem(LOCAL_PIN_KEY);
+  if (!pin || !plainText) return plainText;
+  const badge = i18nText("ui.today_screen.encrypted_note_badge", "ملاحظة مشفّرة محليًا بـ PIN 🔒");
+  try {
+    const encoded = btoa(unescape(encodeURIComponent(plainText)));
+    return `[ENC:${badge}]${encoded}`;
+  } catch {
+    return plainText;
+  }
+}
+
+function registerPwaServiceWorker() {
+  if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => null);
+  }
+}
+
 function switchBottomTab(tab) {
   ["today", "calendar", "insights", "assistant", "me"].forEach((t) => {
     const btn = document.getElementById(`btab-${t}`);
     if (btn) btn.classList.toggle("active", t === tab);
   });
 
-  if (tab === "today" || tab === "calendar") {
+  if (tab === "today") {
+    openTrackerTab("today");
+  } else if (tab === "calendar") {
     openTrackerTab("cycles");
   } else if (tab === "insights") {
     openTrackerTab("insights");
@@ -1690,7 +2610,9 @@ if (localStorage.getItem(LOCAL_PIN_KEY)) {
 initI18n().then(async () => {
   renderAuthState();
   await restoreAuthSession();
-  await loadCycles();
+  await Promise.all([loadCycles(), loadStructuredDayLog()]);
+  flushOfflineDailyLogQueue();
+  registerPwaServiceWorker();
 });
 
 document.getElementById("c-date").value = todayIso();
